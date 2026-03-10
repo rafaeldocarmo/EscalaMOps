@@ -1,5 +1,27 @@
 This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
 
+## Autenticação (NextAuth + Prisma + shadcn)
+
+- **Login**: Google OAuth ou email/senha.
+- **Fluxo**: Após login, o usuário é direcionado para informar o número de celular (obrigatório).
+- **BD**: PostgreSQL com Prisma. Sessões em banco.
+
+### Setup
+
+1. **Variáveis de ambiente**  
+   Copie `.env.example` para `.env` e preencha:
+   - `DATABASE_URL` – connection string do PostgreSQL
+   - `AUTH_SECRET` – gere com `npx auth secret`
+   - `GOOGLE_CLIENT_ID` e `GOOGLE_CLIENT_SECRET` – [Google Cloud Console](https://console.cloud.google.com/apis/credentials) (OAuth 2.0)
+
+2. **Banco e Prisma**  
+   ```bash
+   npx prisma migrate dev
+   ```
+
+3. **Build**  
+   Execute sempre a partir da pasta do projeto (`escala-mops`). Se aparecer erro de "Module not found" para `@/`, verifique se não há outro `package-lock.json` em diretório pai (o Next.js pode usar essa pasta como raiz).
+
 ## Getting Started
 
 First, run the development server:

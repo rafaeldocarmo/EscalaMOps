@@ -1,0 +1,138 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client"
+  output   = "../lib/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// NextAuth.js + campos extras (phone para celular, password para login email/senha)
+model Account {
+  id                String  @id @default(cuid())
+  userId            String  @map("user_id")
+  type              String
+  provider          String
+  providerAccountId String  @map("provider_account_id")
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@map("accounts")
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique @map("session_token")
+  userId       String   @map("user_id")
+  expires      DateTime
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("sessions")
+}
+
+enum UserRole {
+  USER
+  ADMIN
+}
+
+model User {
+  id            String    @id @default(cuid())
+  name          String?
+  email         String?   @unique
+  emailVerified DateTime? @map("email_verified")
+  image         String?
+  password      String?   // hash para login com email/senha
+  phone         String?   // celular obrigatório após login
+  role          UserRole  @default(USER)
+
+  accounts Account[]
+  sessions Session[]
+
+  @@map("users")
+}
+
+enum Level {
+  N1
+  N2
+}
+
+enum Shift {
+  T1
+  T2
+  T3
+}
+
+model TeamMember {
+  id             String   @id @default(cuid())
+  name           String
+  phone          String
+  level          Level
+  shift          Shift
+  rotationIndex  Int      @default(0) @map("rotation_index")
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  scheduleAssignments ScheduleAssignment[]
+
+  @@map("team_members")
+}
+
+enum ScheduleStatus {
+  OPEN
+  LOCKED
+}
+
+enum AssignmentStatus {
+  WORK
+  OFF
+  SWAP_REQUESTED
+}
+
+model Schedule {
+  id        String   @id @default(cuid())
+  month     Int
+  year      Int
+  status    ScheduleStatus
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  assignments ScheduleAssignment[]
+
+  @@unique([year, month])
+  @@map("schedules")
+}
+
+model ScheduleAssignment {
+  id         String           @id @default(cuid())
+  scheduleId String           @map("schedule_id")
+  memberId   String           @map("member_id")
+  date       DateTime
+  status     AssignmentStatus
+
+  schedule Schedule  @relation(fields: [scheduleId], references: [id], onDelete: Cascade)
+  member   TeamMember @relation(fields: [memberId], references: [id], onDelete: Cascade)
+
+  @@unique([scheduleId, memberId, date])
+  @@map("schedule_assignments")
+}
+
+model VerificationToken {
+  identifier String
+  token      String
+  expires    DateTime
+
+  @@unique([identifier, token])
+  @@map("verification_tokens")
+}
