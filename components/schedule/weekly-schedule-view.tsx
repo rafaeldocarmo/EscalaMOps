@@ -100,7 +100,7 @@ export function WeeklyScheduleView({ memberName }: WeeklyScheduleViewProps) {
                             cell.names.map((name) => (
                               <Card
                                 key={name}
-                                className={`px-2 py-1 text-xs font-medium shadow-none rounded-sm mb-2 ${name === myDisplayName ? "bg-yellow-200 border-yellow-500" : "bg-background"}`}
+                                className={`px-2 py-1 text-xs font-medium shadow-none rounded-sm mb-2 ${name === myDisplayName ? "bg-yellow-200 border-yellow-500 text-black" : "bg-background"}`}
                               >
                                 {name}
                               </Card>

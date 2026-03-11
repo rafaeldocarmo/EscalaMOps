@@ -84,7 +84,9 @@ model TeamMember {
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
-  scheduleAssignments ScheduleAssignment[]
+  scheduleAssignments   ScheduleAssignment[]
+  swapRequestsAsRequester ScheduleSwapRequest[] @relation("SwapRequester")
+  swapRequestsAsTarget   ScheduleSwapRequest[] @relation("SwapTarget")
 
   @@map("team_members")
 }
@@ -135,4 +137,38 @@ model VerificationToken {
 
   @@unique([identifier, token])
   @@map("verification_tokens")
+}
+
+enum SwapType {
+  OFF_SWAP
+  QUEUE_SWAP
+}
+
+enum SwapRequestStatus {
+  PENDING
+  WAITING_SECOND_USER
+  SECOND_USER_ACCEPTED
+  APPROVED
+  REJECTED
+  CANCELLED
+}
+
+model ScheduleSwapRequest {
+  id                   String            @id @default(cuid())
+  type                 SwapType
+  requesterId          String            @map("requester_id")
+  targetMemberId       String?           @map("target_member_id")
+  originalDate         DateTime?         @map("original_date")
+  targetDate           DateTime?         @map("target_date")
+  status               SwapRequestStatus
+  secondUserAcceptedAt DateTime?        @map("second_user_accepted_at")
+  adminApprovedAt      DateTime?         @map("admin_approved_at")
+  adminRejectedAt      DateTime?         @map("admin_rejected_at")
+  createdAt            DateTime         @default(now())
+  updatedAt            DateTime         @updatedAt
+
+  requester   TeamMember @relation("SwapRequester", fields: [requesterId], references: [id], onDelete: Cascade)
+  targetMember TeamMember? @relation("SwapTarget", fields: [targetMemberId], references: [id], onDelete: SetNull)
+
+  @@map("schedule_swap_requests")
 }

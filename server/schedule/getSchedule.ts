@@ -11,6 +11,116 @@ function dateToKey(d: Date): string {
   return `${y}-${m}-${day}`;
 }
 
+export type MemberScheduleDay = { dateKey: string; day: number; status: "WORK" | "OFF" };
+
+/** Admin-only: get a member's schedule for a given month (for swap review). */
+export async function getMemberScheduleForAdmin(
+  memberId: string,
+  year: number,
+  month: number
+): Promise<{ days: MemberScheduleDay[]; year: number; month: number } | null> {
+  const session = await auth();
+  if (session?.user?.role !== "ADMIN") return null;
+
+  const schedule = await prisma.schedule.findUnique({
+    where: { year_month: { year, month } },
+    include: {
+      assignments: {
+        where: { memberId },
+      },
+    },
+  });
+
+  if (!schedule) {
+    const daysInMonth = new Date(year, month, 0).getDate();
+    const days: MemberScheduleDay[] = Array.from({ length: daysInMonth }, (_, i) => ({
+      dateKey: `${year}-${String(month).padStart(2, "0")}-${String(i + 1).padStart(2, "0")}`,
+      day: i + 1,
+      status: "WORK" as const,
+    }));
+    return { days, year, month };
+  }
+
+  const statusByDate = new Map<string, "WORK" | "OFF">();
+  for (const a of schedule.assignments) {
+    const key = dateToKey(a.date);
+    statusByDate.set(key, a.status === "OFF" ? "OFF" : "WORK");
+  }
+
+  const daysInMonth = new Date(year, month, 0).getDate();
+  const days: MemberScheduleDay[] = Array.from({ length: daysInMonth }, (_, i) => {
+    const dateKey = `${year}-${String(month).padStart(2, "0")}-${String(i + 1).padStart(2, "0")}`;
+    return {
+      dateKey,
+      day: i + 1,
+      status: statusByDate.get(dateKey) ?? "WORK",
+    };
+  });
+
+  return { days, year, month };
+}
+
+/** For swap preview: get another member's schedule (allowed only if same level+shift). */
+export async function getMemberScheduleForSwapPreview(
+  otherMemberId: string,
+  year: number,
+  month: number
+): Promise<{ days: MemberScheduleDay[]; year: number; month: number } | null> {
+  const session = await auth();
+  if (!session?.user || !session.member) return null;
+  if (session.member.id === otherMemberId) return null;
+
+  const [myMember, otherMember] = await Promise.all([
+    prisma.teamMember.findUnique({
+      where: { id: session.member.id },
+      select: { level: true, shift: true },
+    }),
+    prisma.teamMember.findUnique({
+      where: { id: otherMemberId },
+      select: { level: true, shift: true },
+    }),
+  ]);
+  if (!myMember || !otherMember) return null;
+  if (myMember.level !== otherMember.level || myMember.shift !== otherMember.shift) return null;
+
+  const schedule = await prisma.schedule.findUnique({
+    where: { year_month: { year, month } },
+    include: {
+      assignments: {
+        where: { memberId: otherMemberId },
+      },
+    },
+  });
+
+  if (!schedule) {
+    const daysInMonth = new Date(year, month, 0).getDate();
+    const days: MemberScheduleDay[] = Array.from({ length: daysInMonth }, (_, i) => ({
+      dateKey: `${year}-${String(month).padStart(2, "0")}-${String(i + 1).padStart(2, "0")}`,
+      day: i + 1,
+      status: "WORK" as const,
+    }));
+    return { days, year, month };
+  }
+
+  const statusByDate = new Map<string, "WORK" | "OFF">();
+  for (const a of schedule.assignments) {
+    const key = dateToKey(a.date);
+    statusByDate.set(key, a.status === "OFF" ? "OFF" : "WORK");
+  }
+
+  const daysInMonth = new Date(year, month, 0).getDate();
+  const days: MemberScheduleDay[] = Array.from({ length: daysInMonth }, (_, i) => {
+    const dateKey = `${year}-${String(month).padStart(2, "0")}-${String(i + 1).padStart(2, "0")}`;
+    return {
+      dateKey,
+      day: i + 1,
+      status: statusByDate.get(dateKey) ?? "WORK",
+    };
+  });
+
+  return { days, year, month };
+}
+
 export async function getSchedule(
   month: number,
   year: number

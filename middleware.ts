@@ -44,7 +44,8 @@ export async function middleware(request: NextRequest) {
     const secret = process.env.AUTH_SECRET;
     const token = secret ? await getToken({ req: request, secret }) : null;
     const hasMember = !!token?.member;
-    if (!hasMember) {
+    const isAdmin = token?.role === "ADMIN";
+    if (!hasMember && !isAdmin) {
       return NextResponse.redirect(new URL("/celular", request.nextUrl));
     }
   }
