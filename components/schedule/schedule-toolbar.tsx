@@ -50,14 +50,14 @@ export function ScheduleToolbar({
           onClick={onGenerate}
           disabled={generateLoading}
         >
-          {generateLoading ? "Gerando…" : "Generate Automatic Schedule"}
+          {generateLoading ? "Gerando…" : "Gerar Escala Automática"}
         </Button>
         <Button
           size="sm"
           onClick={onSave}
           disabled={saveLoading}
         >
-          {saveLoading ? "Salvando…" : "Save Changes"}
+          {saveLoading ? "Salvando…" : "Salvar Alterações"}
         </Button>
       </div>
     </div>

@@ -88,15 +88,18 @@ function MemberScheduleMiniCalendar({
   const statusByDate = new Map<string, "WORK" | "OFF">();
   for (const d of data.days) statusByDate.set(d.dateKey, d.status);
   const calendarDays = getScheduleCalendarDays(year, month);
-  const monthLabel = new Date(year, month - 1).toLocaleDateString("pt-BR", {
-    month: "long",
-    year: "numeric",
-  });
+  const monthLabel = (() => {
+    const str = new Date(year, month - 1).toLocaleDateString("pt-BR", {
+      month: "long",
+      year: "numeric",
+    });
+    return str.charAt(0).toUpperCase() + str.slice(1);
+  })();
   const rowCount = Math.ceil(calendarDays.length / 7);
 
   return (
     <div className={`flex min-h-0 flex-1 flex-col ${className ?? ""}`}>
-      <p className="mb-2 shrink-0 text-xs font-medium text-muted-foreground capitalize">{monthLabel}</p>
+      <p className="mb-2 shrink-0 text-xs font-medium text-muted-foreground">{monthLabel}</p>
       <div
         className="grid min-h-0 flex-1 gap-1 text-xs"
         style={{
@@ -107,7 +110,7 @@ function MemberScheduleMiniCalendar({
         {WEEKDAY_LABELS.map((label) => (
           <div
             key={label}
-            className="rounded border border-transparent bg-muted/50 px-0.5 py-0.5 text-center font-medium text-muted-foreground"
+            className="rounded border border-transparent bg-muted/50 flex items-center justify-center font-medium text-muted-foreground"
           >
             {label}
           </div>
@@ -214,13 +217,13 @@ export function AdminSwapList({ sessionMemberId }: AdminSwapListProps) {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap gap-2 rounded-lg border bg-muted/30 p-1.5 w-fit">
+      <div className="inline-flex rounded-lg border border-border bg-muted/20 p-1">
         <button
           type="button"
           onClick={() => setFilter("pending")}
-          className={`rounded-md px-3 py-2 text-sm font-medium transition-colors ${
+          className={`rounded-md px-4 py-2 text-sm font-medium transition-colors ${
             filter === "pending"
-              ? "bg-background shadow text-foreground"
+              ? "bg-background text-foreground shadow-sm"
               : "text-muted-foreground hover:text-foreground"
           }`}
         >
@@ -229,9 +232,9 @@ export function AdminSwapList({ sessionMemberId }: AdminSwapListProps) {
         <button
           type="button"
           onClick={() => setFilter("approved")}
-          className={`rounded-md px-3 py-2 text-sm font-medium transition-colors ${
+          className={`rounded-md px-4 py-2 text-sm font-medium transition-colors ${
             filter === "approved"
-              ? "bg-background shadow text-foreground"
+              ? "bg-background text-foreground shadow-sm"
               : "text-muted-foreground hover:text-foreground"
           }`}
         >
@@ -240,9 +243,9 @@ export function AdminSwapList({ sessionMemberId }: AdminSwapListProps) {
         <button
           type="button"
           onClick={() => setFilter("rejected")}
-          className={`rounded-md px-3 py-2 text-sm font-medium transition-colors ${
+          className={`rounded-md px-4 py-2 text-sm font-medium transition-colors ${
             filter === "rejected"
-              ? "bg-background shadow text-foreground"
+              ? "bg-background text-foreground shadow-sm"
               : "text-muted-foreground hover:text-foreground"
           }`}
         >
@@ -285,28 +288,36 @@ export function AdminSwapList({ sessionMemberId }: AdminSwapListProps) {
 
             return (
               <li key={s.id}>
-                <Card className="overflow-hidden">
+                <Card className="overflow-hidden px-4">
                   <CardContent className="p-0">
                     <div className="grid grid-cols-1 gap-0 md:grid-cols-4 md:gap-6">
-                      <div className="md:col-span-1 space-y-4 p-4 sm:p-5 md:py-5 md:pl-5 md:pr-0">
+                      <div className="md:col-span-1 space-y-4 rounded-lg border border-border/50 bg-muted/5 p-4 sm:p-5 md:py-5 md:pl-5 md:pr-0">
                         <div className="space-y-1">
-                          <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                          <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                             Quem solicitou
                           </p>
-                          <p className="text-base font-medium">{s.requesterName}</p>
+                          <p className="text-base font-bold text-foreground">{s.requesterName}</p>
                         </div>
                         <div className="space-y-1">
-                          <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                          <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                             Quando solicitou
                           </p>
-                          <p className="text-sm tabular-nums">{formatDate(new Date(s.createdAt))}</p>
+                          <p className="text-sm tabular-nums text-foreground">{formatDate(new Date(s.createdAt))}</p>
                         </div>
                         <div className="space-y-1">
-                          <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                          <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                             O que solicitou
                           </p>
                           <p className="text-sm text-foreground">{getDescription(s)}</p>
-                          <span className="inline-flex items-center gap-1.5 rounded-md border bg-muted/40 px-2.5 py-1 text-xs font-medium">
+                          <span
+                            className={`inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-xs font-medium ${
+                              s.status === "APPROVED"
+                                ? "border-green-500/40 bg-green-500/10 text-green-700"
+                                : s.status === "REJECTED" || s.status === "CANCELLED"
+                                  ? "border-red-500/40 bg-red-500/10 text-red-700"
+                                  : "border-amber-500/40 bg-amber-500/10 text-amber-800"
+                            }`}
+                          >
                             {TYPE_LABELS[s.type]} · {STATUS_LABELS[s.status]}
                           </span>
                         </div>
@@ -347,7 +358,7 @@ export function AdminSwapList({ sessionMemberId }: AdminSwapListProps) {
                           <div className="flex min-h-0 flex-1 flex-col gap-4">
                             <div className="grid grid-cols-1 min-h-0 flex-1 gap-4 sm:grid-cols-2">
                               <div className="flex min-h-0 flex-col">
-                                <p className="mb-2 shrink-0 text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                                <p className="mb-2 shrink-0 text-sm font-bold uppercase tracking-wider text-foreground">
                                   Escala {s.requesterName}
                                 </p>
                                 <div className="flex min-h-0 flex-1 gap-4">
@@ -372,7 +383,7 @@ export function AdminSwapList({ sessionMemberId }: AdminSwapListProps) {
                                 </div>
                               </div>
                               <div className="flex min-h-0 flex-col">
-                                <p className="mb-2 shrink-0 text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                                <p className="mb-2 shrink-0 text-sm font-bold uppercase tracking-wider text-foreground">
                                   Escala {s.targetMemberName}
                                 </p>
                                 <div className="flex min-h-0 flex-1 gap-4">
@@ -400,7 +411,7 @@ export function AdminSwapList({ sessionMemberId }: AdminSwapListProps) {
                           </div>
                         ) : (
                           <>
-                            <p className="mb-3 shrink-0 text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                            <p className="mb-3 shrink-0 text-sm font-bold uppercase tracking-wider text-foreground">
                               Escala do solicitante
                             </p>
                             <div className="flex min-h-0 flex-1 gap-6">

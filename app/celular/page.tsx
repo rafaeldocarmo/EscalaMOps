@@ -1,5 +1,6 @@
 import { auth } from "@/auth";
 import { redirect } from "next/navigation";
+import Link from "next/link";
 import {
   Card,
   CardContent,
@@ -8,6 +9,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { PhoneForm } from "./phone-form";
+import { Button } from "@/components/ui/button";
 
 export default async function CelularPage() {
   const session = await auth();
@@ -29,6 +31,14 @@ export default async function CelularPage() {
         </CardHeader>
         <CardContent>
           <PhoneForm />
+
+          {session.user.role === "ADMIN" && (
+            <div className="flex flex-col gap-2 mt-4">
+              <Button variant="outline" className="w-fit mx-auto cursor-pointer" asChild>
+                <Link href="/dashboard/team">Ver como administrador</Link>
+              </Button>
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>

@@ -9,6 +9,9 @@ export default async function DashboardPage() {
   if (!session?.user) {
     redirect("/login");
   }
+  if (session.user.role === "ADMIN" && !session.member) {
+    redirect("/dashboard/team");
+  }
   if (!session.member) {
     if (session.user.role !== "ADMIN") {
       redirect("/celular");
@@ -31,7 +34,7 @@ export default async function DashboardPage() {
             </Link>
           </Button>
           <Button asChild variant="outline">
-            <Link href="/admin/swaps">Trocas</Link>
+            <Link href="/dashboard/swaps">Trocas</Link>
           </Button>
         </div>
       </div>

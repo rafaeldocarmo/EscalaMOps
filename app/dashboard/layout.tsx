@@ -1,7 +1,6 @@
 import { auth } from "@/auth";
 import { redirect } from "next/navigation";
-import Link from "next/link";
-import { Button } from "@/components/ui/button";
+import { DashboardNav } from "@/components/dashboard/dashboard-nav";
 
 export default async function DashboardLayout({
   children,
@@ -19,37 +18,13 @@ export default async function DashboardLayout({
   return (
     <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950">
       {session.user.role === "ADMIN" && (
-      <header className="sticky top-0 z-40 border-b bg-background/95 backdrop-blur ">
-        <div className="container flex h-14 items-center justify-between px-4 max-w-lg">
-          <nav className="flex items-center gap-4">
-            <Link
-              href="/dashboard/team"
-              className="text-sm font-medium text-foreground hover:underline"
-            >
-              Equipe
-            </Link>
-            <Link
-              href={`/dashboard/schedule/${new Date().getFullYear()}/${new Date().getMonth() + 1}`}
-              className="text-sm font-medium text-foreground hover:underline"
-            >
-              Escala
-            </Link>
-            <Link
-              href="/admin/swaps"
-              className="text-sm font-medium text-foreground hover:underline"
-            >
-              Trocas
-            </Link>
-            <Link
-              href="/"
-              className="text-sm text-muted-foreground hover:text-foreground"
-            >
-              Início
-            </Link>
-          </nav>
-          <span className="text-sm text-muted-foreground">
-            {session.user.name ?? session.user.email}
-            </span>
+      <header className="sticky top-0 z-40 border-b bg-background/95 backdrop-blur">
+        <div className="container flex h-14 items-center justify-between px-4 mx-auto ">
+        <span className="text-lg text-muted-foreground font-bold text-red-500">
+            Escala MOPS
+          </span>
+          <DashboardNav hasMemberView={!!session.member} />
+          
           </div>
         </header>
       )}

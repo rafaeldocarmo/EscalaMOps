@@ -82,26 +82,31 @@ export function TeamPageClient({ initialMembers }: TeamPageClientProps) {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">
-            Team Management
+          <h1 className="text-2xl font-bold tracking-tight text-foreground">
+            Visão do Time
           </h1>
-          <p className="text-muted-foreground">
+          <p className="mt-1 text-sm text-muted-foreground">
             Gerencie os membros da equipe, níveis e turnos.
           </p>
         </div>
-        <Button onClick={() => setAddOpen(true)}>Add Member</Button>
+        <Button
+          onClick={() => setAddOpen(true)}
+          className="mt-4 sm:mt-0 bg-foreground text-background hover:bg-foreground/90 cursor-pointer"
+        >
+          Adicionar Membro
+        </Button>
       </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Membros</CardTitle>
-          <CardDescription>
+      <Card className="rounded-xl border border-border/60 shadow-sm">
+        <CardHeader className="border-b border-border/50">
+          <CardTitle className="text-lg font-bold text-foreground">Membros</CardTitle>
+          <CardDescription className="text-sm text-muted-foreground">
             Lista de membros com nome, telefone, nível e turno.
           </CardDescription>
         </CardHeader>
-        <CardContent>
+        <CardContent className="p-0">
           <TeamTable
             members={initialMembers}
             onEdit={handleEdit}
