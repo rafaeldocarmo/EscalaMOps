@@ -20,6 +20,8 @@ type SwapMode = "off" | "weekend";
 
 interface UnifiedSwapFormProps {
   memberId: string;
+  /** When set, form opens in this mode and the mode tabs are hidden (for use inside modals). */
+  initialMode?: SwapMode;
 }
 
 function formatDayLabel(dateKey: string): string {
@@ -45,8 +47,9 @@ function SubmitButtonQueue() {
   );
 }
 
-export function UnifiedSwapForm({ memberId }: UnifiedSwapFormProps) {
-  const [mode, setMode] = useState<SwapMode>("off");
+export function UnifiedSwapForm({ memberId, initialMode }: UnifiedSwapFormProps) {
+  const [mode, setMode] = useState<SwapMode>(initialMode ?? "off");
+  const singleMode = initialMode != null;
 
   const now = new Date();
   const [year, setYear] = useState(now.getFullYear());
@@ -146,7 +149,10 @@ export function UnifiedSwapForm({ memberId }: UnifiedSwapFormProps) {
   return (
     <Card className="h-full flex flex-col min-h-0">
       <CardHeader className="flex-shrink-0">
-        <CardTitle className="text-lg">Solicitar troca</CardTitle>
+        <CardTitle className="text-lg">
+          {singleMode ? (mode === "off" ? "Trocar dia de folga" : "Trocar turno") : "Solicitar troca"}
+        </CardTitle>
+        {!singleMode && (
         <div className="flex gap-2 rounded-lg border bg-muted/30 p-1">
           <button
             type="button"
@@ -167,6 +173,7 @@ export function UnifiedSwapForm({ memberId }: UnifiedSwapFormProps) {
             Trocar final de semana
           </button>
         </div>
+        )}
         {isOffMode && (
           <p className="text-sm text-muted-foreground">
             Clique em uma folga (vermelho) e depois no dia que será sua nova folga (verde).

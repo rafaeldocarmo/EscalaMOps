@@ -29,18 +29,20 @@ export function MonthNavigator({
     <div className={cn("flex items-center justify-center gap-2", className)}>
       <Button
         type="button"
-        variant="outline"
+        variant="ghost"
         size="icon"
+        className="h-8 w-8 shrink-0 cursor-pointer"
         aria-label="Mês anterior"
         onClick={onPrevious}
       >
         <ChevronLeft className="h-4 w-4" />
       </Button>
-      <span className="min-w-[140px] text-center font-medium">{label}</span>
+      <span className="min-w-[120px] text-center text-sm font-medium tabular-nums">{label}</span>
       <Button
         type="button"
-        variant="outline"
+        variant="ghost"
         size="icon"
+        className="h-8 w-8 shrink-0 cursor-pointer"
         aria-label="Próximo mês"
         onClick={onNext}
       >

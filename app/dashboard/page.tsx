@@ -40,12 +40,6 @@ export default async function DashboardPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap items-center gap-4">
-        <h1 className="text-2xl font-semibold tracking-tight">Dashboard</h1>
-        <Button asChild variant="outline" size="sm">
-          <Link href="/dashboard/swaps">Solicitações de troca</Link>
-        </Button>
-      </div>
       <DashboardTabs memberId={session.member.id} memberName={session.member.name} />
     </div>
   );

@@ -20,7 +20,7 @@ export default async function DashboardLayout({
     <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950">
       {session.user.role === "ADMIN" && (
       <header className="sticky top-0 z-40 border-b bg-background/95 backdrop-blur ">
-        <div className="container flex h-14 items-center justify-between px-4 xl:max-w-none">
+        <div className="container flex h-14 items-center justify-between px-4 max-w-lg">
           <nav className="flex items-center gap-4">
             <Link
               href="/dashboard/team"
@@ -53,7 +53,7 @@ export default async function DashboardLayout({
           </div>
         </header>
       )}
-      <main className="container px-4 py-6 xl:max-w-none">
+      <main className="container px-4 py-6 mx-auto">
         {children}
       </main>
     </div>
