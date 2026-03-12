@@ -214,7 +214,7 @@ export function AdminSwapList({ sessionMemberId }: AdminSwapListProps) {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap gap-2 rounded-lg border bg-muted/30 p-1.5">
+      <div className="flex flex-wrap gap-2 rounded-lg border bg-muted/30 p-1.5 w-fit">
         <button
           type="button"
           onClick={() => setFilter("pending")}
