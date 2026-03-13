@@ -28,7 +28,7 @@ export async function sendDailyScheduleSummary(targetDate?: Date): Promise<void>
     return;
   }
 
-  const [members, offAssignments] = await Promise.all([
+  const [members, offAssignments, onCallAssignments] = await Promise.all([
     prisma.teamMember.findMany({
       where: { level: { in: ["N1", "N2"] } },
       orderBy: [{ level: "asc" }, { shift: "asc" }, { name: "asc" }],
@@ -41,6 +41,13 @@ export async function sendDailyScheduleSummary(targetDate?: Date): Promise<void>
         status: "OFF",
       },
       select: { memberId: true },
+    }),
+    prisma.onCallAssignment.findMany({
+      where: {
+        startDate: { lte: dayEnd },
+        endDate: { gte: dayStart },
+      },
+      include: { member: { select: { name: true, level: true, shift: true } } },
     }),
   ]);
 
@@ -57,35 +64,72 @@ export async function sendDailyScheduleSummary(targetDate?: Date): Promise<void>
     N2: { T1: [], T2: [], T3: [] },
   };
 
+  type OnCallLevel = "N2" | "ESPC" | "PRODUCAO";
+  const onCallGroups: Record<OnCallLevel, string[]> = {
+    N2: [],
+    ESPC: [],
+    PRODUCAO: [],
+  };
+
+  function fullName(name: string): string {
+    return name.trim();
+  }
+
   for (const member of members) {
     const level = member.level as Level;
     const shift = member.shift as Shift;
 
-    // N2 não existe em T3
     if (level === "N2" && shift === "T3") continue;
     if (offSet.has(member.id)) continue;
 
-    const name = member.name.trim();
-    const parts = name.split(/\s+/);
-    const displayName = parts.length >= 2 ? `${parts[0]} ${parts[parts.length - 1]}` : name;
-
-    groups[level][shift].push(displayName);
+    groups[level][shift].push(fullName(member.name));
   }
 
-  const dateLabel = format(dayStart, "dd/MM/yyyy", { locale: ptBR });
+  for (const a of onCallAssignments) {
+    const level = a.level as OnCallLevel;
+    if (level in onCallGroups) {
+      onCallGroups[level].push(fullName(a.member.name));
+    }
+  }
+
+  const dateLabel = format(dayStart, "dd/MM/yy", { locale: ptBR });
 
   const lines: string[] = [];
-  lines.push(`*Escala do dia - ${dateLabel}*`, "");
+  lines.push(`*Escala* - ${dateLabel}`, "");
 
   for (const level of levels) {
     lines.push(`*${level}*`);
     for (const shift of shiftsByLevel[level]) {
       const names = groups[level][shift];
-      const namesText = names.length > 0 ? names.join(", ") : "-";
-      lines.push(` * \`${shift} - ${namesText}\``);
+      if (names.length > 0) {
+        for (const name of names) {
+          lines.push(`* \`${shift} - ${name}\``);
+        }
+      }
     }
     lines.push("");
   }
+
+  lines.push("*SOBREAVISO*", "");
+  lines.push("*N2*");
+  for (const name of onCallGroups.N2) {
+    lines.push(`* \`N2 - ${name}\``);
+  }
+  lines.push("");
+  lines.push("*ESP/PROD*");
+  for (const name of onCallGroups.ESPC) {
+    lines.push(`* \`ESP - ${name}\``);
+  }
+  for (const name of onCallGroups.PRODUCAO) {
+    lines.push(`* \`Prod. Online - ${name}\``);
+  }
+  lines.push("");
+  lines.push("_*Recomendações:*_");
+  lines.push("* Mantenha o celular sempre carregado.");
+  lines.push("* Fique atento aos chamados do N2.");
+  lines.push("* Evite deslocamentos para locais sem acesso à internet.");
+  lines.push("* Não deixe o celular no modo silencioso.");
+  lines.push("* Verifique se sua senha está próxima de expirar.");
 
   const message = lines.join("\n");
   await sendWhatsappMessage(message);

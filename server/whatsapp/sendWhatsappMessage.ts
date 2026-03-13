@@ -12,7 +12,7 @@ export async function sendWhatsappMessage(message: string, to?: string): Promise
     return;
   }
 
-  const destination = to ?? process.env.WHAPI_TO;
+  const destination = to ?? process.env.WHAPI_ADMIN_TO;
   if (!destination) {
     console.error("WhatsApp send error: no destination number provided and WHAPI_TO is not set");
     return;
