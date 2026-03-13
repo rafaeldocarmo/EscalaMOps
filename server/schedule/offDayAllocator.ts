@@ -237,6 +237,8 @@ export function assignCompensationDaysOff(
     }
   }
 
+  // Include first week of next month so "week after" compensation for last weekend is kept
+  const resultEnd = addDays(monthEnd, 7);
   const result: ScheduleAssignmentInput[] = [];
   for (const [key, status] of map) {
     const idx = key.indexOf("|");
@@ -244,7 +246,7 @@ export function assignCompensationDaysOff(
     const memberId = key.slice(0, idx);
     const date = key.slice(idx + 1);
     const dateObj = new Date(date + "T12:00:00.000Z");
-    if (dateObj >= monthStart && dateObj <= monthEnd) {
+    if (dateObj >= monthStart && dateObj <= resultEnd) {
       result.push({ memberId, date, status });
     }
   }

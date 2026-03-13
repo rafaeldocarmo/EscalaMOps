@@ -60,7 +60,7 @@ export function SchedulePageClient({
   );
 
   const scheduleMembers = useMemo(
-    () => members,
+    () => members.filter((m) => m.level !== "ESPC" && m.level !== "PRODUCAO"),
     [members]
   );
 

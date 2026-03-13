@@ -96,9 +96,58 @@ export async function generateMonthlySchedule(
     d = addDays(d, 1);
   }
 
-  const saturdays = getSaturdaysInMonth(year, month);
   const finalQueueUpdates = new Map<string, number>();
   const weekendsWithWorkers: WeekendWithWorkers[] = [];
+
+  // When the first day of the month is Sunday, it belongs to the previous month's last weekend.
+  // Copy assignments from previous schedule, or compute that weekend if previous schedule doesn't exist.
+  const firstDayOfMonth = new Date(year, month - 1, 1);
+  if (getDay(firstDayOfMonth) === SUNDAY) {
+    const firstDayKey = toDateKey(firstDayOfMonth);
+    const prevMonth = month === 1 ? 12 : month - 1;
+    const prevYear = month === 1 ? year - 1 : year;
+    const prevSchedule = await prisma.schedule.findUnique({
+      where: { year_month: { year: prevYear, month: prevMonth } },
+      include: { assignments: true },
+    });
+    const firstDayAssignments = prevSchedule?.assignments.filter(
+      (a) => format(a.date, "yyyy-MM-dd") === firstDayKey
+    ) ?? [];
+    const offOnFirstDay = new Set(
+      firstDayAssignments.filter((a) => a.status === "OFF").map((a) => a.memberId)
+    );
+    if (firstDayAssignments.length > 0) {
+      for (const mid of memberIds) {
+        setAssignment(mid, firstDayKey, offOnFirstDay.has(mid) ? "OFF" : "WORK");
+      }
+    } else {
+      const lastDayOfPrevMonth = endOfMonth(new Date(prevYear, prevMonth - 1));
+      const saturday = lastDayOfPrevMonth;
+      const sunday = firstDayOfMonth;
+      const { weekendWorkerIds, queueUpdates } = selectWeekendWorkers(
+        queueMembers,
+        saturday,
+        sunday
+      );
+      for (const u of queueUpdates) {
+        finalQueueUpdates.set(u.memberId, u.newRotationIndex);
+        const m = queueMembers.find((x) => x.id === u.memberId);
+        if (m) m.rotationIndex = u.newRotationIndex;
+      }
+      for (const mid of memberIds) {
+        if (alwaysOffWeekendIds.has(mid)) {
+          setAssignment(mid, firstDayKey, "OFF");
+        } else if (weekendWorkerIds.has(mid)) {
+          setAssignment(mid, firstDayKey, "WORK");
+        } else {
+          setAssignment(mid, firstDayKey, "OFF");
+        }
+      }
+      weekendsWithWorkers.push({ saturday, workerIds: weekendWorkerIds });
+    }
+  }
+
+  const saturdays = getSaturdaysInMonth(year, month);
 
   for (const saturday of saturdays) {
     const sunday = addDays(saturday, 1);
@@ -139,6 +188,8 @@ export async function generateMonthlySchedule(
     level: m.level,
   }));
 
+  // Include next month's first day when it's the Sunday of the last weekend (Saturday = last day of month)
+  const nextMonthFirstKey = format(addDays(monthEnd, 1), "yyyy-MM-dd");
   const assignmentsArray: ScheduleAssignmentInput[] = [];
   for (const [key, status] of assignmentsMap) {
     const idx = key.indexOf(sep);
@@ -146,7 +197,9 @@ export async function generateMonthlySchedule(
     const memberId = key.slice(0, idx);
     const date = key.slice(idx + 1);
     const dateInMonth = new Date(date + "T12:00:00.000Z");
-    if (dateInMonth >= monthStart && dateInMonth <= monthEnd) {
+    const inCurrentMonth = dateInMonth >= monthStart && dateInMonth <= monthEnd;
+    const isStraddlingSunday = date === nextMonthFirstKey;
+    if (inCurrentMonth || isStraddlingSunday) {
       assignmentsArray.push({ memberId, date, status });
     }
   }

@@ -35,6 +35,16 @@ export async function saveScheduleAssignments(
   try {
     const monthStart = new Date(schedule.year, schedule.month - 1, 1, 0, 0, 0, 0);
     const monthEnd = new Date(schedule.year, schedule.month, 0, 23, 59, 59, 999);
+    // Use date range from payload when present, so straddling weekend (Sat last day + Sun next month) is included
+    let dateMin = monthStart;
+    let dateMax = monthEnd;
+    if (assignments.length > 0) {
+      const dates = assignments.map((a) => parseDate(a.date));
+      dateMin = new Date(Math.min(...dates.map((d) => d.getTime())));
+      dateMax = new Date(Math.max(...dates.map((d) => d.getTime())));
+      dateMin.setHours(0, 0, 0, 0);
+      dateMax.setHours(23, 59, 59, 999);
+    }
 
     const offOnly = assignments.filter((a) => a.status === "OFF");
 
@@ -42,7 +52,7 @@ export async function saveScheduleAssignments(
       prisma.scheduleAssignment.deleteMany({
         where: {
           scheduleId,
-          date: { gte: monthStart, lte: monthEnd },
+          date: { gte: dateMin, lte: dateMax },
         },
       }),
       offOnly.length > 0
