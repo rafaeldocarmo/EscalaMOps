@@ -15,14 +15,12 @@ import type { Level, Shift } from "@/types/team";
 import { LEVEL_OPTIONS, SHIFT_OPTIONS } from "@/types/team";
 import { formatPhone, PHONE_MASK_MAX_LENGTH } from "@/lib/formatPhone";
 
-const LEVEL_VALUES: Level[] = ["N1", "N2"];
-const SHIFT_VALUES: Shift[] = ["T1", "T2", "T3"];
-
 export interface TeamFormValues {
   name: string;
   phone: string;
   level: Level;
   shift: Shift;
+  sobreaviso: boolean;
 }
 
 interface TeamFormProps {
@@ -37,9 +35,17 @@ interface TeamFormProps {
 function validateLevelShift(level: Level, shift: Shift): string | null {
   if (level === "N2" && shift === "T3")
     return "N2 só pode estar nos turnos T1 ou T2.";
-  if (shift === "T3" && level === "N2")
-    return "Turno T3 aceita apenas nível N1.";
+  if (shift === "T3" && level === "ESPC")
+    return "Turno T3 não aceita nível ESPC.";
+  if (level === "ESPC" && shift !== "TC")
+    return "ESPC deve usar turno TC.";
+  if (shift === "TC" && level !== "ESPC")
+    return "Turno TC é exclusivo do nível ESPC.";
   return null;
+}
+
+function canSobreaviso(level: Level): boolean {
+  return level === "N2" || level === "ESPC";
 }
 
 export function TeamForm({
@@ -56,12 +62,18 @@ export function TeamForm({
   );
   const [level, setLevel] = useState<Level>(defaultValues?.level ?? "N1");
   const [shift, setShift] = useState<Shift>(defaultValues?.shift ?? "T1");
+  const [sobreaviso, setSobreaviso] = useState(defaultValues?.sobreaviso ?? false);
   const [levelShiftError, setLevelShiftError] = useState<string | null>(null);
 
   const handleLevelChange = useCallback(
     (value: Level) => {
       setLevel(value);
-      setLevelShiftError(validateLevelShift(value, shift));
+      const autoShift = value === "ESPC" ? "TC" : shift === "TC" ? "T1" : shift;
+      setShift(autoShift);
+      setLevelShiftError(validateLevelShift(value, autoShift));
+      if (!canSobreaviso(value)) {
+        setSobreaviso(false);
+      }
     },
     [shift]
   );
@@ -82,7 +94,13 @@ export function TeamForm({
       setLevelShiftError(err);
       return;
     }
-    await onSubmit({ name: name.trim(), phone: phone.trim(), level, shift });
+    await onSubmit({
+      name: name.trim(),
+      phone: phone.trim(),
+      level,
+      shift,
+      sobreaviso: canSobreaviso(level) ? sobreaviso : false,
+    });
   }
 
   const nameError = externalFieldErrors.name?.[0];
@@ -176,6 +194,31 @@ export function TeamForm({
           </p>
         )}
       </div>
+
+      {canSobreaviso(level) && (
+        <div className="flex items-center gap-3">
+          <button
+            type="button"
+            role="switch"
+            aria-checked={sobreaviso}
+            disabled={loading}
+            onClick={() => setSobreaviso((v) => !v)}
+            className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 ${
+              sobreaviso ? "bg-primary" : "bg-input"
+            }`}
+          >
+            <span
+              className={`pointer-events-none block h-5 w-5 rounded-full bg-background shadow-lg ring-0 transition-transform ${
+                sobreaviso ? "translate-x-5" : "translate-x-0"
+              }`}
+            />
+          </button>
+          <Label className="cursor-pointer" onClick={() => !loading && setSobreaviso((v) => !v)}>
+            Participa do Sobreaviso
+          </Label>
+        </div>
+      )}
+
       {externalError && (
         <p className="text-sm text-destructive" role="alert">
           {externalError}

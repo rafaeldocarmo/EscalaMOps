@@ -5,8 +5,10 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { ScheduleToolbar } from "@/components/schedule/schedule-toolbar";
 import { ScheduleGrid } from "@/components/schedule/schedule-grid";
+import { SobreavisoTable } from "@/components/schedule/sobreaviso-table";
 import type { ScheduleRow, ScheduleAssignmentRow, SaveAssignmentPayload } from "@/types/schedule";
 import type { TeamMemberRow } from "@/types/team";
+import type { SobreavisoWeek } from "@/server/sobreaviso/getSobreavisoScheduleForMonth";
 import {
   assignmentsToStateMap,
   getDaysInMonth,
@@ -22,12 +24,14 @@ interface SchedulePageClientProps {
   schedule: ScheduleRow;
   assignments: ScheduleAssignmentRow[];
   members: TeamMemberRow[];
+  sobreavisoWeeks: SobreavisoWeek[];
 }
 
 export function SchedulePageClient({
   schedule: initialSchedule,
   assignments: initialAssignments,
   members,
+  sobreavisoWeeks: initialSobreavisoWeeks,
 }: SchedulePageClientProps) {
   const router = useRouter();
   const [schedule, setSchedule] = useState(initialSchedule);
@@ -36,6 +40,7 @@ export function SchedulePageClient({
   );
   const [saveLoading, setSaveLoading] = useState(false);
   const [generateLoading, setGenerateLoading] = useState(false);
+  const [sobreavisoWeeks, setSobreavisoWeeks] = useState(initialSobreavisoWeeks);
 
   const dateKeys = useMemo(() => {
     const days = getDaysInMonth(schedule.year, schedule.month);
@@ -49,9 +54,14 @@ export function SchedulePageClient({
     [schedule.year, schedule.month]
   );
 
-  const sections = useMemo(
-    () => buildScheduleSections(members),
+  const scheduleMembers = useMemo(
+    () => members.filter((m) => m.level !== "ESPC"),
     [members]
+  );
+
+  const sections = useMemo(
+    () => buildScheduleSections(scheduleMembers),
+    [scheduleMembers]
   );
 
   const handleCellToggle = useCallback((memberId: string, dateKeyStr: string) => {
@@ -72,7 +82,7 @@ export function SchedulePageClient({
   const handleSave = useCallback(async () => {
     setSaveLoading(true);
     const payload: SaveAssignmentPayload[] = [];
-    for (const member of members) {
+    for (const member of scheduleMembers) {
       for (const dateStr of dateKeys) {
         payload.push({
           memberId: member.id,
@@ -89,7 +99,7 @@ export function SchedulePageClient({
     } else {
       toast.error(result.error);
     }
-  }, [schedule.id, stateMap, members, dateKeys, router]);
+  }, [schedule.id, stateMap, scheduleMembers, dateKeys, router]);
 
   const handleGenerate = useCallback(async () => {
     setGenerateLoading(true);
@@ -97,14 +107,15 @@ export function SchedulePageClient({
     setGenerateLoading(false);
     if (result.success) {
       setStateMap(assignmentsToStateMap(result.assignments));
+      setSobreavisoWeeks(result.sobreavisoWeeks);
       toast.success("Escala gerada.");
     } else {
       toast.info(result.error);
     }
-  }, [schedule.id]);
+  }, [schedule.id, router]);
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-6">
       <div className="flex flex-col gap-4">
         <h1 className="text-2xl font-semibold tracking-tight">
           Calendário Mensal
@@ -120,7 +131,7 @@ export function SchedulePageClient({
         />
       </div>
 
-      {members.length === 0 ? (
+      {scheduleMembers.length === 0 ? (
         <div className="rounded-lg border bg-card p-8 text-center text-muted-foreground">
           Nenhum membro na equipe. Cadastre membros em Equipe para montar a escala.
         </div>
@@ -133,6 +144,8 @@ export function SchedulePageClient({
           locked={false}
         />
       )}
+
+      <SobreavisoTable weeks={sobreavisoWeeks} calendarDays={calendarDays} />
     </div>
   );
 }

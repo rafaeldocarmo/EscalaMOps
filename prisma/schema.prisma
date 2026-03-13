@@ -66,27 +66,32 @@ model User {
 enum Level {
   N1
   N2
+  ESPC
 }
 
 enum Shift {
   T1
   T2
   T3
+  TC
 }
 
 model TeamMember {
-  id             String   @id @default(cuid())
-  name           String
-  phone          String
-  level          Level
-  shift          Shift
-  rotationIndex  Int      @default(0) @map("rotation_index")
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  id                  String   @id @default(cuid())
+  name                String
+  phone               String
+  level               Level
+  shift               Shift
+  sobreaviso          Boolean  @default(false)
+  rotationIndex       Int      @default(0) @map("rotation_index")
+  onCallRotationIndex Int      @default(0) @map("on_call_rotation_index")
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
 
-  scheduleAssignments   ScheduleAssignment[]
+  scheduleAssignments     ScheduleAssignment[]
   swapRequestsAsRequester ScheduleSwapRequest[] @relation("SwapRequester")
-  swapRequestsAsTarget   ScheduleSwapRequest[] @relation("SwapTarget")
+  swapRequestsAsTarget    ScheduleSwapRequest[] @relation("SwapTarget")
+  onCallAssignments       OnCallAssignment[]
 
   @@map("team_members")
 }
@@ -142,6 +147,7 @@ model VerificationToken {
 enum SwapType {
   OFF_SWAP
   QUEUE_SWAP
+  ONCALL_SWAP
 }
 
 enum SwapRequestStatus {
@@ -171,4 +177,17 @@ model ScheduleSwapRequest {
   targetMember TeamMember? @relation("SwapTarget", fields: [targetMemberId], references: [id], onDelete: SetNull)
 
   @@map("schedule_swap_requests")
+}
+
+model OnCallAssignment {
+  id        String   @id @default(cuid())
+  memberId  String   @map("member_id")
+  level     Level
+  startDate DateTime @map("start_date")
+  endDate   DateTime @map("end_date")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  member TeamMember @relation(fields: [memberId], references: [id], onDelete: Cascade)
+
+  @@map("on_call_assignments")
 }

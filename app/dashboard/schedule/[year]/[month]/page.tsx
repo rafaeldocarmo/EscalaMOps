@@ -2,6 +2,7 @@ import { auth } from "@/auth";
 import { redirect } from "next/navigation";
 import { getSchedule } from "@/server/schedule/getSchedule";
 import { getTeamMembers } from "@/server/team/getTeamMembers";
+import { getSobreavisoScheduleForMonth } from "@/server/sobreaviso/getSobreavisoScheduleForMonth";
 import { SchedulePageClient } from "./schedule-page-client";
 import type { ScheduleAssignmentRow, ScheduleRow } from "@/types/schedule";
 import type { TeamMemberRow } from "@/types/team";
@@ -22,9 +23,10 @@ export default async function SchedulePage({ params }: PageProps) {
     redirect("/dashboard/schedule/2026/4");
   }
 
-  const [scheduleData, members] = await Promise.all([
+  const [scheduleData, members, sobreavisoWeeks] = await Promise.all([
     getSchedule(month, year),
     getTeamMembers(),
+    getSobreavisoScheduleForMonth(month, year),
   ]);
 
   const schedule: ScheduleRow = scheduleData.schedule;
@@ -35,6 +37,7 @@ export default async function SchedulePage({ params }: PageProps) {
     phone: m.phone,
     level: m.level,
     shift: m.shift,
+    sobreaviso: m.sobreaviso,
     createdAt: m.createdAt,
     updatedAt: m.updatedAt,
   }));
@@ -44,6 +47,7 @@ export default async function SchedulePage({ params }: PageProps) {
       schedule={schedule}
       assignments={assignments}
       members={teamMembers}
+      sobreavisoWeeks={sobreavisoWeeks}
     />
   );
 }

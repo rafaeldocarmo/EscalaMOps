@@ -88,13 +88,14 @@ export function TeamTable({
               <TableHead className="px-4 font-semibold text-foreground">Telefone</TableHead>
               <TableHead className="px-4 font-semibold text-foreground">Nivel</TableHead>
               <TableHead className="px-4 font-semibold text-foreground">Turno</TableHead>
+              <TableHead className="px-4 font-semibold text-foreground">Sobreaviso</TableHead>
               <TableHead className="w-[120px] px-4 text-right font-semibold text-foreground">Ações</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {sortedMembers.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={5} className="h-24 px-4 text-center text-muted-foreground">
+                <TableCell colSpan={6} className="h-24 px-4 text-center text-muted-foreground">
                   Nenhum membro cadastrado.
                 </TableCell>
               </TableRow>
@@ -117,6 +118,15 @@ export function TeamTable({
                     <span className="inline-flex items-center rounded-md border border-amber-500/40 bg-amber-500/15 px-2 py-0.5 text-xs font-medium text-amber-700">
                       {member.shift}
                     </span>
+                  </TableCell>
+                  <TableCell className="px-4">
+                    {member.sobreaviso ? (
+                      <span className="inline-flex items-center rounded-md border border-blue-500/40 bg-blue-500/15 px-2 py-0.5 text-xs font-medium text-blue-700">
+                        Sim
+                      </span>
+                    ) : (
+                      <span className="text-xs text-muted-foreground">—</span>
+                    )}
                   </TableCell>
                   <TableCell className="px-4 text-right">
                     <div className="flex justify-end gap-1">
@@ -163,6 +173,7 @@ export function TeamTable({
                 phone: memberToEdit.phone,
                 level: memberToEdit.level,
                 shift: memberToEdit.shift,
+                sobreaviso: memberToEdit.sobreaviso,
               }
             : undefined
         }

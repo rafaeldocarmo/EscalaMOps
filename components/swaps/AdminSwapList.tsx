@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { getSwapRequestsForAdmin } from "@/server/swaps/getSwaps";
 import { getMemberScheduleForAdmin } from "@/server/schedule/getSchedule";
+import { getOnCallScheduleForMember, type OnCallPeriod } from "@/server/sobreaviso/getOnCallScheduleForMember";
 import { getScheduleCalendarDays } from "@/lib/scheduleUtils";
 import { approveSwap } from "@/server/swaps/approveSwap";
 import { rejectSwap } from "@/server/swaps/rejectSwap";
@@ -25,6 +26,7 @@ const STATUS_LABELS: Record<SwapRequestRow["status"], string> = {
 const TYPE_LABELS: Record<SwapRequestRow["type"], string> = {
   OFF_SWAP: "Troca de folga",
   QUEUE_SWAP: "Troca de fila",
+  ONCALL_SWAP: "Troca de sobreaviso",
 };
 
 type FilterTab = "pending" | "approved" | "rejected";
@@ -54,6 +56,10 @@ function getDescription(s: SwapRequestRow): string {
   if (s.type === "QUEUE_SWAP" && s.targetMemberName) {
     return `Troca de fila com ${s.targetMemberName}.`;
   }
+  if (s.type === "ONCALL_SWAP" && s.targetMemberName) {
+    return `Troca de sobreaviso com ${s.targetMemberName}.`;
+  }
+  if (s.type === "ONCALL_SWAP") return "Troca de sobreaviso.";
   return s.type === "OFF_SWAP" ? "Troca de folga." : "Troca de fila.";
 }
 
@@ -142,6 +148,118 @@ function MemberScheduleMiniCalendar({
   );
 }
 
+function periodsToDateSet(periods: OnCallPeriod[]): Set<string> {
+  const set = new Set<string>();
+  for (const p of periods) {
+    const start = new Date(p.startDate + "T12:00:00.000Z");
+    const end = new Date(p.endDate + "T12:00:00.000Z");
+    let d = new Date(start);
+    while (d < end) {
+      const y = d.getUTCFullYear();
+      const m = String(d.getUTCMonth() + 1).padStart(2, "0");
+      const day = String(d.getUTCDate()).padStart(2, "0");
+      set.add(`${y}-${m}-${day}`);
+      d = new Date(d.getTime() + 86400000);
+    }
+  }
+  return set;
+}
+
+/**
+ * Mini calendar for ONCALL_SWAP: shows current member's on-call in light blue,
+ * and the other member's on-call (what they'll get after swap) in dark blue.
+ */
+function OnCallSwapMiniCalendar({
+  currentMemberId,
+  newMemberId,
+  year,
+  month,
+  className,
+}: {
+  currentMemberId: string;
+  newMemberId: string;
+  year: number;
+  month: number;
+  className?: string;
+}) {
+  const [currentPeriods, setCurrentPeriods] = useState<OnCallPeriod[]>([]);
+  const [newPeriods, setNewPeriods] = useState<OnCallPeriod[]>([]);
+
+  useEffect(() => {
+    getOnCallScheduleForMember(currentMemberId, year, month).then(setCurrentPeriods);
+    getOnCallScheduleForMember(newMemberId, year, month).then(setNewPeriods);
+  }, [currentMemberId, newMemberId, year, month]);
+
+  const currentDates = periodsToDateSet(currentPeriods);
+  const newDates = periodsToDateSet(newPeriods);
+  const calendarDays = getScheduleCalendarDays(year, month);
+  const monthLabel = (() => {
+    const str = new Date(year, month - 1).toLocaleDateString("pt-BR", {
+      month: "long",
+      year: "numeric",
+    });
+    return str.charAt(0).toUpperCase() + str.slice(1);
+  })();
+  const rowCount = Math.ceil(calendarDays.length / 7);
+
+  return (
+    <div className={`flex min-h-0 flex-1 flex-col ${className ?? ""}`}>
+      <p className="mb-2 shrink-0 text-xs font-medium text-muted-foreground">{monthLabel}</p>
+      <div
+        className="grid min-h-0 flex-1 gap-1 text-xs"
+        style={{
+          gridTemplateColumns: "repeat(7, 1fr)",
+          gridTemplateRows: `auto repeat(${rowCount}, 1fr)`,
+        }}
+      >
+        {WEEKDAY_LABELS.map((label) => (
+          <div
+            key={label}
+            className="rounded border border-transparent bg-muted/50 flex items-center justify-center font-medium text-muted-foreground"
+          >
+            {label}
+          </div>
+        ))}
+        {calendarDays.map((day) => {
+          const dayNum = day.isCurrentMonth ? parseInt(day.dayLabel, 10) : null;
+          const isCurrent = currentDates.has(day.dateKey);
+          const isNew = newDates.has(day.dateKey);
+          let cellClass = "bg-white border-border/30";
+          let label = "";
+          if (!day.isCurrentMonth) {
+            cellClass = "bg-muted/10 border-transparent opacity-50";
+          } else if (isNew) {
+            cellClass = "bg-blue-500 border-blue-600 text-white";
+            label = "NOVO";
+          } else if (isCurrent) {
+            cellClass = "bg-blue-200 border-blue-300 text-blue-800";
+            label = "ATUAL";
+          }
+          return (
+            <div
+              key={day.dateKey}
+              className={`flex min-h-0 flex-col items-center justify-center rounded border ${cellClass}`}
+            >
+              {dayNum != null && <span className="text-[10px] font-medium">{dayNum}</span>}
+              {day.isCurrentMonth && label && <span className="text-[8px] font-semibold">{label}</span>}
+            </div>
+          );
+        })}
+      </div>
+      <div className="mt-2 flex flex-wrap items-center gap-3">
+        <div className="flex items-center gap-1">
+          <span className="inline-block h-2.5 w-2.5 rounded-sm bg-blue-200 border border-blue-300" />
+          <span className="text-[10px] text-muted-foreground">Atual</span>
+        </div>
+        <div className="flex items-center gap-1">
+          <span className="inline-block h-2.5 w-2.5 rounded-sm bg-blue-500 border border-blue-600" />
+          <span className="text-[10px] text-muted-foreground">Após troca</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 interface AdminSwapListProps {
   sessionMemberId?: string | null;
 }
@@ -171,13 +289,13 @@ export function AdminSwapList({ sessionMemberId }: AdminSwapListProps) {
 
   const canApprove = (s: SwapRequestRow) =>
     (s.type === "OFF_SWAP" && s.status === "PENDING") ||
-    (s.type === "QUEUE_SWAP" && s.status === "SECOND_USER_ACCEPTED");
+    ((s.type === "QUEUE_SWAP" || s.type === "ONCALL_SWAP") && s.status === "SECOND_USER_ACCEPTED");
 
   const canReject = (s: SwapRequestRow) =>
     s.status !== "APPROVED" && s.status !== "REJECTED" && s.status !== "CANCELLED";
 
   const canAcceptAsSecondUser = (s: SwapRequestRow) =>
-    s.type === "QUEUE_SWAP" &&
+    (s.type === "QUEUE_SWAP" || s.type === "ONCALL_SWAP") &&
     s.status === "WAITING_SECOND_USER" &&
     s.targetMemberId === sessionMemberId;
 
@@ -354,7 +472,38 @@ export function AdminSwapList({ sessionMemberId }: AdminSwapListProps) {
                         </div>
                       </div>
                       <div className="flex min-h-[320px] min-w-0 flex-col border-t bg-muted/5 p-4 sm:p-5 md:col-span-3 md:border-t-0 md:border-l md:py-5 md:pr-5 md:pl-5">
-                        {s.type === "QUEUE_SWAP" && s.targetMemberId && s.targetMemberName ? (
+                        {s.type === "ONCALL_SWAP" && s.targetMemberId && s.targetMemberName ? (
+                          <div className="flex min-h-0 flex-1 flex-col gap-4">
+                            <div className="grid grid-cols-1 min-h-0 flex-1 gap-4 sm:grid-cols-2">
+                              <div className="flex min-h-0 flex-col">
+                                <p className="mb-2 shrink-0 text-sm font-bold uppercase tracking-wider text-foreground">
+                                  Sobreaviso {s.requesterName}
+                                </p>
+                                <div className="min-h-0 min-w-0 flex-1">
+                                  <OnCallSwapMiniCalendar
+                                    currentMemberId={s.requesterId}
+                                    newMemberId={s.targetMemberId}
+                                    year={monthFromOriginal.year}
+                                    month={monthFromOriginal.month}
+                                  />
+                                </div>
+                              </div>
+                              <div className="flex min-h-0 flex-col">
+                                <p className="mb-2 shrink-0 text-sm font-bold uppercase tracking-wider text-foreground">
+                                  Sobreaviso {s.targetMemberName}
+                                </p>
+                                <div className="min-h-0 min-w-0 flex-1">
+                                  <OnCallSwapMiniCalendar
+                                    currentMemberId={s.targetMemberId}
+                                    newMemberId={s.requesterId}
+                                    year={monthFromOriginal.year}
+                                    month={monthFromOriginal.month}
+                                  />
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        ) : s.type === "QUEUE_SWAP" && s.targetMemberId && s.targetMemberName ? (
                           <div className="flex min-h-0 flex-1 flex-col gap-4">
                             <div className="grid grid-cols-1 min-h-0 flex-1 gap-4 sm:grid-cols-2">
                               <div className="flex min-h-0 flex-col">

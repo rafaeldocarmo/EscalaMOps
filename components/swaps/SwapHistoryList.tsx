@@ -8,6 +8,8 @@ import type { FullSwapPreviewMonth } from "@/server/swaps/getWeekendSwapPreview"
 import { acceptQueueSwap } from "@/server/swaps/acceptQueueSwap";
 import { rejectQueueSwapAsTarget } from "@/server/swaps/rejectQueueSwapAsTarget";
 import { cancelSwapRequest } from "@/server/swaps/cancelSwapRequest";
+import { getOnCallScheduleForMember, type OnCallPeriod } from "@/server/sobreaviso/getOnCallScheduleForMember";
+import { getScheduleCalendarDays } from "@/lib/scheduleUtils";
 import type { SwapRequestRow } from "@/types/swaps";
 import { FullSchedulePreviewCalendar } from "@/components/swaps/FullSchedulePreviewCalendar";
 import {
@@ -18,6 +20,88 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { HelpCircle } from "lucide-react";
+
+const WEEKDAY_LABELS_OC = ["Seg", "Ter", "Qua", "Qui", "Sex", "Sáb", "Dom"];
+
+function periodsToDateSet(periods: OnCallPeriod[]): Set<string> {
+  const set = new Set<string>();
+  for (const p of periods) {
+    const start = new Date(p.startDate + "T12:00:00.000Z");
+    const end = new Date(p.endDate + "T12:00:00.000Z");
+    let d = new Date(start);
+    while (d < end) {
+      const y = d.getUTCFullYear();
+      const m = String(d.getUTCMonth() + 1).padStart(2, "0");
+      const day = String(d.getUTCDate()).padStart(2, "0");
+      set.add(`${y}-${m}-${day}`);
+      d = new Date(d.getTime() + 86400000);
+    }
+  }
+  return set;
+}
+
+function OnCallPreviewCalendar({
+  currentMemberId,
+  newMemberId,
+  year,
+  month,
+}: {
+  currentMemberId: string;
+  newMemberId: string;
+  year: number;
+  month: number;
+}) {
+  const [currentPeriods, setCurrentPeriods] = useState<OnCallPeriod[]>([]);
+  const [newPeriods, setNewPeriods] = useState<OnCallPeriod[]>([]);
+
+  useEffect(() => {
+    getOnCallScheduleForMember(currentMemberId, year, month).then(setCurrentPeriods);
+    getOnCallScheduleForMember(newMemberId, year, month).then(setNewPeriods);
+  }, [currentMemberId, newMemberId, year, month]);
+
+  const currentDates = periodsToDateSet(currentPeriods);
+  const newDates = periodsToDateSet(newPeriods);
+  const calendarDays = getScheduleCalendarDays(year, month);
+  const monthLabel = (() => {
+    const str = new Date(year, month - 1).toLocaleDateString("pt-BR", { month: "long", year: "numeric" });
+    return str.charAt(0).toUpperCase() + str.slice(1);
+  })();
+
+  return (
+    <div>
+      <p className="mb-2 text-xs font-medium text-muted-foreground">{monthLabel}</p>
+      <div className="grid grid-cols-7 gap-1 text-xs">
+        {WEEKDAY_LABELS_OC.map((label) => (
+          <div key={label} className="rounded border border-transparent bg-muted/50 px-1 py-0.5 text-center font-medium text-muted-foreground">
+            {label}
+          </div>
+        ))}
+        {calendarDays.map((day) => {
+          const dayNum = day.isCurrentMonth ? parseInt(day.dayLabel, 10) : null;
+          const isCurrent = currentDates.has(day.dateKey);
+          const isNew = newDates.has(day.dateKey);
+          let cellClass = "bg-white border-border/30";
+          let label = "";
+          if (!day.isCurrentMonth) {
+            cellClass = "bg-muted/10 border-transparent opacity-50";
+          } else if (isNew) {
+            cellClass = "bg-blue-500 border-blue-600 text-white";
+            label = "NOVO";
+          } else if (isCurrent) {
+            cellClass = "bg-blue-200 border-blue-300 text-blue-800";
+            label = "ATUAL";
+          }
+          return (
+            <div key={day.dateKey} className={`rounded border min-h-[2rem] flex flex-col items-center justify-center gap-0 ${cellClass}`}>
+              {dayNum != null && <span className="text-[10px] font-medium">{dayNum}</span>}
+              {day.isCurrentMonth && label && <span className="text-[8px] font-semibold">{label}</span>}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
 
 function formatDate(d: Date): string {
   const day = String(d.getDate()).padStart(2, "0");
@@ -54,6 +138,10 @@ function getDescription(row: SwapRequestRow): string {
   if (row.type === "QUEUE_SWAP" && row.targetMemberName) {
     return `Troca de fila com ${row.targetMemberName}.`;
   }
+  if (row.type === "ONCALL_SWAP" && row.targetMemberName) {
+    return `Troca de sobreaviso com ${row.targetMemberName}.`;
+  }
+  if (row.type === "ONCALL_SWAP") return "Troca de sobreaviso.";
   return row.type === "OFF_SWAP" ? "Troca de folga." : "Troca de fila.";
 }
 
@@ -84,21 +172,27 @@ export function SwapHistoryList({ memberId, compact }: SwapHistoryListProps) {
     return () => window.removeEventListener("swaps-updated", handler);
   }, []);
 
+  const viewSwapItem = viewSwapModalRequestId ? list.find((s) => s.id === viewSwapModalRequestId) ?? null : null;
+
   useEffect(() => {
-    if (!viewSwapModalRequestId) {
+    if (!viewSwapModalRequestId || !viewSwapItem) {
       setPreviewData(null);
       setCurrentSchedule(null);
       return;
     }
-    const item = list.find((s) => s.id === viewSwapModalRequestId);
-    if (!item || item.type !== "QUEUE_SWAP" || !item.requesterId) {
+    if (viewSwapItem.type === "ONCALL_SWAP") {
+      setPreviewData(null);
+      setCurrentSchedule(null);
+      return;
+    }
+    if (viewSwapItem.type !== "QUEUE_SWAP" || !viewSwapItem.requesterId) {
       setPreviewData(null);
       setCurrentSchedule(null);
       return;
     }
     setPreviewData(null);
     setCurrentSchedule(null);
-    getFullQueueSwapPreview(item.requesterId).then((data) => {
+    getFullQueueSwapPreview(viewSwapItem.requesterId).then((data) => {
       setPreviewData(data ?? null);
     });
     const now = new Date();
@@ -115,7 +209,7 @@ export function SwapHistoryList({ memberId, compact }: SwapHistoryListProps) {
       if (r2) months.push({ year: r2.year, month: r2.month, days: r2.days.map((d) => ({ dateKey: d.dateKey, status: d.status })) });
       setCurrentSchedule(months.length > 0 ? months : null);
     });
-  }, [viewSwapModalRequestId, list, memberId]);
+  }, [viewSwapModalRequestId, viewSwapItem, list, memberId]);
 
   const totalPages = Math.max(1, Math.ceil(list.length / PAGE_SIZE));
   const start = (page - 1) * PAGE_SIZE;
@@ -126,7 +220,7 @@ export function SwapHistoryList({ memberId, compact }: SwapHistoryListProps) {
   }, [page, totalPages]);
 
   const canAcceptAsTarget = (s: SwapRequestRow) =>
-    s.type === "QUEUE_SWAP" &&
+    (s.type === "QUEUE_SWAP" || s.type === "ONCALL_SWAP") &&
     s.status === "WAITING_SECOND_USER" &&
     s.targetMemberId === memberId;
 
@@ -242,40 +336,70 @@ export function SwapHistoryList({ memberId, compact }: SwapHistoryListProps) {
       )}
 
       <Dialog open={!!viewSwapModalRequestId} onOpenChange={(open) => !open && setViewSwapModalRequestId(null)}>
-        <DialogContent className="max-w-[80vw] max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-[80vw]! max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Comparação de agendas</DialogTitle>
+            <DialogTitle>
+              {viewSwapItem?.type === "ONCALL_SWAP" ? "Comparação de sobreaviso" : "Comparação de agendas"}
+            </DialogTitle>
           </DialogHeader>
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-[1fr_auto_1fr] items-center">
-            <div>
-              <p className="mb-2 text-sm font-medium text-muted-foreground">Sua agenda atual</p>
-              {currentSchedule === null ? (
-                <p className="text-sm text-muted-foreground">Carregando…</p>
-              ) : currentSchedule.length > 0 ? (
-                <FullSchedulePreviewCalendar months={currentSchedule} />
-              ) : (
-                <p className="text-sm text-muted-foreground">—</p>
-              )}
-            </div>
-            <div className="flex items-center justify-center pt-8 text-muted-foreground">
-              <span className="text-2xl" aria-hidden>→</span>
-            </div>
-            <div>
-              <p className="mb-2 text-sm font-medium text-muted-foreground">Sua agenda após a troca</p>
-              {previewData === null ? (
-                <p className="text-sm text-muted-foreground">Carregando…</p>
-              ) : previewData.length > 0 ? (
-                <FullSchedulePreviewCalendar months={previewData} />
-              ) : (
-                <p className="text-sm text-muted-foreground">Não foi possível carregar.</p>
-              )}
-            </div>
-          </div>
-          <p className="mt-3 text-xs text-muted-foreground">
-            <span className="inline-block h-3 w-3 rounded-sm border border-green-500/50 bg-green-500/30 align-middle mr-1" /> Trabalho
-            {" · "}
-            <span className="inline-block h-3 w-3 rounded-sm border border-red-500/30 bg-red-500/20 align-middle mr-1" /> Folga
-          </p>
+          {viewSwapItem?.type === "ONCALL_SWAP" && viewSwapItem.requesterId ? (
+            <>
+              <div className="space-y-2">
+                <p className="text-sm font-medium text-muted-foreground">
+                  Seu sobreaviso após a troca
+                </p>
+                <OnCallPreviewCalendar
+                  currentMemberId={memberId}
+                  newMemberId={viewSwapItem.requesterId}
+                  year={new Date().getFullYear()}
+                  month={new Date().getMonth() + 1}
+                />
+              </div>
+              <div className="flex flex-wrap items-center gap-4 pt-1">
+                <div className="flex items-center gap-1.5">
+                  <span className="inline-block h-3 w-3 rounded-sm bg-blue-200 border border-blue-300" />
+                  <span className="text-xs text-muted-foreground">Seu sobreaviso atual</span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <span className="inline-block h-3 w-3 rounded-sm bg-blue-500 border border-blue-600" />
+                  <span className="text-xs text-muted-foreground">Sobreaviso após troca</span>
+                </div>
+              </div>
+            </>
+          ) : (
+            <>
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-[1fr_auto_1fr] items-center">
+                <div>
+                  <p className="mb-2 text-sm font-medium text-muted-foreground">Sua agenda atual</p>
+                  {currentSchedule === null ? (
+                    <p className="text-sm text-muted-foreground">Carregando…</p>
+                  ) : currentSchedule.length > 0 ? (
+                    <FullSchedulePreviewCalendar months={currentSchedule} />
+                  ) : (
+                    <p className="text-sm text-muted-foreground">—</p>
+                  )}
+                </div>
+                <div className="flex items-center justify-center pt-8 text-muted-foreground">
+                  <span className="text-2xl" aria-hidden>→</span>
+                </div>
+                <div>
+                  <p className="mb-2 text-sm font-medium text-muted-foreground">Sua agenda após a troca</p>
+                  {previewData === null ? (
+                    <p className="text-sm text-muted-foreground">Carregando…</p>
+                  ) : previewData.length > 0 ? (
+                    <FullSchedulePreviewCalendar months={previewData} />
+                  ) : (
+                    <p className="text-sm text-muted-foreground">Não foi possível carregar.</p>
+                  )}
+                </div>
+              </div>
+              <p className="mt-3 text-xs text-muted-foreground">
+                <span className="inline-block h-3 w-3 rounded-sm border border-green-500/50 bg-green-500/30 align-middle mr-1" /> Trabalho
+                {" · "}
+                <span className="inline-block h-3 w-3 rounded-sm border border-red-500/30 bg-red-500/20 align-middle mr-1" /> Folga
+              </p>
+            </>
+          )}
         </DialogContent>
       </Dialog>
     </>

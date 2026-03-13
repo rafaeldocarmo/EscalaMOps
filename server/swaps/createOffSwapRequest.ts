@@ -3,6 +3,7 @@
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import type { SwapActionResult } from "@/types/swaps";
+import { sendWhatsappMessage } from "@/server/whatsapp/sendWhatsappMessage";
 
 function dateToKey(d: Date): string {
   const y = d.getFullYear();
@@ -88,6 +89,25 @@ export async function createOffSwapRequest(
       status: "PENDING",
     },
   });
+
+  try {
+    const memberName = session.member.name ?? "Membro";
+    const formatDdMm = (yyyyMmDd: string) => {
+      const [y, m, d] = yyyyMmDd.split("-");
+      return `${d}/${m}`;
+    };
+    const message = [
+      "Nova solicitação de troca de folga.",
+      "",
+      `Membro: ${memberName}`,
+      "",
+      `Folga atual: ${formatDdMm(originalDateStr)}`,
+      `Nova folga solicitada: ${formatDdMm(targetDateStr)}`,
+    ].join("\n");
+    await sendWhatsappMessage(message);
+  } catch (err) {
+    console.error("WhatsApp send error", err);
+  }
 
   return { success: true };
 }

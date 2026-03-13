@@ -18,6 +18,7 @@ export default async function TeamPage() {
         phone: m.phone,
         level: m.level,
         shift: m.shift,
+        sobreaviso: m.sobreaviso,
         createdAt: m.createdAt,
         updatedAt: m.updatedAt,
       }))}

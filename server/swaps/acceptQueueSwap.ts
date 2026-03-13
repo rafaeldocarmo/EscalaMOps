@@ -18,8 +18,8 @@ export async function acceptQueueSwap(swapRequestId: string): Promise<SwapAction
     include: { requester: true, targetMember: true },
   });
 
-  if (!swap || swap.type !== "QUEUE_SWAP") {
-    return { success: false, error: "Solicitação não encontrada ou não é troca de fila." };
+  if (!swap || (swap.type !== "QUEUE_SWAP" && swap.type !== "ONCALL_SWAP")) {
+    return { success: false, error: "Solicitação não encontrada ou tipo inválido." };
   }
   if (swap.status !== "WAITING_SECOND_USER") {
     return { success: false, error: "Esta solicitação não está aguardando sua aceitação." };

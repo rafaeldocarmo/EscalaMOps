@@ -1,10 +1,10 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { getMySchedule } from "@/server/schedule/getMySchedule";
 import { getMySwapRequests } from "@/server/swaps/getSwaps";
+import { getMyOnCallSchedule, type MyOnCallPeriod } from "@/server/sobreaviso/getMyOnCallSchedule";
 import { getScheduleCalendarDays } from "@/lib/scheduleUtils";
 import { MonthNavigator } from "./month-navigator";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -21,7 +21,7 @@ import {
   Calendar,
   CalendarClock,
   FileText,
-  MessageCircle,
+  ShieldCheck,
   Briefcase,
   Coffee,
 } from "lucide-react";
@@ -35,16 +35,20 @@ const MONTH_NAMES = [
 
 interface MyScheduleViewProps {
   memberId: string;
+  year: number;
+  month: number;
+  onYearChange: (year: number) => void;
+  onMonthChange: (month: number) => void;
 }
 
-export function MyScheduleView({ memberId }: MyScheduleViewProps) {
+export function MyScheduleView({ memberId, year, month, onYearChange, onMonthChange }: MyScheduleViewProps) {
   const now = new Date();
-  const [year, setYear] = useState(now.getFullYear());
-  const [month, setMonth] = useState(now.getMonth() + 1);
   const [data, setData] = useState<Awaited<ReturnType<typeof getMySchedule>>>(null);
   const [swapHighlightDateKeys, setSwapHighlightDateKeys] = useState<string[]>([]);
+  const [onCallPeriods, setOnCallPeriods] = useState<MyOnCallPeriod[]>([]);
   const [swapOffModalOpen, setSwapOffModalOpen] = useState(false);
   const [swapQueueModalOpen, setSwapQueueModalOpen] = useState(false);
+  const [swapOnCallModalOpen, setSwapOnCallModalOpen] = useState(false);
   const [swapHistoryModalOpen, setSwapHistoryModalOpen] = useState(false);
   const searchParams = useSearchParams();
 
@@ -58,6 +62,7 @@ export function MyScheduleView({ memberId }: MyScheduleViewProps) {
 
   useEffect(() => {
     getMySchedule(memberId, year, month).then(setData);
+    getMyOnCallSchedule(memberId, year, month).then(setOnCallPeriods);
   }, [memberId, year, month]);
 
   useEffect(() => {
@@ -100,20 +105,42 @@ export function MyScheduleView({ memberId }: MyScheduleViewProps) {
     }
   }
 
+  const onCallDates = new Set<string>();
+  const onCallTransitionDates = new Set<string>();
+  for (const p of onCallPeriods) {
+    const start = new Date(p.startDate + "T12:00:00.000Z");
+    const end = new Date(p.endDate + "T12:00:00.000Z");
+    let d = new Date(start);
+    while (d < end) {
+      const y = d.getUTCFullYear();
+      const m = String(d.getUTCMonth() + 1).padStart(2, "0");
+      const day = String(d.getUTCDate()).padStart(2, "0");
+      onCallDates.add(`${y}-${m}-${day}`);
+      d = new Date(d.getTime() + 86400000);
+    }
+    const ey = end.getUTCFullYear();
+    const em = String(end.getUTCMonth() + 1).padStart(2, "0");
+    const ed = String(end.getUTCDate()).padStart(2, "0");
+    onCallTransitionDates.add(`${ey}-${em}-${ed}`);
+  }
+  for (const dt of onCallTransitionDates) {
+    onCallDates.delete(dt);
+  }
+
   const goPrev = () => {
     if (month === 1) {
-      setMonth(12);
-      setYear((y) => y - 1);
+      onMonthChange(12);
+      onYearChange(year - 1);
     } else {
-      setMonth((m) => m - 1);
+      onMonthChange(month - 1);
     }
   };
   const goNext = () => {
     if (month === 12) {
-      setMonth(1);
-      setYear((y) => y + 1);
+      onMonthChange(1);
+      onYearChange(year + 1);
     } else {
-      setMonth((m) => m + 1);
+      onMonthChange(month + 1);
     }
   };
 
@@ -139,6 +166,27 @@ export function MyScheduleView({ memberId }: MyScheduleViewProps) {
           nextOffSubtitle = `${dayName}, ${d.day} de ${MONTH_NAMES[data.month - 1]}`;
         }
         if (nextWorkLabel && nextOffLabel) break;
+      }
+    }
+  }
+
+  let nextOnCallLabel: string | null = null;
+  let nextOnCallSubtitle: string | null = null;
+  if (onCallPeriods.length > 0 && isViewingCurrentMonth) {
+    const todayKey = `${currentYear}-${String(currentMonth).padStart(2, "0")}-${String(today).padStart(2, "0")}`;
+    for (const p of onCallPeriods) {
+      if (p.startDate >= todayKey) {
+        const sd = new Date(p.startDate + "T12:00:00.000Z");
+        const dayName = ["Dom","Seg","Ter","Qua","Qui","Sex","Sáb"][sd.getUTCDay()];
+        nextOnCallLabel = "Próximo Sobreaviso";
+        nextOnCallSubtitle = `${dayName}, ${sd.getUTCDate()} de ${MONTH_NAMES[sd.getUTCMonth()]}`;
+        break;
+      }
+      if (p.startDate < todayKey && p.endDate > todayKey) {
+        nextOnCallLabel = "Em Sobreaviso";
+        const ed = new Date(p.endDate + "T12:00:00.000Z");
+        nextOnCallSubtitle = `Até Sex, ${ed.getUTCDate()} de ${MONTH_NAMES[ed.getUTCMonth()]}`;
+        break;
       }
     }
   }
@@ -177,10 +225,12 @@ export function MyScheduleView({ memberId }: MyScheduleViewProps) {
                   : null;
                 const dayNum = day.isCurrentMonth ? parseInt(day.dayLabel, 10) : null;
                 const isSwapHighlight = day.isCurrentMonth && swapHighlightDateKeys.includes(day.dateKey);
+                const isOnCall = day.isCurrentMonth && onCallDates.has(day.dateKey);
+                const isOnCallTransition = day.isCurrentMonth && onCallTransitionDates.has(day.dateKey);
                 return (
                   <div
                     key={day.dateKey}
-                    className={`aspect-[3/2] flex min-h-[4rem] flex-col items-center justify-center gap-0.5 rounded-lg border p-2 transition-colors ${
+                    className={`relative aspect-[3/2] flex min-h-[4rem] flex-col items-center justify-center gap-0.5 rounded-lg border p-2 transition-colors overflow-hidden ${
                       isSwapHighlight
                         ? "border-amber-500/60 bg-amber-400/50 ring-1 ring-amber-600/40 hover:bg-amber-400/60 hover:ring-1 hover:ring-amber-600/50"
                         : status === "OFF"
@@ -190,9 +240,16 @@ export function MyScheduleView({ memberId }: MyScheduleViewProps) {
                             : "border-transparent bg-muted/20"
                     }`}
                   >
+                    {(isOnCall || isOnCallTransition) && (
+                      <div
+                        className={`absolute top-0 right-0 w-1/2 h-full ${
+                          isOnCallTransition ? "bg-blue-300/50" : "bg-blue-500/40"
+                        }`}
+                      />
+                    )}
                     {dayNum != null && (
                       <span
-                        className={`text-sm font-semibold ${
+                        className={`relative z-10 text-sm font-semibold ${
                           isSwapHighlight ? "text-amber-900" : status === "OFF" ? "text-red-800" : "text-green-800"
                         }`}
                       >
@@ -200,13 +257,13 @@ export function MyScheduleView({ memberId }: MyScheduleViewProps) {
                       </span>
                     )}
                     {status === "WORK" && !isSwapHighlight && (
-                      <span className="text-[10px] font-medium text-green-800">TRABALHO</span>
+                      <span className="relative z-10 text-[10px] font-medium text-green-800">TRABALHO</span>
                     )}
                     {status === "OFF" && !isSwapHighlight && (
-                      <span className="text-[10px] font-medium text-red-800">FOLGA</span>
+                      <span className="relative z-10 text-[10px] font-medium text-red-800">FOLGA</span>
                     )}
                     {isSwapHighlight && (
-                      <span className="text-[10px] font-medium text-amber-900">TROCA</span>
+                      <span className="relative z-10 text-[10px] font-medium text-amber-900">TROCA</span>
                     )}
                   </div>
                 );
@@ -225,6 +282,12 @@ export function MyScheduleView({ memberId }: MyScheduleViewProps) {
                 <span className="h-3 w-3 rounded-full bg-amber-400" aria-hidden />
                 <span className="text-xs text-muted-foreground">Troca Solicitada</span>
               </div>
+              {onCallDates.size > 0 && (
+                <div className="flex items-center gap-2">
+                  <span className="h-3 w-3 rounded-full bg-blue-500/60" aria-hidden />
+                  <span className="text-xs text-muted-foreground">Sobreaviso</span>
+                </div>
+              )}
             </div>
           </CardContent>
         </Card>
@@ -266,15 +329,14 @@ export function MyScheduleView({ memberId }: MyScheduleViewProps) {
               <span className="text-xs font-medium text-foreground group-hover:text-red-600 transition-colors">Ver Solicitações</span>
             </Button>
             <Button
-              asChild
               variant="outline"
               size="sm"
-              className="group h-auto flex-col gap-2 py-3 border-border hover:border-red-500 hover:bg-red-500/10 hover:text-red-600"
+              disabled={onCallDates.size === 0 && onCallTransitionDates.size === 0}
+              className="group h-auto flex-col gap-2 py-3 cursor-pointer border-border hover:border-blue-500 hover:bg-blue-500/10 hover:text-blue-600 disabled:opacity-40 disabled:cursor-not-allowed"
+              onClick={() => setSwapOnCallModalOpen(true)}
             >
-              <Link href="#" className="flex flex-col items-center gap-2 group">
-                <MessageCircle className="h-5 w-5 text-muted-foreground group-hover:text-red-600 transition-colors" />
-                <span className="text-xs font-medium text-foreground group-hover:text-red-600 transition-colors">Contatar Admin</span>
-              </Link>
+              <ShieldCheck className="h-5 w-5 text-muted-foreground group-hover:text-blue-600 transition-colors" />
+              <span className="text-xs font-medium text-foreground group-hover:text-blue-600 transition-colors">Trocar Sobreaviso</span>
             </Button>
           </CardContent>
         </Card>
@@ -312,6 +374,17 @@ export function MyScheduleView({ memberId }: MyScheduleViewProps) {
             ) : (
               <p className="text-sm text-muted-foreground">Nenhuma folga próxima.</p>
             )}
+            {nextOnCallLabel && (
+              <div className="flex items-start gap-3">
+                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-blue-500/15 text-blue-600">
+                  <ShieldCheck className="h-4 w-4" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-medium text-foreground">{nextOnCallLabel}</p>
+                  <p className="text-xs text-muted-foreground">{nextOnCallSubtitle ?? ""}</p>
+                </div>
+              </div>
+            )}
           </CardContent>
         </Card>
 
@@ -339,6 +412,11 @@ export function MyScheduleView({ memberId }: MyScheduleViewProps) {
       <Dialog open={swapQueueModalOpen} onOpenChange={setSwapQueueModalOpen}>
         <DialogContent className="max-w-[80vw]! max-h-[90vh] overflow-y-auto">
           <UnifiedSwapForm memberId={memberId} initialMode="weekend" />
+        </DialogContent>
+      </Dialog>
+      <Dialog open={swapOnCallModalOpen} onOpenChange={setSwapOnCallModalOpen}>
+        <DialogContent className="max-w-[80vw]! max-h-[90vh] overflow-y-auto">
+          <UnifiedSwapForm memberId={memberId} initialMode="sobreaviso" />
         </DialogContent>
       </Dialog>
       <Dialog open={swapHistoryModalOpen} onOpenChange={setSwapHistoryModalOpen}>

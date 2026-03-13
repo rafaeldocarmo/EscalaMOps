@@ -15,6 +15,9 @@ interface DashboardTabsProps {
 
 export function DashboardTabs({ memberId, memberName }: DashboardTabsProps) {
   const [value, setValue] = useState("my");
+  const now = new Date();
+  const [year, setYear] = useState(now.getFullYear());
+  const [month, setMonth] = useState(now.getMonth() + 1);
 
   return (
     <Tabs value={value} onValueChange={setValue} className="w-full space-y-6">
@@ -47,10 +50,10 @@ export function DashboardTabs({ memberId, memberName }: DashboardTabsProps) {
         </TabsList>
       </div>
 
-      {value === "my" && <DashboardSummaryCards memberId={memberId} />}
+      {value === "my" && <DashboardSummaryCards memberId={memberId} year={year} month={month} />}
 
       <TabsContent value="my" className="mt-0">
-        <MyScheduleView memberId={memberId} />
+        <MyScheduleView memberId={memberId} year={year} month={month} onYearChange={setYear} onMonthChange={setMonth} />
       </TabsContent>
       <TabsContent value="weekly" className="mt-0">
         <WeeklyScheduleView memberName={memberName} />

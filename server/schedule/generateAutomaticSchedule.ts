@@ -4,17 +4,14 @@ import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { generateMonthlySchedule } from "./generateMonthlySchedule";
 import { saveScheduleAssignments } from "./saveScheduleAssignments";
+import { generateSobreavisoSchedule } from "@/server/sobreaviso/generateSobreavisoSchedule";
+import { getSobreavisoScheduleForMonth, type SobreavisoWeek } from "@/server/sobreaviso/getSobreavisoScheduleForMonth";
 import type { ScheduleAssignmentRow } from "@/types/schedule";
 
 export type GenerateAutomaticScheduleResult =
-  | { success: true; assignments: ScheduleAssignmentRow[] }
+  | { success: true; assignments: ScheduleAssignmentRow[]; sobreavisoWeeks: SobreavisoWeek[] }
   | { success: false; error: string };
 
-/**
- * Generates the monthly schedule using the rotation algorithm, then persists
- * assignments to the given schedule. Returns the new assignments so the client
- * can re-render without full page refresh.
- */
 export async function generateAutomaticSchedule(
   scheduleId: string
 ): Promise<GenerateAutomaticScheduleResult> {
@@ -41,6 +38,10 @@ export async function generateAutomaticSchedule(
     if (!saveResult.success) {
       return saveResult;
     }
+
+    await generateSobreavisoSchedule(schedule.month, schedule.year);
+    const sobreavisoWeeks = await getSobreavisoScheduleForMonth(schedule.month, schedule.year);
+
     const assignmentsForClient: ScheduleAssignmentRow[] = assignments.map((a) => ({
       id: "",
       scheduleId,
@@ -48,7 +49,7 @@ export async function generateAutomaticSchedule(
       date: a.date,
       status: a.status,
     }));
-    return { success: true, assignments: assignmentsForClient };
+    return { success: true, assignments: assignmentsForClient, sobreavisoWeeks };
   } catch (e) {
     const message = e instanceof Error ? e.message : "Erro ao gerar escala.";
     return { success: false, error: message };

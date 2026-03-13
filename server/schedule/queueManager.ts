@@ -13,13 +13,19 @@ export type GroupKey = `${Shift}_${Level}`;
 export const WEEKEND_COVERAGE: Record<GroupKey, number> = {
   T1_N1: 1,
   T1_N2: 2,
+  T1_ESPC: 0,
   T2_N1: 1,
   T2_N2: 2,
+  T2_ESPC: 0,
   T3_N1: 1,
-  T3_N2: 0, // N2 does not exist in T3
+  T3_N2: 0,
+  T3_ESPC: 0,
+  TC_N1: 0,
+  TC_N2: 0,
+  TC_ESPC: 0,
 };
 
-/** Groups that participate in weekend rotation (T3 has only N1). */
+/** Groups that participate in weekend rotation. */
 export const WEEKEND_GROUPS: GroupKey[] = [
   "T1_N1",
   "T1_N2",
@@ -53,7 +59,6 @@ export function selectAndAdvanceQueue(
   }
   const take = Math.min(count, queue.length);
   const selected = queue.slice(0, take);
-  const rest = queue.slice(take);
   const maxIndex = Math.max(0, ...queue.map((m) => m.rotationIndex));
   const updates: { memberId: string; newRotationIndex: number }[] = [];
   selected.forEach((m, i) => {

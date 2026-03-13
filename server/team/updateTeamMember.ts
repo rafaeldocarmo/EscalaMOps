@@ -41,6 +41,7 @@ export async function updateTeamMember(
         phone: parsed.data.phone.trim(),
         level: parsed.data.level,
         shift: parsed.data.shift,
+        sobreaviso: parsed.data.sobreaviso ?? false,
       },
     });
     return { success: true };

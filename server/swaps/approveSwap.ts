@@ -85,8 +85,8 @@ export async function approveSwap(swapRequestId: string): Promise<SwapActionResu
   if (swap.status === "REJECTED" || swap.status === "CANCELLED") {
     return { success: false, error: "Esta solicitação não pode mais ser aprovada." };
   }
-  if (swap.type === "QUEUE_SWAP" && swap.status !== "SECOND_USER_ACCEPTED") {
-    return { success: false, error: "O outro membro ainda precisa aceitar a troca de fila." };
+  if ((swap.type === "QUEUE_SWAP" || swap.type === "ONCALL_SWAP") && swap.status !== "SECOND_USER_ACCEPTED") {
+    return { success: false, error: "O outro membro ainda precisa aceitar a troca." };
   }
   if (swap.type === "OFF_SWAP" && swap.status !== "PENDING") {
     return { success: false, error: "Status inválido para aprovação." };
@@ -149,6 +149,40 @@ export async function approveSwap(swapRequestId: string): Promise<SwapActionResu
       }
       if (schedNext) {
         await swapAssignmentsInSchedule(tx, schedNext.id, swap.requesterId, swap.targetMemberId);
+      }
+    }
+
+    if (swap.type === "ONCALL_SWAP" && swap.targetMemberId) {
+      const requester = swap.requester;
+      const target = swap.targetMember!;
+      const aIdx = requester.onCallRotationIndex;
+      const bIdx = target.onCallRotationIndex;
+      await tx.teamMember.update({ where: { id: swap.requesterId }, data: { onCallRotationIndex: bIdx } });
+      await tx.teamMember.update({ where: { id: swap.targetMemberId }, data: { onCallRotationIndex: aIdx } });
+
+      const now = new Date();
+      const rangeStart = new Date(now.getFullYear(), now.getMonth(), 1);
+      const rangeEnd = new Date(now.getFullYear(), now.getMonth() + 3, 0);
+
+      const overlapWhere = {
+        startDate: { lt: rangeEnd },
+        endDate: { gt: rangeStart },
+      };
+
+      const [assignmentsA, assignmentsB] = await Promise.all([
+        tx.onCallAssignment.findMany({
+          where: { memberId: swap.requesterId, ...overlapWhere },
+        }),
+        tx.onCallAssignment.findMany({
+          where: { memberId: swap.targetMemberId, ...overlapWhere },
+        }),
+      ]);
+
+      for (const a of assignmentsA) {
+        await tx.onCallAssignment.update({ where: { id: a.id }, data: { memberId: swap.targetMemberId } });
+      }
+      for (const b of assignmentsB) {
+        await tx.onCallAssignment.update({ where: { id: b.id }, data: { memberId: swap.requesterId } });
       }
     }
 
