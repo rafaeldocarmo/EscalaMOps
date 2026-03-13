@@ -67,6 +67,7 @@ enum Level {
   N1
   N2
   ESPC
+  PRODUCAO
 }
 
 enum Shift {

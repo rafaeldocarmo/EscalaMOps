@@ -54,12 +54,14 @@ export async function generateMonthlySchedule(
   month: number,
   year: number
 ): Promise<ScheduleAssignmentOutput[]> {
-  const members = await prisma.teamMember.findMany({
-    where: { level: { in: ["N1", "N2"] } },
+  const allMembers = await prisma.teamMember.findMany({
     orderBy: [{ shift: "asc" }, { level: "asc" }, { name: "asc" }],
   });
 
-  const queueMembers: QueueMember[] = members.map((m) => ({
+  const rotationMembers = allMembers.filter((m) => m.level === "N1" || m.level === "N2");
+  const alwaysOffWeekendMembers = allMembers.filter((m) => m.level === "ESPC" || m.level === "PRODUCAO");
+
+  const queueMembers: QueueMember[] = rotationMembers.map((m) => ({
     id: m.id,
     name: m.name,
     shift: m.shift,
@@ -67,7 +69,8 @@ export async function generateMonthlySchedule(
     rotationIndex: m.rotationIndex,
   }));
 
-  const memberIds = new Set(members.map((m) => m.id));
+  const memberIds = new Set(allMembers.map((m) => m.id));
+  const alwaysOffWeekendIds = new Set(alwaysOffWeekendMembers.map((m) => m.id));
   const assignmentsMap = new Map<string, "WORK" | "OFF">();
   const sep = "|";
 
@@ -115,7 +118,10 @@ export async function generateMonthlySchedule(
     const sunKey = toDateKey(sunday);
 
     for (const mid of memberIds) {
-      if (weekendWorkerIds.has(mid)) {
+      if (alwaysOffWeekendIds.has(mid)) {
+        setAssignment(mid, satKey, "OFF");
+        setAssignment(mid, sunKey, "OFF");
+      } else if (weekendWorkerIds.has(mid)) {
         setAssignment(mid, satKey, "WORK");
         setAssignment(mid, sunKey, "WORK");
       } else {
@@ -127,7 +133,7 @@ export async function generateMonthlySchedule(
     weekendsWithWorkers.push({ saturday, workerIds: weekendWorkerIds });
   }
 
-  const membersForAllocation: MemberForAllocation[] = queueMembers.map((m) => ({
+  const membersForAllocation: MemberForAllocation[] = rotationMembers.map((m) => ({
     id: m.id,
     shift: m.shift,
     level: m.level,

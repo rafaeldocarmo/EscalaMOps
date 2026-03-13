@@ -93,20 +93,21 @@ export async function createOffSwapRequest(
   try {
     const memberName = session.member.name ?? "Membro";
     const formatDdMm = (yyyyMmDd: string) => {
-      const [y, m, d] = yyyyMmDd.split("-");
-      return `${d}/${m}`;
+      const parts = yyyyMmDd.split("-");
+      return `${parts[2]}/${parts[1]}`;
     };
+    const siteUrl = process.env.NEXT_PUBLIC_APP_URL ?? "https://escala-mops.vercel.app";
     const message = [
-      "Nova solicitação de troca de folga.",
+      "Olá Admin,",
       "",
-      `Membro: ${memberName}`,
+      `${memberName} deseja trocar seu dia de folga ${formatDdMm(originalDateStr)} para o dia ${formatDdMm(targetDateStr)}.`,
       "",
-      `Folga atual: ${formatDdMm(originalDateStr)}`,
-      `Nova folga solicitada: ${formatDdMm(targetDateStr)}`,
+      `Para aceitar ou recusar entre no link ${siteUrl}/dashboard`,
     ].join("\n");
-    await sendWhatsappMessage(message);
+    const adminNumber = process.env.WHAPI_ADMIN_TO;
+    await sendWhatsappMessage(message, adminNumber);
   } catch (err) {
-    console.error("WhatsApp send error", err);
+    console.error("WhatsApp send error (OFF_SWAP create)", err);
   }
 
   return { success: true };

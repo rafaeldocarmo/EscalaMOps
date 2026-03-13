@@ -35,17 +35,23 @@ interface TeamFormProps {
 function validateLevelShift(level: Level, shift: Shift): string | null {
   if (level === "N2" && shift === "T3")
     return "N2 só pode estar nos turnos T1 ou T2.";
-  if (shift === "T3" && level === "ESPC")
-    return "Turno T3 não aceita nível ESPC.";
+  if (shift === "T3" && (level === "ESPC" || level === "PRODUCAO"))
+    return "Turno T3 não aceita esse nível.";
   if (level === "ESPC" && shift !== "TC")
     return "ESPC deve usar turno TC.";
-  if (shift === "TC" && level !== "ESPC")
-    return "Turno TC é exclusivo do nível ESPC.";
+  if (level === "PRODUCAO" && shift !== "TC")
+    return "Produção deve usar turno TC.";
+  if (shift === "TC" && level !== "ESPC" && level !== "PRODUCAO")
+    return "Turno TC é exclusivo dos níveis ESPC e Produção.";
   return null;
 }
 
 function canSobreaviso(level: Level): boolean {
-  return level === "N2" || level === "ESPC";
+  return level === "N2" || level === "ESPC" || level === "PRODUCAO";
+}
+
+function forceSobreaviso(level: Level): boolean {
+  return level === "PRODUCAO";
 }
 
 export function TeamForm({
@@ -68,10 +74,12 @@ export function TeamForm({
   const handleLevelChange = useCallback(
     (value: Level) => {
       setLevel(value);
-      const autoShift = value === "ESPC" ? "TC" : shift === "TC" ? "T1" : shift;
+      const autoShift = (value === "ESPC" || value === "PRODUCAO") ? "TC" : shift === "TC" ? "T1" : shift;
       setShift(autoShift);
       setLevelShiftError(validateLevelShift(value, autoShift));
-      if (!canSobreaviso(value)) {
+      if (forceSobreaviso(value)) {
+        setSobreaviso(true);
+      } else if (!canSobreaviso(value)) {
         setSobreaviso(false);
       }
     },
@@ -99,7 +107,7 @@ export function TeamForm({
       phone: phone.trim(),
       level,
       shift,
-      sobreaviso: canSobreaviso(level) ? sobreaviso : false,
+      sobreaviso: forceSobreaviso(level) ? true : canSobreaviso(level) ? sobreaviso : false,
     });
   }
 
@@ -201,7 +209,7 @@ export function TeamForm({
             type="button"
             role="switch"
             aria-checked={sobreaviso}
-            disabled={loading}
+            disabled={loading || forceSobreaviso(level)}
             onClick={() => setSobreaviso((v) => !v)}
             className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 ${
               sobreaviso ? "bg-primary" : "bg-input"
@@ -213,8 +221,8 @@ export function TeamForm({
               }`}
             />
           </button>
-          <Label className="cursor-pointer" onClick={() => !loading && setSobreaviso((v) => !v)}>
-            Participa do Sobreaviso
+          <Label className="cursor-pointer" onClick={() => !loading && !forceSobreaviso(level) && setSobreaviso((v) => !v)}>
+            Participa do Sobreaviso{forceSobreaviso(level) ? " (obrigatório)" : ""}
           </Label>
         </div>
       )}

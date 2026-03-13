@@ -3,6 +3,7 @@
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import type { SwapActionResult } from "@/types/swaps";
+import { sendWhatsappMessage, phoneToWhatsApp } from "@/server/whatsapp/sendWhatsappMessage";
 
 /**
  * ONCALL SWAP: User A requests to swap on-call queue position (onCallRotationIndex) with User B.
@@ -56,6 +57,20 @@ export async function createOnCallSwapRequest(targetMemberId: string): Promise<S
       status: "WAITING_SECOND_USER",
     },
   });
+
+  try {
+    const siteUrl = process.env.NEXT_PUBLIC_APP_URL ?? "https://escala-mops.vercel.app";
+    const message = [
+      `Olá ${target.name.split(/\s+/)[0]},`,
+      "",
+      `${requester.name} deseja trocar o sobreaviso com você, para responder entre no site ${siteUrl} e aceite a troca.`,
+      "",
+      "Caso você aceite, seu gestor ainda deve aprovar.",
+    ].join("\n");
+    await sendWhatsappMessage(message, phoneToWhatsApp(target.phone));
+  } catch (err) {
+    console.error("WhatsApp send error (ONCALL_SWAP create)", err);
+  }
 
   return { success: true };
 }

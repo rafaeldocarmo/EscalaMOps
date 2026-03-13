@@ -1,6 +1,7 @@
 import { auth } from "@/auth";
 import { redirect } from "next/navigation";
 import { DashboardNav } from "@/components/dashboard/dashboard-nav";
+import Link from "next/link";
 
 export default async function DashboardLayout({
   children,
@@ -20,11 +21,14 @@ export default async function DashboardLayout({
       {session.user.role === "ADMIN" && (
       <header className="sticky top-0 z-40 border-b bg-background/95 backdrop-blur">
         <div className="container flex h-14 items-center justify-between px-4 mx-auto ">
-        <span className="text-lg text-muted-foreground font-bold text-red-500">
-            Escala MOPS
-          </span>
+          <Link
+            href="/dashboard"
+          >
+            <span className="text-lg text-muted-foreground font-bold text-red-500">
+              Escala MOPS
+            </span>
+          </Link>
           <DashboardNav hasMemberView={!!session.member} />
-          
           </div>
         </header>
       )}

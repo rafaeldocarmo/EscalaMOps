@@ -89,7 +89,7 @@ export async function generateSobreavisoSchedule(
   const eligibleMembers = await prisma.teamMember.findMany({
     where: {
       sobreaviso: true,
-      level: { in: ["N2", "ESPC"] },
+      level: { in: ["N2", "ESPC", "PRODUCAO"] },
     },
     orderBy: [{ level: "asc" }, { name: "asc" }],
   });
@@ -104,7 +104,7 @@ export async function generateSobreavisoSchedule(
   const fridays = getFridayBoundaries(year, month);
   if (fridays.length < 2) return [];
 
-  const levels: Level[] = ["N2", "ESPC"];
+  const levels: Level[] = ["N2", "ESPC", "PRODUCAO"];
   const result: OnCallWeek[] = [];
   const rotationUpdates = new Map<string, number>();
 

@@ -3,6 +3,7 @@
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import type { SwapActionResult } from "@/types/swaps";
+import { sendWhatsappMessage } from "@/server/whatsapp/sendWhatsappMessage";
 
 /**
  * User B accepts the queue swap request from User A.
@@ -35,6 +36,24 @@ export async function acceptQueueSwap(swapRequestId: string): Promise<SwapAction
       secondUserAcceptedAt: new Date(),
     },
   });
+
+  try {
+    const siteUrl = process.env.NEXT_PUBLIC_APP_URL ?? "https://escala-mops.vercel.app";
+    const requesterName = swap.requester.name;
+    const targetName = swap.targetMember?.name ?? "Membro";
+    const typeLabel = swap.type === "ONCALL_SWAP" ? "sobreaviso" : "escala do final de semana";
+    const message = [
+      "Olá Admin,",
+      "",
+      `${requesterName} deseja trocar sua ${typeLabel} com ${targetName}. Os dois já aprovaram a troca.`,
+      "",
+      `Para aceitar ou recusar entre no link ${siteUrl}/dashboard`,
+    ].join("\n");
+    const adminNumber = process.env.WHAPI_ADMIN_TO;
+    await sendWhatsappMessage(message, adminNumber);
+  } catch (err) {
+    console.error("WhatsApp send error (accept queue swap)", err);
+  }
 
   return { success: true };
 }

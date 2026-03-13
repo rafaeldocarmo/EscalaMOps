@@ -14,15 +14,19 @@ export const WEEKEND_COVERAGE: Record<GroupKey, number> = {
   T1_N1: 1,
   T1_N2: 2,
   T1_ESPC: 0,
+  T1_PRODUCAO: 0,
   T2_N1: 1,
   T2_N2: 2,
   T2_ESPC: 0,
+  T2_PRODUCAO: 0,
   T3_N1: 1,
   T3_N2: 0,
   T3_ESPC: 0,
+  T3_PRODUCAO: 0,
   TC_N1: 0,
   TC_N2: 0,
   TC_ESPC: 0,
+  TC_PRODUCAO: 0,
 };
 
 /** Groups that participate in weekend rotation. */
