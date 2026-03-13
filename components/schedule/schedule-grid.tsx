@@ -11,6 +11,8 @@ interface ScheduleGridProps {
   calendarDays: ScheduleCalendarDay[];
   stateMap: ScheduleStateMap;
   onCellToggle: (memberId: string, dateKey: string) => void;
+  onMemberClick?: (memberId: string) => void;
+  selectedMemberId?: string | null;
   locked: boolean;
 }
 
@@ -19,6 +21,8 @@ export function ScheduleGrid({
   calendarDays,
   stateMap,
   onCellToggle,
+  onMemberClick,
+  selectedMemberId,
   locked,
 }: ScheduleGridProps) {
   return (
@@ -49,6 +53,8 @@ export function ScheduleGrid({
                   stateSlice={stateMap[member.id] ?? {}}
                   locked={locked}
                   onCellToggle={onCellToggle}
+                  onMemberClick={onMemberClick}
+                  isSelected={selectedMemberId === member.id}
                   stickyColumnWidth={STICKY_COLUMN_WIDTH}
                 />
               ))}

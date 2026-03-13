@@ -11,6 +11,8 @@ import type { SobreavisoWeek } from "@/server/sobreaviso/getSobreavisoScheduleFo
 interface SobreavisoTableProps {
   weeks: SobreavisoWeek[];
   calendarDays: ScheduleCalendarDay[];
+  onMemberClick?: (memberId: string) => void;
+  selectedMemberId?: string | null;
 }
 
 interface SobreavisoMember {
@@ -83,7 +85,7 @@ function groupByLevel(members: SobreavisoMember[]): { level: string; members: So
   return groups;
 }
 
-export function SobreavisoTable({ weeks, calendarDays }: SobreavisoTableProps) {
+export function SobreavisoTable({ weeks, calendarDays, onMemberClick, selectedMemberId }: SobreavisoTableProps) {
   const currentMonthDays = calendarDays.filter((d) => d.isCurrentMonth);
   const sobreavisoMembers = buildSobreavisoMembers(weeks);
   const sections = groupByLevel(sobreavisoMembers);
@@ -127,8 +129,11 @@ export function SobreavisoTable({ weeks, calendarDays }: SobreavisoTableProps) {
                         className={`${STICKY_CELL_BASE} h-8 px-2 py-1 font-medium text-xs align-middle ${STICKY_COLUMN_WIDTH}`}
                       >
                         <span
-                          className="block whitespace-nowrap overflow-hidden text-ellipsis"
+                          className={`block whitespace-nowrap overflow-hidden text-ellipsis rounded px-1 py-0.5 transition-colors ${
+                            onMemberClick ? "cursor-pointer hover:bg-blue-100" : ""
+                          } ${selectedMemberId === member.memberId ? "bg-blue-500 text-white" : ""}`}
                           title={member.memberName}
+                          onClick={onMemberClick ? () => onMemberClick(member.memberId) : undefined}
                         >
                           {formatMemberName(member.memberName)}
                         </span>

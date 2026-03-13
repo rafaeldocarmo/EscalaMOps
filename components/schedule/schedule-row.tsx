@@ -14,6 +14,8 @@ interface ScheduleRowProps {
   stateSlice: Record<string, AssignmentStatus>;
   locked: boolean;
   onCellToggle: (memberId: string, dateKey: string) => void;
+  onMemberClick?: (memberId: string) => void;
+  isSelected?: boolean;
   stickyColumnWidth: string;
 }
 
@@ -23,6 +25,8 @@ function ScheduleRowComponent({
   stateSlice,
   locked,
   onCellToggle,
+  onMemberClick,
+  isSelected,
   stickyColumnWidth,
 }: ScheduleRowProps) {
   const handleToggle = (dateKey: string) => onCellToggle(member.id, dateKey);
@@ -33,8 +37,11 @@ function ScheduleRowComponent({
         className={`${STICKY_CELL_BASE} h-8 px-2 py-1 font-medium text-xs align-middle ${stickyColumnWidth}`}
       >
         <span
-          className="block whitespace-nowrap overflow-hidden text-ellipsis"
+          className={`block whitespace-nowrap overflow-hidden text-ellipsis rounded px-1 py-0.5 transition-colors ${
+            onMemberClick ? "cursor-pointer hover:bg-blue-100" : ""
+          } ${isSelected ? "bg-blue-500 text-white" : ""}`}
           title={member.name}
+          onClick={onMemberClick ? () => onMemberClick(member.id) : undefined}
         >
           {formatMemberName(member.name)}
         </span>

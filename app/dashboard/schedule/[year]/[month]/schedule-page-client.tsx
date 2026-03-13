@@ -18,6 +18,8 @@ import {
 } from "@/lib/scheduleUtils";
 import { saveScheduleAssignments } from "@/server/schedule/saveScheduleAssignments";
 import { generateAutomaticSchedule } from "@/server/schedule/generateAutomaticSchedule";
+import { adminSwapQueuePositions } from "@/server/schedule/adminSwapQueuePositions";
+import { adminSwapOnCallPositions } from "@/server/sobreaviso/adminSwapOnCallPositions";
 import type { ScheduleStateMap } from "@/types/schedule";
 
 interface SchedulePageClientProps {
@@ -41,6 +43,9 @@ export function SchedulePageClient({
   const [saveLoading, setSaveLoading] = useState(false);
   const [generateLoading, setGenerateLoading] = useState(false);
   const [sobreavisoWeeks, setSobreavisoWeeks] = useState(initialSobreavisoWeeks);
+  const [selectedMemberId, setSelectedMemberId] = useState<string | null>(null);
+  const [selectedOnCallMemberId, setSelectedOnCallMemberId] = useState<string | null>(null);
+  const [swapLoading, setSwapLoading] = useState(false);
 
   const dateKeys = useMemo(() => {
     const days = getDaysInMonth(schedule.year, schedule.month);
@@ -101,6 +106,59 @@ export function SchedulePageClient({
     }
   }, [schedule.id, stateMap, scheduleMembers, dateKeys, router]);
 
+  const handleMemberClick = useCallback(async (memberId: string) => {
+    if (swapLoading) return;
+    if (!selectedMemberId) {
+      setSelectedMemberId(memberId);
+      return;
+    }
+    if (selectedMemberId === memberId) {
+      setSelectedMemberId(null);
+      return;
+    }
+    setSwapLoading(true);
+    const result = await adminSwapQueuePositions(selectedMemberId, memberId, schedule.id);
+    setSwapLoading(false);
+    setSelectedMemberId(null);
+    if (result.success) {
+      setStateMap((prev) => {
+        const next = { ...prev };
+        const sliceA = prev[selectedMemberId] ?? {};
+        const sliceB = prev[memberId] ?? {};
+        next[selectedMemberId] = { ...sliceB };
+        next[memberId] = { ...sliceA };
+        return next;
+      });
+      toast.success("Posições na fila trocadas.");
+    } else {
+      toast.error(result.error ?? "Erro ao trocar posições.");
+    }
+  }, [selectedMemberId, swapLoading, schedule.id]);
+
+  const handleOnCallMemberClick = useCallback(async (memberId: string) => {
+    if (swapLoading) return;
+    if (!selectedOnCallMemberId) {
+      setSelectedOnCallMemberId(memberId);
+      return;
+    }
+    if (selectedOnCallMemberId === memberId) {
+      setSelectedOnCallMemberId(null);
+      return;
+    }
+    setSwapLoading(true);
+    const result = await adminSwapOnCallPositions(
+      selectedOnCallMemberId, memberId, schedule.year, schedule.month
+    );
+    setSwapLoading(false);
+    setSelectedOnCallMemberId(null);
+    if (result.success && result.sobreavisoWeeks) {
+      setSobreavisoWeeks(result.sobreavisoWeeks);
+      toast.success("Posições de sobreaviso trocadas.");
+    } else {
+      toast.error(result.error ?? "Erro ao trocar posições de sobreaviso.");
+    }
+  }, [selectedOnCallMemberId, swapLoading, schedule.year, schedule.month]);
+
   const handleGenerate = useCallback(async () => {
     setGenerateLoading(true);
     const result = await generateAutomaticSchedule(schedule.id);
@@ -141,11 +199,18 @@ export function SchedulePageClient({
           calendarDays={calendarDays}
           stateMap={stateMap}
           onCellToggle={handleCellToggle}
+          onMemberClick={handleMemberClick}
+          selectedMemberId={selectedMemberId}
           locked={false}
         />
       )}
 
-      <SobreavisoTable weeks={sobreavisoWeeks} calendarDays={calendarDays} />
+      <SobreavisoTable
+        weeks={sobreavisoWeeks}
+        calendarDays={calendarDays}
+        onMemberClick={handleOnCallMemberClick}
+        selectedMemberId={selectedOnCallMemberId}
+      />
     </div>
   );
 }
