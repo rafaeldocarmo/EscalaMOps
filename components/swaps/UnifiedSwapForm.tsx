@@ -1,9 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useFormStatus } from "react-dom";
 import { getMySchedule } from "@/server/schedule/getMySchedule";
-import { getScheduleCalendarDays } from "@/lib/scheduleUtils";
+import { getScheduleCalendarDays, periodsToDateSet } from "@/lib/scheduleUtils";
 import { getMembersForQueueSwap } from "@/server/swaps/getMembersForQueueSwap";
 import { getMembersForOnCallSwap } from "@/server/swaps/getMembersForOnCallSwap";
 import { getFullQueueSwapPreview } from "@/server/swaps/getWeekendSwapPreview";
@@ -13,28 +13,12 @@ import { createQueueSwapRequest } from "@/server/swaps/createQueueSwapRequest";
 import { createOnCallSwapRequest } from "@/server/swaps/createOnCallSwapRequest";
 import { getOnCallScheduleForMember, type OnCallPeriod } from "@/server/sobreaviso/getOnCallScheduleForMember";
 import { MonthNavigator } from "@/components/schedule/month-navigator";
+import { WEEKDAY_LABELS } from "@/lib/constants";
+import { formatDateKeyToDDMMYYYY } from "@/lib/formatDate";
+import { useMonthNavigation } from "@/hooks/useMonthNavigation";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-
-const WEEKDAY_LABELS = ["Seg", "Ter", "Qua", "Qui", "Sex", "Sáb", "Dom"];
-
-function periodsToDateSet(periods: OnCallPeriod[]): Set<string> {
-  const set = new Set<string>();
-  for (const p of periods) {
-    const start = new Date(p.startDate + "T12:00:00.000Z");
-    const end = new Date(p.endDate + "T12:00:00.000Z");
-    let d = new Date(start);
-    while (d < end) {
-      const y = d.getUTCFullYear();
-      const m = String(d.getUTCMonth() + 1).padStart(2, "0");
-      const day = String(d.getUTCDate()).padStart(2, "0");
-      set.add(`${y}-${m}-${day}`);
-      d = new Date(d.getTime() + 86400000);
-    }
-  }
-  return set;
-}
 
 type SwapMode = "off" | "weekend" | "sobreaviso";
 
@@ -44,34 +28,23 @@ interface UnifiedSwapFormProps {
   initialMode?: SwapMode;
 }
 
-function formatDayLabel(dateKey: string): string {
-  const [y, m, d] = dateKey.split("-");
-  return `${d}/${m}/${y}`;
-}
-
 function SubmitButtonOff() {
-  const { pending } = useFormStatus();
-  return (
-    <Button type="submit" disabled={pending}>
-      {pending ? "Enviando…" : "Solicitar troca"}
-    </Button>
-  );
+  return <SubmitButton label="Solicitar troca" />;
 }
 
 function SubmitButtonQueue() {
-  const { pending } = useFormStatus();
-  return (
-    <Button type="submit" disabled={pending}>
-      {pending ? "Enviando…" : "Solicitar troca de fila"}
-    </Button>
-  );
+  return <SubmitButton label="Solicitar troca de fila" />;
 }
 
 function SubmitButtonOnCall() {
+  return <SubmitButton label="Solicitar troca de sobreaviso" />;
+}
+
+function SubmitButton({ label }: { label: string }) {
   const { pending } = useFormStatus();
   return (
     <Button type="submit" disabled={pending}>
-      {pending ? "Enviando…" : "Solicitar troca de sobreaviso"}
+      {pending ? "Enviando…" : label}
     </Button>
   );
 }
@@ -95,6 +68,13 @@ export function UnifiedSwapForm({ memberId, initialMode }: UnifiedSwapFormProps)
 
   const [myOnCallPeriods, setMyOnCallPeriods] = useState<OnCallPeriod[]>([]);
   const [targetOnCallPeriods, setTargetOnCallPeriods] = useState<OnCallPeriod[]>([]);
+
+  const { goPrev, goNext } = useMonthNavigation({
+    year,
+    month,
+    onYearChange: setYear,
+    onMonthChange: setMonth,
+  });
 
   useEffect(() => {
     getMySchedule(memberId, year, month).then(setData);
@@ -124,24 +104,18 @@ export function UnifiedSwapForm({ memberId, initialMode }: UnifiedSwapFormProps)
     }
   }, [mode, selectedMemberId, year, month]);
 
-  const statusByDate = new Map<string, "WORK" | "OFF">();
-  if (data?.days) {
-    for (const d of data.days) statusByDate.set(d.dateKey, d.status);
-  }
-  const calendarDays = getScheduleCalendarDays(year, month);
+  const statusByDate = useMemo(() => {
+    const map = new Map<string, "WORK" | "OFF">();
+    if (data?.days) {
+      for (const d of data.days) map.set(d.dateKey, d.status);
+    }
+    return map;
+  }, [data?.days]);
 
-  const goPrev = () => {
-    if (month === 1) {
-      setMonth(12);
-      setYear((y) => y - 1);
-    } else setMonth((m) => m - 1);
-  };
-  const goNext = () => {
-    if (month === 12) {
-      setMonth(1);
-      setYear((y) => y + 1);
-    } else setMonth((m) => m + 1);
-  };
+  const calendarDays = useMemo(
+    () => getScheduleCalendarDays(year, month),
+    [year, month]
+  );
 
   const handleDayClick = (dateKey: string) => {
     if (mode !== "off") return;
@@ -406,10 +380,10 @@ export function UnifiedSwapForm({ memberId, initialMode }: UnifiedSwapFormProps)
         {isOffMode && canSubmitOff && (
           <form onSubmit={handleSubmitOff} className="space-y-3 rounded-lg border bg-muted/30 p-3">
             <p className="text-sm font-medium text-foreground">
-              Deseja trocar o dia <strong>{formatDayLabel(originalDate)}</strong> (folga) pelo dia <strong>{formatDayLabel(targetDate)}</strong>?
+              Deseja trocar o dia <strong>{formatDateKeyToDDMMYYYY(originalDate)}</strong> (folga) pelo dia <strong>{formatDateKeyToDDMMYYYY(targetDate)}</strong>?
             </p>
             <p className="text-xs text-muted-foreground">
-              A folga sairá de {formatDayLabel(originalDate)} e passará para {formatDayLabel(targetDate)}. Aguarde aprovação do administrador.
+              A folga sairá de {formatDateKeyToDDMMYYYY(originalDate)} e passará para {formatDateKeyToDDMMYYYY(targetDate)}. Aguarde aprovação do administrador.
             </p>
             {message && (
               <p className={`text-sm ${message.type === "success" ? "text-green-600" : "text-destructive"}`}>

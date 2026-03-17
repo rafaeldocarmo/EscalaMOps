@@ -13,6 +13,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import type { Level, Shift } from "@/types/team";
 import { SHIFT_OPTIONS } from "@/types/team";
 import { MultiSelect } from "@/components/ui/multi-select";
+import { useMonthNavigation } from "@/hooks/useMonthNavigation";
 
 export function MonthlyScheduleView() {
   const now = new Date();
@@ -26,22 +27,12 @@ export function MonthlyScheduleView() {
     getMonthlySchedule(year, month).then(setData);
   }, [year, month]);
 
-  const goPrev = () => {
-    if (month === 1) {
-      setMonth(12);
-      setYear((y) => y - 1);
-    } else {
-      setMonth((m) => m - 1);
-    }
-  };
-  const goNext = () => {
-    if (month === 12) {
-      setMonth(1);
-      setYear((y) => y + 1);
-    } else {
-      setMonth((m) => m + 1);
-    }
-  };
+  const { goPrev, goNext } = useMonthNavigation({
+    year,
+    month,
+    onYearChange: setYear,
+    onMonthChange: setMonth,
+  });
 
   if (!data) {
     return (

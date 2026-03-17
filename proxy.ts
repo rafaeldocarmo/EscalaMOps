@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
+import { auth } from "@/auth";
 
 const publicPaths = ["/login", "/registro"];
 const authApiPrefix = "/api/auth";
@@ -30,10 +31,17 @@ export async function proxy(request: NextRequest) {
     return NextResponse.redirect(new URL("/login", request.nextUrl));
   }
 
+  const session = await auth();
+  if (!session?.user) {
+    return NextResponse.redirect(new URL("/login", request.nextUrl));
+  }
+
   return NextResponse.next();
 }
 
 export const config = {
+  // Note: this matcher intentionally EXCLUDES `/api/*`.
+  // All API route handlers must implement their own auth (e.g. via `auth()` or `withAuth()`).
   matcher: ["/((?!api|_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)"],
 };
 

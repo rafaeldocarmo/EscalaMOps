@@ -2,8 +2,7 @@
 
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
-
-export type MemberOption = { id: string; name: string };
+import type { MemberOption } from "@/types/swaps";
 
 /**
  * List team members eligible for on-call swap: same level, sobreaviso=true, excluding self.

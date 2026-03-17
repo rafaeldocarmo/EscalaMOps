@@ -3,7 +3,7 @@
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 
-export type DeleteTeamMemberResult =
+type DeleteTeamMemberResult =
   | { success: true }
   | { success: false; error: string };
 

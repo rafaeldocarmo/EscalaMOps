@@ -22,19 +22,19 @@ function dateToKeyUTC(d: Date): string {
   return `${y}-${m}-${day}`;
 }
 
-export type WeeklyDay = {
+type WeeklyDay = {
   dateKey: string;
   weekdayLabel: string;
   dayLabel: string;
 };
 
-export type WeeklyCell = {
+type WeeklyCell = {
   shift: string;
   level: string;
   names: string[];
 };
 
-export type WeeklyScheduleRow = {
+type WeeklyScheduleRow = {
   shift: string;
   level: string;
   days: WeeklyCell[];

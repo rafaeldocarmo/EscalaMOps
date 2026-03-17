@@ -3,8 +3,7 @@
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import type { Level, Shift } from "@/lib/generated/prisma/enums";
-
-export type MemberOption = { id: string; name: string };
+import type { MemberOption } from "@/types/swaps";
 
 /**
  * List team members with same level and shift as current user (for queue swap), excluding self.

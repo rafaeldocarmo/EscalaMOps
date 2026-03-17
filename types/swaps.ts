@@ -20,10 +20,12 @@ export interface SwapRequestRow {
   originalDate: string | null;
   targetDate: string | null;
   status: SwapRequestStatus;
-  secondUserAcceptedAt: Date | null;
-  adminApprovedAt: Date | null;
-  createdAt: Date;
-  updatedAt: Date;
+  secondUserAcceptedAt: string | null; // ISO string
+  adminApprovedAt: string | null; // ISO string
+  createdAt: string; // ISO string
+  updatedAt: string; // ISO string
 }
 
 export type SwapActionResult = { success: true } | { success: false; error: string };
+
+export type MemberOption = { id: string; name: string };

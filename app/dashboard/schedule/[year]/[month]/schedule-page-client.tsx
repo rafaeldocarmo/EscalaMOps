@@ -77,32 +77,25 @@ export function SchedulePageClient({
     [schedule.year, schedule.month]
   );
 
-  const scheduleMembersAll = useMemo(() => members, [members]);
   const memberById = useMemo(
-    () => new Map(scheduleMembersAll.map((m) => [m.id, m] as const)),
-    [scheduleMembersAll]
+    () => new Map(members.map((m) => [m.id, m] as const)),
+    [members]
   );
 
   const scheduleMembersVisible = useMemo(() => {
-    let list = scheduleMembersAll;
+    let list = members;
     if (levelFilter.length > 0) {
       list = list.filter((m) => levelFilter.includes(m.level));
-    } else {
-      // treat "none selected" as "all levels"
-      list = list;
     }
     if (shiftFilter.length > 0) {
       list = list.filter((m) => shiftFilter.includes(m.shift));
-    } else {
-      // treat "none selected" as "all shifts"
-      list = list;
     }
     return list;
-  }, [scheduleMembersAll, levelFilter, shiftFilter]);
+  }, [members, levelFilter, shiftFilter]);
 
   const scheduleMembersRotationOnly = useMemo(
-    () => scheduleMembersAll.filter((m) => m.level === "N1" || m.level === "N2"),
-    [scheduleMembersAll]
+    () => members.filter((m) => m.level === "N1" || m.level === "N2"),
+    [members]
   );
 
   const sections = useMemo(
@@ -129,7 +122,7 @@ export function SchedulePageClient({
     setSaveLoading(true);
     const payload: SaveAssignmentPayload[] = [];
     let nonWorkCount = 0;
-    for (const member of scheduleMembersAll) {
+    for (const member of members) {
       for (const dateStr of dateKeys) {
         const status = stateMap[member.id]?.[dateStr] ?? "WORK";
         if (status !== "WORK") nonWorkCount++;
@@ -149,7 +142,7 @@ export function SchedulePageClient({
     } else {
       toast.error(result.error);
     }
-  }, [schedule.id, stateMap, scheduleMembersAll, dateKeys, router]);
+  }, [schedule.id, stateMap, members, dateKeys, router]);
 
   const handleMemberClick = useCallback(async (memberId: string) => {
     if (swapLoading) return;
@@ -287,7 +280,6 @@ export function SchedulePageClient({
           Calendário Mensal
         </h1>
         <ScheduleToolbar
-          scheduleId={schedule.id}
           year={schedule.year}
           month={schedule.month}
           onGenerate={handleGenerate}

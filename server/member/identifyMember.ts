@@ -17,21 +17,21 @@ export async function identifyMemberByPhone(
 ): Promise<IdentifyMemberResult> {
   const session = await auth();
   if (!session?.user) {
-    return { success: false, error: "Não autenticado." };
+    return { success: false, error: "Não foi possível identificar o membro." };
   }
 
   const normalized = normalizePhone(phone).trim();
   if (!normalized) {
-    return { success: false, error: "Telefone não encontrado na equipe." };
+    return { success: false, error: "Não foi possível identificar o membro." };
   }
 
-  const members = await prisma.teamMember.findMany({
-    select: { id: true, name: true, level: true, shift: true, phone: true },
+  const member = await prisma.teamMember.findFirst({
+    where: { normalizedPhone: normalized },
+    select: { id: true, name: true, level: true, shift: true },
   });
-  const member = members.find((m) => normalizePhone(m.phone) === normalized);
 
   if (!member) {
-    return { success: false, error: "Telefone não encontrado na equipe." };
+    return { success: false, error: "Não foi possível identificar o membro." };
   }
 
   return {

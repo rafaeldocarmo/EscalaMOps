@@ -76,7 +76,7 @@ export function dateKey(year: number, month: number, day: number): string {
   return `${year}-${m}-${d}`;
 }
 
-export interface GroupedMember {
+interface GroupedMember {
   member: TeamMemberRow;
   shift: string;
   level: string;
@@ -125,11 +125,19 @@ export function buildScheduleSections(
   return sections;
 }
 
-/** Get status for a cell from state map, default WORK. */
-export function getCellStatus(
-  map: ScheduleStateMap,
-  memberId: string,
-  dateKey: string
-): "WORK" | "OFF" | "SWAP_REQUESTED" {
-  return map[memberId]?.[dateKey] ?? "WORK";
+export function periodsToDateSet(periods: { startDate: string; endDate: string }[]): Set<string> {
+  const set = new Set<string>();
+  for (const p of periods) {
+    const start = new Date(p.startDate + "T12:00:00.000Z");
+    const end = new Date(p.endDate + "T12:00:00.000Z");
+    let d = new Date(start);
+    while (d < end) {
+      const y = d.getUTCFullYear();
+      const m = String(d.getUTCMonth() + 1).padStart(2, "0");
+      const day = String(d.getUTCDate()).padStart(2, "0");
+      set.add(`${y}-${m}-${day}`);
+      d = new Date(d.getTime() + 86400000);
+    }
+  }
+  return set;
 }

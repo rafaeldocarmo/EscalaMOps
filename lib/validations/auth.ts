@@ -36,6 +36,6 @@ export const phoneSchema = z.object({
     .regex(/^\+?[\d\s()-]+$/, "Use apenas números, +, espaços, parênteses ou hífens"),
 });
 
-export type SignInInput = z.infer<typeof signInSchema>;
-export type SignUpInput = z.infer<typeof signUpSchema>;
-export type PhoneInput = z.infer<typeof phoneSchema>;
+type SignInInput = z.infer<typeof signInSchema>;
+type SignUpInput = z.infer<typeof signUpSchema>;
+type PhoneInput = z.infer<typeof phoneSchema>;

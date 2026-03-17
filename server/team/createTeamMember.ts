@@ -2,6 +2,7 @@
 
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
+import { normalizePhone } from "@/lib/phone";
 import type { CreateTeamMemberInput } from "@/lib/validations/team";
 import { createTeamMemberSchema } from "@/lib/validations/team";
 
@@ -33,10 +34,12 @@ export async function createTeamMember(
   }
 
   try {
+    const normalizedPhone = normalizePhone(parsed.data.phone).trim();
     const member = await prisma.teamMember.create({
       data: {
         name: parsed.data.name.trim(),
         phone: parsed.data.phone.trim(),
+        normalizedPhone,
         level: parsed.data.level,
         shift: parsed.data.shift,
         sobreaviso: parsed.data.sobreaviso ?? false,

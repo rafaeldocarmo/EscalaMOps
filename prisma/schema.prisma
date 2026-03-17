@@ -81,6 +81,7 @@ model TeamMember {
   id                  String   @id @default(cuid())
   name                String
   phone               String
+  normalizedPhone     String   @map("normalized_phone")
   level               Level
   shift               Shift
   sobreaviso          Boolean  @default(false)
@@ -94,6 +95,7 @@ model TeamMember {
   swapRequestsAsTarget    ScheduleSwapRequest[] @relation("SwapTarget")
   onCallAssignments       OnCallAssignment[]
 
+  @@index([normalizedPhone])
   @@map("team_members")
 }
 

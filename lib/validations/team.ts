@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { Level, Shift } from "@/lib/generated/prisma/enums";
 
-export const levelShiftSchema = z
+const levelShiftSchema = z
   .object({
     level: z.enum([Level.N1, Level.N2, Level.ESPC, Level.PRODUCAO]),
     shift: z.enum([Shift.T1, Shift.T2, Shift.T3, Shift.TC]),

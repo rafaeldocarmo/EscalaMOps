@@ -41,10 +41,10 @@ export async function getMySwapRequests(): Promise<SwapRequestRow[]> {
     originalDate: s.originalDate ? dateToKey(s.originalDate) : null,
     targetDate: s.targetDate ? dateToKey(s.targetDate) : null,
     status: s.status,
-    secondUserAcceptedAt: s.secondUserAcceptedAt,
-    adminApprovedAt: s.adminApprovedAt,
-    createdAt: s.createdAt,
-    updatedAt: s.updatedAt,
+    secondUserAcceptedAt: s.secondUserAcceptedAt ? s.secondUserAcceptedAt.toISOString() : null,
+    adminApprovedAt: s.adminApprovedAt ? s.adminApprovedAt.toISOString() : null,
+    createdAt: s.createdAt.toISOString(),
+    updatedAt: s.updatedAt.toISOString(),
   }));
 }
 
@@ -73,9 +73,9 @@ export async function getSwapRequestsForAdmin(): Promise<SwapRequestRow[]> {
     originalDate: s.originalDate ? dateToKey(s.originalDate) : null,
     targetDate: s.targetDate ? dateToKey(s.targetDate) : null,
     status: s.status,
-    secondUserAcceptedAt: s.secondUserAcceptedAt,
-    adminApprovedAt: s.adminApprovedAt,
-    createdAt: s.createdAt,
-    updatedAt: s.updatedAt,
+    secondUserAcceptedAt: s.secondUserAcceptedAt ? s.secondUserAcceptedAt.toISOString() : null,
+    adminApprovedAt: s.adminApprovedAt ? s.adminApprovedAt.toISOString() : null,
+    createdAt: s.createdAt.toISOString(),
+    updatedAt: s.updatedAt.toISOString(),
   }));
 }

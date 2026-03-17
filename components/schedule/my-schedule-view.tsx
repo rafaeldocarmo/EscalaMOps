@@ -9,6 +9,8 @@ import { getScheduleCalendarDays } from "@/lib/scheduleUtils";
 import { MonthNavigator } from "./month-navigator";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { WEEKDAY_LABELS, MONTH_NAMES } from "@/lib/constants";
+import { useMonthNavigation } from "@/hooks/useMonthNavigation";
 import {
   Dialog,
   DialogContent,
@@ -18,20 +20,15 @@ import {
 import { UnifiedSwapForm } from "@/components/swaps/UnifiedSwapForm";
 import { SwapHistoryList } from "@/components/swaps/SwapHistoryList";
 import {
-  Calendar,
-  CalendarClock,
   FileText,
-  ShieldCheck,
   Briefcase,
   Coffee,
 } from "lucide-react";
+import { ShieldCheck } from "lucide-react";
+import { MyScheduleQuickActions } from "@/components/schedule/my-schedule-quick-actions";
+import { MyScheduleUpcomingEvents } from "@/components/schedule/my-schedule-upcoming-events";
 
-const WEEKDAY_LABELS = ["Seg", "Ter", "Qua", "Qui", "Sex", "Sáb", "Dom"];
 const PENDING_STATUSES = ["PENDING", "WAITING_SECOND_USER", "SECOND_USER_ACCEPTED"];
-const MONTH_NAMES = [
-  "Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho",
-  "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro",
-];
 
 interface MyScheduleViewProps {
   memberId: string;
@@ -114,52 +111,55 @@ export function MyScheduleView({
     return () => window.removeEventListener("swaps-updated", handler);
   }, []);
 
-  const calendarDays = getScheduleCalendarDays(year, month);
-  const statusByDate = new Map<string, "WORK" | "OFF">();
-  if (data?.days) {
-    for (const d of data.days) {
-      statusByDate.set(d.dateKey, d.status);
-    }
-  }
+  const calendarDays = useMemo(
+    () => getScheduleCalendarDays(year, month),
+    [year, month]
+  );
 
-  const onCallDates = new Set<string>();
-  const onCallTransitionDates = new Set<string>();
-  for (const p of onCallPeriods) {
-    const start = new Date(p.startDate + "T12:00:00.000Z");
-    const end = new Date(p.endDate + "T12:00:00.000Z");
-    let d = new Date(start);
-    while (d < end) {
-      const y = d.getUTCFullYear();
-      const m = String(d.getUTCMonth() + 1).padStart(2, "0");
-      const day = String(d.getUTCDate()).padStart(2, "0");
-      onCallDates.add(`${y}-${m}-${day}`);
-      d = new Date(d.getTime() + 86400000);
+  const statusByDate = useMemo(() => {
+    const map = new Map<string, "WORK" | "OFF">();
+    if (data?.days) {
+      for (const d of data.days) {
+        map.set(d.dateKey, d.status);
+      }
     }
-    const ey = end.getUTCFullYear();
-    const em = String(end.getUTCMonth() + 1).padStart(2, "0");
-    const ed = String(end.getUTCDate()).padStart(2, "0");
-    onCallTransitionDates.add(`${ey}-${em}-${ed}`);
-  }
-  for (const dt of onCallTransitionDates) {
-    onCallDates.delete(dt);
-  }
+    return map;
+  }, [data?.days]);
 
-  const goPrev = () => {
-    if (month === 1) {
-      onMonthChange(12);
-      onYearChange(year - 1);
-    } else {
-      onMonthChange(month - 1);
+  const { onCallDates, onCallTransitionDates } = useMemo(() => {
+    const dates = new Set<string>();
+    const transitionDates = new Set<string>();
+
+    for (const p of onCallPeriods) {
+      const start = new Date(p.startDate + "T12:00:00.000Z");
+      const end = new Date(p.endDate + "T12:00:00.000Z");
+      let d = new Date(start);
+      while (d < end) {
+        const y = d.getUTCFullYear();
+        const m = String(d.getUTCMonth() + 1).padStart(2, "0");
+        const day = String(d.getUTCDate()).padStart(2, "0");
+        dates.add(`${y}-${m}-${day}`);
+        d = new Date(d.getTime() + 86400000);
+      }
+      const ey = end.getUTCFullYear();
+      const em = String(end.getUTCMonth() + 1).padStart(2, "0");
+      const ed = String(end.getUTCDate()).padStart(2, "0");
+      transitionDates.add(`${ey}-${em}-${ed}`);
     }
-  };
-  const goNext = () => {
-    if (month === 12) {
-      onMonthChange(1);
-      onYearChange(year + 1);
-    } else {
-      onMonthChange(month + 1);
+
+    for (const dt of transitionDates) {
+      dates.delete(dt);
     }
-  };
+
+    return { onCallDates: dates, onCallTransitionDates: transitionDates };
+  }, [onCallPeriods]);
+
+  const { goPrev, goNext } = useMonthNavigation({
+    year,
+    month,
+    onYearChange,
+    onMonthChange,
+  });
 
   const today = now.getDate();
   const currentMonth = now.getMonth() + 1;
@@ -311,99 +311,22 @@ export function MyScheduleView({
       </div>
 
       <div className="flex flex-col gap-4 lg:col-span-1">
-        <Card className="overflow-hidden rounded-xl border border-border/50 bg-card shadow-sm">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-bold uppercase tracking-wider text-foreground">
-              Ações Rápidas
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="grid grid-cols-2 gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              className="group h-auto flex-col gap-2 py-3 cursor-pointer border-border hover:border-red-500 hover:bg-red-500/10 hover:text-red-600"
-              onClick={() => setSwapOffModalOpen(true)}
-            >
-              <Calendar className="h-5 w-5 text-muted-foreground group-hover:text-red-600 transition-colors" />
-              <span className="text-xs font-medium text-foreground group-hover:text-red-600 transition-colors">Trocar Folga</span>
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              className="group h-auto flex-col gap-2 py-3 cursor-pointer border-border hover:border-red-500 hover:bg-red-500/10 hover:text-red-600"
-              onClick={() => setSwapQueueModalOpen(true)}
-            >
-              <CalendarClock className="h-5 w-5 text-muted-foreground group-hover:text-red-600 transition-colors" />
-              <span className="text-xs font-medium text-foreground group-hover:text-red-600 transition-colors">Trocar Turno</span>
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              className="group h-auto flex-col gap-2 py-3 cursor-pointer border-border hover:border-red-500 hover:bg-red-500/10 hover:text-red-600"
-              onClick={() => setSwapHistoryModalOpen(true)}
-            >
-              <FileText className="h-5 w-5 text-muted-foreground group-hover:text-red-600 transition-colors" />
-              <span className="text-xs font-medium text-foreground group-hover:text-red-600 transition-colors">Ver Solicitações</span>
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={onCallDates.size === 0 && onCallTransitionDates.size === 0}
-              className="group h-auto flex-col gap-2 py-3 cursor-pointer border-border hover:border-blue-500 hover:bg-blue-500/10 hover:text-blue-600 disabled:opacity-40 disabled:cursor-not-allowed"
-              onClick={() => setSwapOnCallModalOpen(true)}
-            >
-              <ShieldCheck className="h-5 w-5 text-muted-foreground group-hover:text-blue-600 transition-colors" />
-              <span className="text-xs font-medium text-foreground group-hover:text-blue-600 transition-colors">Trocar Sobreaviso</span>
-            </Button>
-          </CardContent>
-        </Card>
+        <MyScheduleQuickActions
+          onSwapOff={() => setSwapOffModalOpen(true)}
+          onSwapQueue={() => setSwapQueueModalOpen(true)}
+          onSwapHistory={() => setSwapHistoryModalOpen(true)}
+          onSwapOnCall={() => setSwapOnCallModalOpen(true)}
+          onCallEnabled={onCallDates.size !== 0 || onCallTransitionDates.size !== 0}
+        />
 
-        <Card className="overflow-hidden rounded-xl border border-border/50 bg-card shadow-sm">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-bold uppercase tracking-wider text-foreground">
-              Próximos Eventos
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            {nextWorkLabel ? (
-              <div className="flex items-start gap-3">
-                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-green-500/15 text-green-600">
-                  <Briefcase className="h-4 w-4" />
-                </div>
-                <div className="min-w-0 flex-1">
-                  <p className="text-sm font-medium text-foreground">{nextWorkLabel}</p>
-                  <p className="text-xs text-muted-foreground">{nextWorkSubtitle ?? ""}</p>
-                </div>
-              </div>
-            ) : (
-              <p className="text-sm text-muted-foreground">Nenhum dia de trabalho próximo.</p>
-            )}
-            {nextOffLabel ? (
-              <div className="flex items-start gap-3">
-                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-red-500/15 text-red-600">
-                  <Coffee className="h-4 w-4" />
-                </div>
-                <div className="min-w-0 flex-1">
-                  <p className="text-sm font-medium text-foreground">{nextOffLabel}</p>
-                  <p className="text-xs text-muted-foreground">{nextOffSubtitle ?? ""}</p>
-                </div>
-              </div>
-            ) : (
-              <p className="text-sm text-muted-foreground">Nenhuma folga próxima.</p>
-            )}
-            {nextOnCallLabel && (
-              <div className="flex items-start gap-3">
-                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-blue-500/15 text-blue-600">
-                  <ShieldCheck className="h-4 w-4" />
-                </div>
-                <div className="min-w-0 flex-1">
-                  <p className="text-sm font-medium text-foreground">{nextOnCallLabel}</p>
-                  <p className="text-xs text-muted-foreground">{nextOnCallSubtitle ?? ""}</p>
-                </div>
-              </div>
-            )}
-          </CardContent>
-        </Card>
+        <MyScheduleUpcomingEvents
+          nextWorkLabel={nextWorkLabel}
+          nextWorkSubtitle={nextWorkSubtitle}
+          nextOffLabel={nextOffLabel}
+          nextOffSubtitle={nextOffSubtitle}
+          nextOnCallLabel={nextOnCallLabel}
+          nextOnCallSubtitle={nextOnCallSubtitle}
+        />
 
         <Card className="overflow-hidden rounded-xl border border-border/50 bg-card shadow-sm">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3">

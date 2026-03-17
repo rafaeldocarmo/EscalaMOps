@@ -2,6 +2,7 @@
 
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
+import { normalizePhone } from "@/lib/phone";
 import type { UpdateTeamMemberInput } from "@/lib/validations/team";
 import { updateTeamMemberSchema } from "@/lib/validations/team";
 
@@ -34,11 +35,13 @@ export async function updateTeamMember(
   }
 
   try {
+    const normalizedPhone = normalizePhone(parsed.data.phone).trim();
     await prisma.teamMember.update({
       where: { id },
       data: {
         name: parsed.data.name.trim(),
         phone: parsed.data.phone.trim(),
+        normalizedPhone,
         level: parsed.data.level,
         shift: parsed.data.shift,
         sobreaviso: parsed.data.sobreaviso ?? false,

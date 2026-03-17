@@ -4,9 +4,10 @@ import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 
 function dateToKey(d: Date): string {
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, "0");
-  const day = String(d.getDate()).padStart(2, "0");
+  // Use UTC to avoid timezone shifts when mapping stored DateTimes back to YYYY-MM-DD keys.
+  const y = d.getUTCFullYear();
+  const m = String(d.getUTCMonth() + 1).padStart(2, "0");
+  const day = String(d.getUTCDate()).padStart(2, "0");
   return `${y}-${m}-${day}`;
 }
 

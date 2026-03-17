@@ -3,9 +3,9 @@
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { MonthNavigator } from "./month-navigator";
+import { getNextMonth, getPreviousMonth } from "@/lib/monthNavigation";
 
 interface ScheduleToolbarProps {
-  scheduleId: string;
   year: number;
   month: number;
   onGenerate: () => void;
@@ -19,7 +19,6 @@ interface ScheduleToolbarProps {
 }
 
 export function ScheduleToolbar({
-  scheduleId,
   year,
   month,
   onGenerate,
@@ -34,18 +33,12 @@ export function ScheduleToolbar({
   const router = useRouter();
 
   const goPrev = () => {
-    if (month === 1) {
-      router.push(`/dashboard/schedule/${year - 1}/12`);
-    } else {
-      router.push(`/dashboard/schedule/${year}/${month - 1}`);
-    }
+    const prev = getPreviousMonth(year, month);
+    router.push(`/dashboard/schedule/${prev.year}/${prev.month}`);
   };
   const goNext = () => {
-    if (month === 12) {
-      router.push(`/dashboard/schedule/${year + 1}/1`);
-    } else {
-      router.push(`/dashboard/schedule/${year}/${month + 1}`);
-    }
+    const next = getNextMonth(year, month);
+    router.push(`/dashboard/schedule/${next.year}/${next.month}`);
   };
 
   return (
