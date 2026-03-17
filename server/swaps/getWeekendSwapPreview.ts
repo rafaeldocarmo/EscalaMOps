@@ -55,6 +55,7 @@ import { addDays, nextSaturday, format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import type { QueueMember } from "@/server/schedule/queueManager";
 import { selectWeekendWorkers } from "@/server/schedule/weekendSelector";
+import type { Level, Shift } from "@/lib/generated/prisma/enums";
 
 export type WeekendPreviewItem = {
   weekendLabel: string;
@@ -80,8 +81,8 @@ export async function getWeekendSwapPreview(
 
   const allMembers = await prisma.teamMember.findMany({
     where: {
-      level: session.member.level,
-      shift: session.member.shift,
+      level: session.member.level as Level,
+      shift: session.member.shift as Shift,
     },
     select: { id: true, name: true, level: true, shift: true, rotationIndex: true },
   });

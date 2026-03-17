@@ -48,24 +48,24 @@ export async function saveScheduleAssignments(
 
     const offOnly = assignments.filter((a) => a.status === "OFF");
 
-    await prisma.$transaction([
-      prisma.scheduleAssignment.deleteMany({
+    await prisma.$transaction(async (tx) => {
+      await tx.scheduleAssignment.deleteMany({
         where: {
           scheduleId,
           date: { gte: dateMin, lte: dateMax },
         },
-      }),
-      offOnly.length > 0
-        ? prisma.scheduleAssignment.createMany({
-            data: offOnly.map((a) => ({
-              scheduleId,
-              memberId: a.memberId,
-              date: parseDate(a.date),
-              status: "OFF" as const,
-            })),
-          })
-        : Promise.resolve(),
-    ]);
+      });
+      if (offOnly.length > 0) {
+        await tx.scheduleAssignment.createMany({
+          data: offOnly.map((a) => ({
+            scheduleId,
+            memberId: a.memberId,
+            date: parseDate(a.date),
+            status: "OFF" as const,
+          })),
+        });
+      }
+    });
 
     return { success: true };
   } catch (e) {

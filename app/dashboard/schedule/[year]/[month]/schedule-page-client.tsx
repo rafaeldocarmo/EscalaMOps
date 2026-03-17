@@ -151,11 +151,15 @@ export function SchedulePageClient({
     );
     setSwapLoading(false);
     setSelectedOnCallMemberId(null);
-    if (result.success && result.sobreavisoWeeks) {
+    if (!result.success) {
+      toast.error(result.error ?? "Erro ao trocar posições de sobreaviso.");
+      return;
+    }
+    if (result.sobreavisoWeeks) {
       setSobreavisoWeeks(result.sobreavisoWeeks);
       toast.success("Posições de sobreaviso trocadas.");
     } else {
-      toast.error(result.error ?? "Erro ao trocar posições de sobreaviso.");
+      toast.error("Erro ao trocar posições de sobreaviso.");
     }
   }, [selectedOnCallMemberId, swapLoading, schedule.year, schedule.month]);
 

@@ -2,6 +2,7 @@
 
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
+import type { Level, Shift } from "@/lib/generated/prisma/enums";
 
 export type MemberOption = { id: string; name: string };
 
@@ -15,8 +16,8 @@ export async function getMembersForQueueSwap(): Promise<MemberOption[]> {
   const members = await prisma.teamMember.findMany({
     where: {
       id: { not: session.member.id },
-      level: session.member.level,
-      shift: session.member.shift,
+      level: session.member.level as Level,
+      shift: session.member.shift as Shift,
     },
     orderBy: { name: "asc" },
     select: { id: true, name: true },
