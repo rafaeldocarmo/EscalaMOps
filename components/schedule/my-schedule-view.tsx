@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { getMySchedule } from "@/server/schedule/getMySchedule";
 import { getMySwapRequests } from "@/server/swaps/getSwaps";
@@ -39,18 +39,45 @@ interface MyScheduleViewProps {
   month: number;
   onYearChange: (year: number) => void;
   onMonthChange: (month: number) => void;
+  dashboardData?: {
+    schedule: Awaited<ReturnType<typeof getMySchedule>>;
+    swaps: Awaited<ReturnType<typeof getMySwapRequests>>;
+    onCallPeriods: MyOnCallPeriod[];
+  } | null;
 }
 
-export function MyScheduleView({ memberId, year, month, onYearChange, onMonthChange }: MyScheduleViewProps) {
+export function MyScheduleView({
+  memberId,
+  year,
+  month,
+  onYearChange,
+  onMonthChange,
+  dashboardData,
+}: MyScheduleViewProps) {
   const now = new Date();
-  const [data, setData] = useState<Awaited<ReturnType<typeof getMySchedule>>>(null);
+  const [data, setData] = useState<Awaited<ReturnType<typeof getMySchedule>>>(dashboardData?.schedule ?? null);
   const [swapHighlightDateKeys, setSwapHighlightDateKeys] = useState<string[]>([]);
-  const [onCallPeriods, setOnCallPeriods] = useState<MyOnCallPeriod[]>([]);
+  const [onCallPeriods, setOnCallPeriods] = useState<MyOnCallPeriod[]>(dashboardData?.onCallPeriods ?? []);
   const [swapOffModalOpen, setSwapOffModalOpen] = useState(false);
   const [swapQueueModalOpen, setSwapQueueModalOpen] = useState(false);
   const [swapOnCallModalOpen, setSwapOnCallModalOpen] = useState(false);
   const [swapHistoryModalOpen, setSwapHistoryModalOpen] = useState(false);
   const searchParams = useSearchParams();
+
+  const initialSwapHighlightKeys = useMemo(() => {
+    const list = dashboardData?.swaps ?? [];
+    const pending = list.filter((s) => PENDING_STATUSES.includes(s.status));
+    const keys: string[] = [];
+    for (const s of pending) {
+      if (s.type === "OFF_SWAP" && s.originalDate) keys.push(s.originalDate);
+      if (s.type === "OFF_SWAP" && s.targetDate && s.targetDate !== s.originalDate) {
+        keys.push(s.targetDate);
+      }
+    }
+    return keys;
+  }, [dashboardData?.swaps]);
+
+  const initialSwaps = dashboardData?.swaps;
 
   useEffect(() => {
     if (searchParams.get("openSwaps") === "1") {
@@ -61,23 +88,13 @@ export function MyScheduleView({ memberId, year, month, onYearChange, onMonthCha
   }, [searchParams]);
 
   useEffect(() => {
-    getMySchedule(memberId, year, month).then(setData);
-    getMyOnCallSchedule(memberId, year, month).then(setOnCallPeriods);
-  }, [memberId, year, month]);
-
-  useEffect(() => {
-    getMySwapRequests().then((list) => {
-      const pending = list.filter((s) => PENDING_STATUSES.includes(s.status));
-      const keys: string[] = [];
-      for (const s of pending) {
-        if (s.type === "OFF_SWAP" && s.originalDate) keys.push(s.originalDate);
-        if (s.type === "OFF_SWAP" && s.targetDate && s.targetDate !== s.originalDate) {
-          keys.push(s.targetDate);
-        }
-      }
-      setSwapHighlightDateKeys(keys);
-    });
-  }, []);
+    // Keep local state in sync with the consolidated dashboard fetch.
+    if (dashboardData) {
+      setData(dashboardData.schedule ?? null);
+      setOnCallPeriods(dashboardData.onCallPeriods ?? []);
+      setSwapHighlightDateKeys(initialSwapHighlightKeys);
+    }
+  }, [dashboardData, initialSwapHighlightKeys]);
 
   useEffect(() => {
     const handler = () => {
@@ -398,34 +415,42 @@ export function MyScheduleView({ memberId, year, month, onYearChange, onMonthCha
             </span>
           </CardHeader>
           <CardContent>
-            <SwapHistoryList memberId={memberId} compact />
+            <SwapHistoryList memberId={memberId} compact initialList={initialSwaps} />
           </CardContent>
         </Card>
       </div>
     </div>
 
       <Dialog open={swapOffModalOpen} onOpenChange={setSwapOffModalOpen}>
-        <DialogContent className="max-w-[80vw]! max-h-[90vh] overflow-y-auto">
-          <UnifiedSwapForm memberId={memberId} initialMode="off" />
-        </DialogContent>
+        {swapOffModalOpen && (
+          <DialogContent className="max-w-[80vw]! max-h-[90vh] overflow-y-auto">
+            <UnifiedSwapForm memberId={memberId} initialMode="off" />
+          </DialogContent>
+        )}
       </Dialog>
       <Dialog open={swapQueueModalOpen} onOpenChange={setSwapQueueModalOpen}>
-        <DialogContent className="max-w-[80vw]! max-h-[90vh] overflow-y-auto">
-          <UnifiedSwapForm memberId={memberId} initialMode="weekend" />
-        </DialogContent>
+        {swapQueueModalOpen && (
+          <DialogContent className="max-w-[80vw]! max-h-[90vh] overflow-y-auto">
+            <UnifiedSwapForm memberId={memberId} initialMode="weekend" />
+          </DialogContent>
+        )}
       </Dialog>
       <Dialog open={swapOnCallModalOpen} onOpenChange={setSwapOnCallModalOpen}>
-        <DialogContent className="max-w-[80vw]! max-h-[90vh] overflow-y-auto">
-          <UnifiedSwapForm memberId={memberId} initialMode="sobreaviso" />
-        </DialogContent>
+        {swapOnCallModalOpen && (
+          <DialogContent className="max-w-[80vw]! max-h-[90vh] overflow-y-auto">
+            <UnifiedSwapForm memberId={memberId} initialMode="sobreaviso" />
+          </DialogContent>
+        )}
       </Dialog>
       <Dialog open={swapHistoryModalOpen} onOpenChange={setSwapHistoryModalOpen}>
-        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>Solicitações de troca</DialogTitle>
-          </DialogHeader>
-          <SwapHistoryList memberId={memberId} />
-        </DialogContent>
+        {swapHistoryModalOpen && (
+          <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>Solicitações de troca</DialogTitle>
+            </DialogHeader>
+            <SwapHistoryList memberId={memberId} initialList={initialSwaps} />
+          </DialogContent>
+        )}
       </Dialog>
     </>
   );

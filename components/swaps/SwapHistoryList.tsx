@@ -151,10 +151,12 @@ export interface SwapHistoryListProps {
   memberId: string;
   /** When true, renders compact list for embedding in Status card (max height + scroll) */
   compact?: boolean;
+  /** When provided, avoids loading on mount (reduces initial requests). */
+  initialList?: SwapRequestRow[];
 }
 
-export function SwapHistoryList({ memberId, compact }: SwapHistoryListProps) {
-  const [list, setList] = useState<SwapRequestRow[]>([]);
+export function SwapHistoryList({ memberId, compact, initialList }: SwapHistoryListProps) {
+  const [list, setList] = useState<SwapRequestRow[]>(() => initialList ?? []);
   const [page, setPage] = useState(1);
   const [viewSwapModalRequestId, setViewSwapModalRequestId] = useState<string | null>(null);
   const [currentSchedule, setCurrentSchedule] = useState<FullSwapPreviewMonth[] | null>(null);
@@ -163,8 +165,9 @@ export function SwapHistoryList({ memberId, compact }: SwapHistoryListProps) {
   const load = () => getMySwapRequests().then(setList);
 
   useEffect(() => {
+    if (initialList) return;
     load();
-  }, []);
+  }, [initialList]);
 
   useEffect(() => {
     const handler = () => load();

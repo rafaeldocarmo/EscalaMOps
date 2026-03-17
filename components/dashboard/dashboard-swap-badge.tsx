@@ -1,21 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import Link from "next/link";
-import { getMySwapRequests } from "@/server/swaps/getSwaps";
 
-const PENDING_STATUSES = ["PENDING", "WAITING_SECOND_USER", "SECOND_USER_ACCEPTED"];
-
-export function DashboardSwapBadge() {
-  const [count, setCount] = useState<number | null>(null);
-
-  useEffect(() => {
-    getMySwapRequests().then((list) => {
-      const n = list.filter((s) => PENDING_STATUSES.includes(s.status)).length;
-      setCount(n);
-    });
-  }, []);
-
+export function DashboardSwapBadge({ count }: { count: number | null }) {
   if (count === null || count === 0) return null;
 
   return (

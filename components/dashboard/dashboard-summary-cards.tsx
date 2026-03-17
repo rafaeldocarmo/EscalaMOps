@@ -1,61 +1,52 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { getMySchedule } from "@/server/schedule/getMySchedule";
-import { getMySwapRequests } from "@/server/swaps/getSwaps";
-import { getMyOnCallSchedule } from "@/server/sobreaviso/getMyOnCallSchedule";
+import { useMemo } from "react";
+import type { MyDashboardData } from "@/server/dashboard/getMyDashboardData";
 import { Card, CardContent } from "@/components/ui/card";
 import { Calendar, CalendarOff, Clock, ArrowLeftRight, ShieldCheck } from "lucide-react";
 
 const PENDING_STATUSES = ["PENDING", "WAITING_SECOND_USER", "SECOND_USER_ACCEPTED"];
 
 interface DashboardSummaryCardsProps {
-  memberId: string;
   year: number;
   month: number;
+  data: MyDashboardData | null;
 }
 
-export function DashboardSummaryCards({ memberId, year, month }: DashboardSummaryCardsProps) {
-  const [workDays, setWorkDays] = useState<number | null>(null);
-  const [offDays, setOffDays] = useState<number | null>(null);
-  const [nextOffDate, setNextOffDate] = useState<string | null>(null);
-  const [pendingSwaps, setPendingSwaps] = useState<number>(0);
-  const [onCallDays, setOnCallDays] = useState<number | null>(null);
-
-  useEffect(() => {
+export function DashboardSummaryCards({ year, month, data }: DashboardSummaryCardsProps) {
+  const { workDays, offDays, nextOffDate, pendingSwaps, onCallDays } = useMemo(() => {
     const now = new Date();
-    getMySchedule(memberId, year, month).then((data) => {
-      if (data?.days) {
-        let work = 0;
-        let off = 0;
-        let nextOff: string | null = null;
-        const isCurrentMonth = year === now.getFullYear() && month === now.getMonth() + 1;
-        const minDay = isCurrentMonth ? now.getDate() : 1;
-        for (const d of data.days) {
-          if (d.status === "WORK") work++;
-          else off++;
-          if (!nextOff && d.status === "OFF" && d.day >= minDay) {
-            nextOff = `${d.day} ${["Jan","Fev","Mar","Abr","Mai","Jun","Jul","Ago","Set","Out","Nov","Dez"][month - 1]}`;
-          }
+    const schedule = data?.schedule ?? null;
+    const swaps = data?.swaps ?? [];
+    const onCallPeriods = data?.onCallPeriods ?? [];
+
+    let work: number | null = null;
+    let off: number | null = null;
+    let nextOff: string | null = null;
+    if (schedule?.days) {
+      let w = 0;
+      let o = 0;
+      const isCurrentMonth = year === now.getFullYear() && month === now.getMonth() + 1;
+      const minDay = isCurrentMonth ? now.getDate() : 1;
+      for (const d of schedule.days) {
+        if (d.status === "WORK") w++;
+        else o++;
+        if (!nextOff && d.status === "OFF" && d.day >= minDay) {
+          nextOff = `${d.day} ${["Jan","Fev","Mar","Abr","Mai","Jun","Jul","Ago","Set","Out","Nov","Dez"][month - 1]}`;
         }
-        setWorkDays(work);
-        setOffDays(off);
-        setNextOffDate(nextOff);
       }
-    });
-    getMySwapRequests().then((list) => {
-      const count = list.filter((s) => PENDING_STATUSES.includes(s.status)).length;
-      setPendingSwaps(count);
-    });
-    getMyOnCallSchedule(memberId, year, month).then((periods) => {
-      if (periods.length === 0) {
-        setOnCallDays(null);
-        return;
-      }
+      work = w;
+      off = o;
+    }
+
+    const pending = swaps.filter((s) => PENDING_STATUSES.includes(s.status)).length;
+
+    let onCall: number | null = null;
+    if (onCallPeriods.length > 0) {
       const monthStart = new Date(year, month - 1, 1);
       const monthEnd = new Date(year, month, 0);
       let total = 0;
-      for (const p of periods) {
+      for (const p of onCallPeriods) {
         const start = new Date(p.startDate + "T12:00:00.000Z");
         const end = new Date(p.endDate + "T12:00:00.000Z");
         const clampStart = start < monthStart ? monthStart : start;
@@ -66,9 +57,17 @@ export function DashboardSummaryCards({ memberId, year, month }: DashboardSummar
           d = new Date(d.getTime() + 86400000);
         }
       }
-      setOnCallDays(total);
-    });
-  }, [memberId, year, month]);
+      onCall = total;
+    }
+
+    return {
+      workDays: work,
+      offDays: off,
+      nextOffDate: nextOff,
+      pendingSwaps: pending,
+      onCallDays: onCall,
+    };
+  }, [data, month, year]);
 
   const cards = [
     {

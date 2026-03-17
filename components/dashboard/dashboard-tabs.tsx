@@ -1,12 +1,13 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { MyScheduleView } from "@/components/schedule/my-schedule-view";
 import { WeeklyScheduleView } from "@/components/schedule/weekly-schedule-view";
 import { MonthlyScheduleView } from "@/components/schedule/monthly-schedule-view";
 import { DashboardSummaryCards } from "@/components/dashboard/dashboard-summary-cards";
 import { DashboardSwapBadge } from "@/components/dashboard/dashboard-swap-badge";
+import { getMyDashboardData, type MyDashboardData } from "@/server/dashboard/getMyDashboardData";
 
 interface DashboardTabsProps {
   memberId: string;
@@ -18,6 +19,18 @@ export function DashboardTabs({ memberId, memberName }: DashboardTabsProps) {
   const now = new Date();
   const [year, setYear] = useState(now.getFullYear());
   const [month, setMonth] = useState(now.getMonth() + 1);
+  const [myData, setMyData] = useState<MyDashboardData | null>(null);
+
+  useEffect(() => {
+    if (value !== "my") return;
+    getMyDashboardData(memberId, year, month).then(setMyData);
+  }, [memberId, month, value, year]);
+
+  const pendingCount = useMemo(() => {
+    if (!myData) return null;
+    const pending = ["PENDING", "WAITING_SECOND_USER", "SECOND_USER_ACCEPTED"] as const;
+    return myData.swaps.filter((s) => pending.includes(s.status as any)).length;
+  }, [myData]);
 
   return (
     <Tabs value={value} onValueChange={setValue} className="w-full space-y-6">
@@ -26,7 +39,7 @@ export function DashboardTabs({ memberId, memberName }: DashboardTabsProps) {
           <h1 className="text-2xl font-bold tracking-tight text-foreground">
             Dashboard
           </h1>
-          <DashboardSwapBadge />
+          <DashboardSwapBadge count={pendingCount} />
         </div>
         <TabsList className="inline-flex h-10 shrink-0 items-center justify-start rounded-lg bg-transparent p-0 gap-0">
           <TabsTrigger
@@ -50,10 +63,17 @@ export function DashboardTabs({ memberId, memberName }: DashboardTabsProps) {
         </TabsList>
       </div>
 
-      {value === "my" && <DashboardSummaryCards memberId={memberId} year={year} month={month} />}
+      {value === "my" && <DashboardSummaryCards year={year} month={month} data={myData} />}
 
       <TabsContent value="my" className="mt-0">
-        <MyScheduleView memberId={memberId} year={year} month={month} onYearChange={setYear} onMonthChange={setMonth} />
+        <MyScheduleView
+          memberId={memberId}
+          year={year}
+          month={month}
+          onYearChange={setYear}
+          onMonthChange={setMonth}
+          dashboardData={myData}
+        />
       </TabsContent>
       <TabsContent value="weekly" className="mt-0">
         <WeeklyScheduleView memberName={memberName} />
