@@ -25,7 +25,7 @@ export default async function SchedulePage({ params }: PageProps) {
 
   const [scheduleData, members, sobreavisoWeeks] = await Promise.all([
     getSchedule(month, year),
-    getTeamMembers(),
+    getTeamMembers({ forSchedule: true }),
     getSobreavisoScheduleForMonth(month, year),
   ]);
 
@@ -38,6 +38,7 @@ export default async function SchedulePage({ params }: PageProps) {
     level: m.level,
     shift: m.shift,
     sobreaviso: m.sobreaviso,
+    participatesInSchedule: m.participatesInSchedule,
     createdAt: m.createdAt,
     updatedAt: m.updatedAt,
   }));

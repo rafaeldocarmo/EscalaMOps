@@ -78,17 +78,18 @@ enum Shift {
 }
 
 model TeamMember {
-  id                  String   @id @default(cuid())
-  name                String
-  phone               String
-  normalizedPhone     String   @map("normalized_phone")
-  level               Level
-  shift               Shift
-  sobreaviso          Boolean  @default(false)
-  rotationIndex       Int      @default(0) @map("rotation_index")
-  onCallRotationIndex Int      @default(0) @map("on_call_rotation_index")
-  createdAt           DateTime @default(now())
-  updatedAt           DateTime @updatedAt
+  id                    String   @id @default(cuid())
+  name                  String
+  phone                 String
+  normalizedPhone       String   @map("normalized_phone")
+  level                 Level
+  shift                 Shift
+  sobreaviso            Boolean  @default(false)
+  participatesInSchedule Boolean @default(true) @map("participates_in_schedule")
+  rotationIndex         Int      @default(0) @map("rotation_index")
+  onCallRotationIndex   Int      @default(0) @map("on_call_rotation_index")
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
 
   scheduleAssignments     ScheduleAssignment[]
   swapRequestsAsRequester ScheduleSwapRequest[] @relation("SwapRequester")

@@ -30,6 +30,7 @@ export async function getMonthlySchedule(
 
   if (!schedule) {
     const members = await prisma.teamMember.findMany({
+      where: { participatesInSchedule: true },
       orderBy: [{ level: "asc" }, { shift: "asc" }, { name: "asc" }],
     });
     const daysInMonth = new Date(year, month, 0).getDate();
@@ -56,6 +57,7 @@ export async function getMonthlySchedule(
         level: m.level,
         shift: m.shift,
         sobreaviso: m.sobreaviso,
+        participatesInSchedule: m.participatesInSchedule,
         createdAt: m.createdAt,
         updatedAt: m.updatedAt,
       })),
@@ -63,6 +65,7 @@ export async function getMonthlySchedule(
   }
 
   const members = await prisma.teamMember.findMany({
+    where: { participatesInSchedule: true },
     orderBy: [{ level: "asc" }, { shift: "asc" }, { name: "asc" }],
   });
 
@@ -89,6 +92,7 @@ export async function getMonthlySchedule(
       level: m.level,
       shift: m.shift,
       sobreaviso: m.sobreaviso,
+      participatesInSchedule: m.participatesInSchedule,
       createdAt: m.createdAt,
       updatedAt: m.updatedAt,
     })),

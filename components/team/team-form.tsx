@@ -21,6 +21,7 @@ export interface TeamFormValues {
   level: Level;
   shift: Shift;
   sobreaviso: boolean;
+  participatesInSchedule: boolean;
 }
 
 interface TeamFormProps {
@@ -69,6 +70,7 @@ export function TeamForm({
   const [level, setLevel] = useState<Level>(defaultValues?.level ?? "N1");
   const [shift, setShift] = useState<Shift>(defaultValues?.shift ?? "T1");
   const [sobreaviso, setSobreaviso] = useState(defaultValues?.sobreaviso ?? false);
+  const [participatesInSchedule, setParticipatesInSchedule] = useState(defaultValues?.participatesInSchedule ?? true);
   const [levelShiftError, setLevelShiftError] = useState<string | null>(null);
 
   const handleLevelChange = useCallback(
@@ -108,6 +110,7 @@ export function TeamForm({
       level,
       shift,
       sobreaviso: forceSobreaviso(level) ? true : canSobreaviso(level) ? sobreaviso : false,
+      participatesInSchedule,
     });
   }
 
@@ -201,6 +204,28 @@ export function TeamForm({
             {shiftError ?? levelShiftError}
           </p>
         )}
+      </div>
+
+      <div className="flex items-center gap-3">
+        <button
+          type="button"
+          role="switch"
+          aria-checked={participatesInSchedule}
+          disabled={loading}
+          onClick={() => setParticipatesInSchedule((v) => !v)}
+          className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 ${
+            participatesInSchedule ? "bg-primary" : "bg-input"
+          }`}
+        >
+          <span
+            className={`pointer-events-none block h-5 w-5 rounded-full bg-background shadow-lg ring-0 transition-transform ${
+              participatesInSchedule ? "translate-x-5" : "translate-x-0"
+            }`}
+          />
+        </button>
+        <Label className="cursor-pointer" onClick={() => !loading && setParticipatesInSchedule((v) => !v)}>
+          Participa da rotação da escala
+        </Label>
       </div>
 
       {canSobreaviso(level) && (

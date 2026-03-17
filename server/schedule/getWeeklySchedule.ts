@@ -105,6 +105,7 @@ export async function getWeeklySchedule(): Promise<{
   }
 
   const members = await prisma.teamMember.findMany({
+    where: { participatesInSchedule: true },
     orderBy: [{ level: "asc" }, { shift: "asc" }, { name: "asc" }],
     select: { id: true, name: true, level: true, shift: true },
   });

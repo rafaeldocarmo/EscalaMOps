@@ -17,6 +17,7 @@ export async function getMembersForQueueSwap(): Promise<MemberOption[]> {
       id: { not: session.member.id },
       level: session.member.level as Level,
       shift: session.member.shift as Shift,
+      participatesInSchedule: true,
     },
     orderBy: { name: "asc" },
     select: { id: true, name: true },

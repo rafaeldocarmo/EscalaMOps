@@ -55,6 +55,7 @@ export async function generateMonthlySchedule(
   year: number
 ): Promise<ScheduleAssignmentOutput[]> {
   const allMembers = await prisma.teamMember.findMany({
+    where: { participatesInSchedule: true },
     orderBy: [{ shift: "asc" }, { level: "asc" }, { name: "asc" }],
   });
 

@@ -89,13 +89,14 @@ export function TeamTable({
               <TableHead className="px-4 font-semibold text-foreground">Nivel</TableHead>
               <TableHead className="px-4 font-semibold text-foreground">Turno</TableHead>
               <TableHead className="px-4 font-semibold text-foreground">Sobreaviso</TableHead>
+              <TableHead className="px-4 font-semibold text-foreground">Escala</TableHead>
               <TableHead className="w-[120px] px-4 text-right font-semibold text-foreground">Ações</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {sortedMembers.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={6} className="h-24 px-4 text-center text-muted-foreground">
+                <TableCell colSpan={7} className="h-24 px-4 text-center text-muted-foreground">
                   Nenhum membro cadastrado.
                 </TableCell>
               </TableRow>
@@ -126,6 +127,15 @@ export function TeamTable({
                       </span>
                     ) : (
                       <span className="text-xs text-muted-foreground">—</span>
+                    )}
+                  </TableCell>
+                  <TableCell className="px-4">
+                    {member.participatesInSchedule ? (
+                      <span className="text-xs text-muted-foreground">Sim</span>
+                    ) : (
+                      <span className="inline-flex items-center rounded-md border border-muted bg-muted/50 px-2 py-0.5 text-xs font-medium text-muted-foreground">
+                        Fora da escala
+                      </span>
                     )}
                   </TableCell>
                   <TableCell className="px-4 text-right">
@@ -174,6 +184,7 @@ export function TeamTable({
                 level: memberToEdit.level,
                 shift: memberToEdit.shift,
                 sobreaviso: memberToEdit.sobreaviso,
+                participatesInSchedule: memberToEdit.participatesInSchedule,
               }
             : undefined
         }

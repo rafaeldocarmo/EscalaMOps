@@ -45,6 +45,7 @@ export async function updateTeamMember(
         level: parsed.data.level,
         shift: parsed.data.shift,
         sobreaviso: parsed.data.sobreaviso ?? false,
+        participatesInSchedule: parsed.data.participatesInSchedule ?? true,
       },
     });
     return { success: true };

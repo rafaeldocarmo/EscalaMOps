@@ -19,6 +19,7 @@ export default async function TeamPage() {
         level: m.level,
         shift: m.shift,
         sobreaviso: m.sobreaviso,
+        participatesInSchedule: m.participatesInSchedule,
         createdAt: m.createdAt,
         updatedAt: m.updatedAt,
       }))}

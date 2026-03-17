@@ -30,7 +30,7 @@ export async function sendDailyScheduleSummary(targetDate?: Date): Promise<void>
 
   const [members, offAssignments, onCallAssignments] = await Promise.all([
     prisma.teamMember.findMany({
-      where: { level: { in: ["N1", "N2"] } },
+      where: { level: { in: ["N1", "N2"] }, participatesInSchedule: true },
       orderBy: [{ level: "asc" }, { shift: "asc" }, { name: "asc" }],
       select: { id: true, name: true, level: true, shift: true },
     }),

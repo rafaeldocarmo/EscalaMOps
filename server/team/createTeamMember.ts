@@ -43,6 +43,7 @@ export async function createTeamMember(
         level: parsed.data.level,
         shift: parsed.data.shift,
         sobreaviso: parsed.data.sobreaviso ?? false,
+        participatesInSchedule: parsed.data.participatesInSchedule ?? true,
       },
     });
     return { success: true, data: { id: member.id } };

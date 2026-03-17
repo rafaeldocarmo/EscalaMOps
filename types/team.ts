@@ -10,6 +10,7 @@ export interface TeamMemberRow {
   level: Level;
   shift: Shift;
   sobreaviso: boolean;
+  participatesInSchedule: boolean;
   createdAt: Date;
   updatedAt: Date;
 }

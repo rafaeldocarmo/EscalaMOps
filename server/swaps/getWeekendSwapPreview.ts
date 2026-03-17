@@ -83,6 +83,7 @@ export async function getWeekendSwapPreview(
     where: {
       level: session.member.level as Level,
       shift: session.member.shift as Shift,
+      participatesInSchedule: true,
     },
     select: { id: true, name: true, level: true, shift: true, rotationIndex: true },
   });
