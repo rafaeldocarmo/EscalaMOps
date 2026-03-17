@@ -1,10 +1,6 @@
 const WHAPI_URL = "https://gate.whapi.cloud/messages/text";
 
-/**
- * Sends a WhatsApp text message via WhapiCloud API.
- * If `to` is provided, sends to that number. Otherwise falls back to WHAPI_TO env var.
- * Does not throw; logs errors only.
- */
+
 export async function sendWhatsappMessage(message: string, to?: string): Promise<void> {
   const apiKey = process.env.WHAPI_API_KEY;
   if (!apiKey) {
@@ -12,7 +8,7 @@ export async function sendWhatsappMessage(message: string, to?: string): Promise
     return;
   }
 
-  const destination = to ?? process.env.WHAPI_ADMIN_TO;
+  const destination = process.env.WHAPI_ADMIN_TO;
   if (!destination) {
     console.error("WhatsApp send error: no destination number provided and WHAPI_TO is not set");
     return;

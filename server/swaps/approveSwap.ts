@@ -3,7 +3,7 @@
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import type { SwapActionResult } from "@/types/swaps";
-import { sendWhatsappMessage, phoneToWhatsApp } from "@/server/whatsapp/sendWhatsappMessage";
+// import { sendWhatsappMessage, phoneToWhatsApp } from "@/server/whatsapp/sendWhatsappMessage";
 
 function dateKeyToDate(dateKey: string): Date {
   return new Date(dateKey + "T12:00:00.000Z");
@@ -193,49 +193,50 @@ export async function approveSwap(swapRequestId: string): Promise<SwapActionResu
     });
   });
 
-  try {
-    const requesterName = swap.requester.name;
-    const requesterFirst = requesterName.split(/\s+/)[0];
-    const requesterPhone = phoneToWhatsApp(swap.requester.phone);
+  // Mantemos apenas mensagens para admin/WHAPI_TO; notificações para membros comentadas.
+  // try {
+  //   const requesterName = swap.requester.name;
+  //   const requesterFirst = requesterName.split(/\s+/)[0];
+  //   const requesterPhone = phoneToWhatsApp(swap.requester.phone);
 
-    if (swap.type === "OFF_SWAP") {
-      const orig = swap.originalDate!;
-      const targ = swap.targetDate!;
-      const fmtDd = (d: Date) => `${String(d.getUTCDate()).padStart(2, "0")}/${String(d.getUTCMonth() + 1).padStart(2, "0")}`;
-      const message = [
-        `Olá ${requesterFirst},`,
-        "",
-        `Sua troca de folga do dia ${fmtDd(orig)} para o dia ${fmtDd(targ)} foi aprovada pelo gestor.`,
-      ].join("\n");
-      await sendWhatsappMessage(message, requesterPhone);
-    }
+  //   if (swap.type === "OFF_SWAP") {
+  //     const orig = swap.originalDate!;
+  //     const targ = swap.targetDate!;
+  //     const fmtDd = (d: Date) => `${String(d.getUTCDate()).padStart(2, "0")}/${String(d.getUTCMonth() + 1).padStart(2, "0")}`;
+  //     const message = [
+  //       `Olá ${requesterFirst},`,
+  //       "",
+  //       `Sua troca de folga do dia ${fmtDd(orig)} para o dia ${fmtDd(targ)} foi aprovada pelo gestor.`,
+  //     ].join("\n");
+  //     await sendWhatsappMessage(message, requesterPhone);
+  //   }
 
-    if ((swap.type === "QUEUE_SWAP" || swap.type === "ONCALL_SWAP") && swap.targetMember) {
-      const targetName = swap.targetMember.name;
-      const targetFirst = targetName.split(/\s+/)[0];
-      const targetPhone = phoneToWhatsApp(swap.targetMember.phone);
-      const typeLabel = swap.type === "ONCALL_SWAP" ? "sobreaviso" : "escala do final de semana";
+  //   if ((swap.type === "QUEUE_SWAP" || swap.type === "ONCALL_SWAP") && swap.targetMember) {
+  //     const targetName = swap.targetMember.name;
+  //     const targetFirst = targetName.split(/\s+/)[0];
+  //     const targetPhone = phoneToWhatsApp(swap.targetMember.phone);
+  //     const typeLabel = swap.type === "ONCALL_SWAP" ? "sobreaviso" : "escala do final de semana";
 
-      const msgRequester = [
-        `Olá ${requesterFirst},`,
-        "",
-        `Sua troca de ${typeLabel} com ${targetName} foi aprovada pelo gestor.`,
-      ].join("\n");
+  //     const msgRequester = [
+  //       `Olá ${requesterFirst},`,
+  //       "",
+  //       `Sua troca de ${typeLabel} com ${targetName} foi aprovada pelo gestor.`,
+  //     ].join("\n");
 
-      const msgTarget = [
-        `Olá ${targetFirst},`,
-        "",
-        `A troca de ${typeLabel} com ${requesterName} foi aprovada pelo gestor.`,
-      ].join("\n");
+  //     const msgTarget = [
+  //       `Olá ${targetFirst},`,
+  //       "",
+  //       `A troca de ${typeLabel} com ${requesterName} foi aprovada pelo gestor.`,
+  //     ].join("\n");
 
-      await Promise.all([
-        sendWhatsappMessage(msgRequester, requesterPhone),
-        sendWhatsappMessage(msgTarget, targetPhone),
-      ]);
-    }
-  } catch (err) {
-    console.error("WhatsApp send error (approveSwap)", err);
-  }
+  //     await Promise.all([
+  //       sendWhatsappMessage(msgRequester, requesterPhone),
+  //       sendWhatsappMessage(msgTarget, targetPhone),
+  //     ]);
+  //   }
+  // } catch (err) {
+  //   console.error("WhatsApp send error (approveSwap)", err);
+  // }
 
   return { success: true };
 }
