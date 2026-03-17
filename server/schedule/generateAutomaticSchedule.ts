@@ -27,6 +27,16 @@ export async function generateAutomaticSchedule(
     return { success: false, error: "Escala não encontrada." };
   }
 
+  const existingCount = await prisma.scheduleAssignment.count({
+    where: { scheduleId },
+  });
+  if (existingCount > 0) {
+    return {
+      success: false,
+      error: "Esta escala já foi gerada/salva. Use “Limpar tabela” antes de gerar novamente.",
+    };
+  }
+
   try {
     const assignments = await generateMonthlySchedule(schedule.month, schedule.year);
     const payload = assignments.map((a) => ({

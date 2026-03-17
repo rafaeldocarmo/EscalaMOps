@@ -10,8 +10,12 @@ interface ScheduleToolbarProps {
   month: number;
   onGenerate: () => void;
   onSave: () => void;
+  onClear: () => void;
+  generateDisabled?: boolean;
   saveLoading?: boolean;
   generateLoading?: boolean;
+  clearLoading?: boolean;
+  rightContent?: React.ReactNode;
 }
 
 export function ScheduleToolbar({
@@ -20,8 +24,12 @@ export function ScheduleToolbar({
   month,
   onGenerate,
   onSave,
+  onClear,
+  generateDisabled = false,
   saveLoading = false,
   generateLoading = false,
+  clearLoading = false,
+  rightContent,
 }: ScheduleToolbarProps) {
   const router = useRouter();
 
@@ -41,14 +49,22 @@ export function ScheduleToolbar({
   };
 
   return (
-    <div className="flex flex-wrap items-center gap-4">
-      <MonthNavigator year={year} month={month} onPrevious={goPrev} onNext={goNext} />
-      <div className="flex items-center gap-2">
+    <div className="flex flex-wrap items-center justify-between gap-4">
+      <div className="flex flex-wrap items-center gap-2">
+        <MonthNavigator year={year} month={month} onPrevious={goPrev} onNext={goNext} />
+        <Button
+          variant="destructive"
+          size="sm"
+          onClick={onClear}
+          disabled={clearLoading || saveLoading || generateLoading}
+        >
+          {clearLoading ? "Limpando…" : "Limpar tabela"}
+        </Button>
         <Button
           variant="outline"
           size="sm"
           onClick={onGenerate}
-          disabled={generateLoading}
+          disabled={generateLoading || generateDisabled}
         >
           {generateLoading ? "Gerando…" : "Gerar Escala Automática"}
         </Button>
@@ -59,6 +75,9 @@ export function ScheduleToolbar({
         >
           {saveLoading ? "Salvando…" : "Salvar Alterações"}
         </Button>
+      </div>
+      <div className="flex flex-wrap items-center justify-end gap-2">
+        {rightContent}
       </div>
     </div>
   );
