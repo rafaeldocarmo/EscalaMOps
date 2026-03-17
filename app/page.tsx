@@ -3,6 +3,7 @@ import { auth } from "@/auth";
 import { signOut } from "@/auth";
 import { redirect } from "next/navigation";
 import { Button } from "@/components/ui/button";
+import { Analytics } from '@vercel/analytics/next';
 
 export default async function Home() {
   const session = await auth();
@@ -49,6 +50,7 @@ export default async function Home() {
           <p className="text-muted-foreground">Faça login para continuar.</p>
         )}
       </div>
+      <Analytics />
     </div>
   );
 }
