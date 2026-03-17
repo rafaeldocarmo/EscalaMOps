@@ -16,6 +16,7 @@ interface MultiSelectProps<T extends string> {
   onChange: (next: T[]) => void;
   size?: "sm" | "default";
   className?: string;
+  buttonClassName?: string;
   disabled?: boolean;
 }
 
@@ -34,6 +35,7 @@ export function MultiSelect<T extends string>({
   onChange,
   size = "sm",
   className,
+  buttonClassName,
   disabled,
 }: MultiSelectProps<T>) {
   const id = useId();
@@ -84,7 +86,7 @@ export function MultiSelect<T extends string>({
         size={size}
         onClick={() => setOpen((v) => !v)}
         disabled={disabled}
-        className="max-w-[18rem] justify-start text-left"
+        className={cn("max-w-[18rem] justify-start text-left", buttonClassName)}
         aria-haspopup="listbox"
         aria-expanded={open}
       >

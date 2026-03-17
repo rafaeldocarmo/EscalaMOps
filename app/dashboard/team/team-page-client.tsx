@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -14,14 +14,24 @@ import {
 import { TeamModal } from "@/components/team/team-modal";
 import { TeamTable } from "@/components/team/team-table";
 import type { TeamFormValues } from "@/components/team/team-form";
-import type { TeamMemberRow } from "@/types/team";
+import type { TeamMemberRow, Level, Shift } from "@/types/team";
 import { createTeamMember } from "@/server/team/createTeamMember";
 import { updateTeamMember } from "@/server/team/updateTeamMember";
 import { deleteTeamMember } from "@/server/team/deleteTeamMember";
+import { Input } from "@/components/ui/input";
+import { MultiSelect, type MultiSelectOption } from "@/components/ui/multi-select";
+import { LEVEL_OPTIONS, SHIFT_OPTIONS } from "@/types/team";
 
 interface TeamPageClientProps {
   initialMembers: TeamMemberRow[];
 }
+
+type SobreavisoFilter = "with" | "without";
+
+const SOBREAVISO_OPTIONS: MultiSelectOption<SobreavisoFilter>[] = [
+  { value: "with", label: "Com sobreaviso" },
+  { value: "without", label: "Sem sobreaviso" },
+];
 
 export function TeamPageClient({ initialMembers }: TeamPageClientProps) {
   const router = useRouter();
@@ -29,10 +39,52 @@ export function TeamPageClient({ initialMembers }: TeamPageClientProps) {
   const [addLoading, setAddLoading] = useState(false);
   const [addError, setAddError] = useState<string | null>(null);
   const [addFieldErrors, setAddFieldErrors] = useState<Record<string, string[]>>({});
+  const [search, setSearch] = useState("");
+  const [selectedLevels, setSelectedLevels] = useState<Level[]>([]);
+  const [selectedShifts, setSelectedShifts] = useState<Shift[]>([]);
+  const [selectedSobreaviso, setSelectedSobreaviso] = useState<SobreavisoFilter[]>([]);
 
   const refresh = useCallback(() => {
     router.refresh();
   }, [router]);
+
+  const filteredMembers = useMemo(() => {
+    const term = search.trim().toLowerCase();
+
+    return initialMembers.filter((member) => {
+      if (term) {
+        const nameMatch = member.name.toLowerCase().includes(term);
+        const phoneDigits = member.phone.replace(/\D/g, "");
+        const termDigits = term.replace(/\D/g, "");
+        const phoneMatch = termDigits.length > 0 ? phoneDigits.includes(termDigits) : false;
+
+        if (!nameMatch && !phoneMatch) {
+          return false;
+        }
+      }
+
+      if (selectedLevels.length > 0 && !selectedLevels.includes(member.level)) {
+        return false;
+      }
+
+      if (selectedShifts.length > 0 && !selectedShifts.includes(member.shift)) {
+        return false;
+      }
+
+      if (selectedSobreaviso.length > 0) {
+        const wantsWith = selectedSobreaviso.includes("with");
+        const wantsWithout = selectedSobreaviso.includes("without");
+
+        // Se ambos estiverem selecionados, não filtra por sobreaviso
+        if (!(wantsWith && wantsWithout)) {
+          if (wantsWith && !member.sobreaviso) return false;
+          if (wantsWithout && member.sobreaviso) return false;
+        }
+      }
+
+      return true;
+    });
+  }, [initialMembers, search, selectedLevels, selectedShifts, selectedSobreaviso]);
 
   async function handleCreate(values: TeamFormValues) {
     setAddError(null);
@@ -107,8 +159,42 @@ export function TeamPageClient({ initialMembers }: TeamPageClientProps) {
           </CardDescription>
         </CardHeader>
         <CardContent className="p-0">
+          <div className="flex flex-col gap-3 border-b border-border/50 px-4 py-3 lg:flex-row lg:items-center">
+            <Input
+              placeholder="Filtrar por nome ou telefone..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="h-11 w-full lg:flex-1"
+            />
+            <div className="flex flex-wrap gap-2 lg:shrink-0">
+              <MultiSelect
+                label="Nível"
+                options={LEVEL_OPTIONS}
+                value={selectedLevels}
+                onChange={setSelectedLevels}
+                size="default"
+                buttonClassName="h-11"
+              />
+              <MultiSelect
+                label="Turno"
+                options={SHIFT_OPTIONS}
+                value={selectedShifts}
+                onChange={setSelectedShifts}
+                size="default"
+                buttonClassName="h-11"
+              />
+              <MultiSelect
+                label="Sobreaviso"
+                options={SOBREAVISO_OPTIONS}
+                value={selectedSobreaviso}
+                onChange={setSelectedSobreaviso}
+                size="default"
+                buttonClassName="h-11"
+              />
+            </div>
+          </div>
           <TeamTable
-            members={initialMembers}
+            members={filteredMembers}
             onEdit={handleEdit}
             onDelete={handleDelete}
             onSuccess={refresh}
