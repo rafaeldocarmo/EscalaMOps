@@ -1,7 +1,9 @@
+import type { NextAuthOptions } from "next-auth";
+import { getServerSession } from "next-auth/next";
 import NextAuth from "next-auth";
 import Google from "next-auth/providers/google";
 import Credentials from "next-auth/providers/credentials";
-import { PrismaAdapter } from "@auth/prisma-adapter";
+import { PrismaAdapter } from "@next-auth/prisma-adapter";
 import { prisma } from "@/lib/prisma";
 import { signInSchema } from "@/lib/validations/auth";
 import bcrypt from "bcryptjs";
@@ -12,7 +14,7 @@ if (!secret && process.env.NODE_ENV === "production") {
   throw new Error("AUTH_SECRET is required in production");
 }
 
-export const { handlers, auth, signIn, signOut } = NextAuth({
+export const authOptions: NextAuthOptions = {
   adapter: PrismaAdapter(prisma) as Adapter,
   providers: [
     Google({
@@ -102,4 +104,10 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     },
   },
   debug: process.env.NODE_ENV === "development" && !!process.env.AUTH_DEBUG,
-});
+};
+
+export function auth() {
+  return getServerSession(authOptions);
+}
+
+export const nextAuthHandler = NextAuth(authOptions);

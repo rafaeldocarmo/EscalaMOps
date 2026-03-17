@@ -10,7 +10,7 @@ const prisma = new PrismaClient({ adapter });
 
 function normalizePhone(phone: string) {
   const digitsOnly = phone.replace(/\D/g, "");
-  if (digitsOnly.length === 11 && !digitsOnly.startsWith("55")) return `55${digitsOnly}`;
+  if (digitsOnly.length === 11 && !digitsOnly.startsWith("55")) return `${digitsOnly}`;
   return digitsOnly;
 }
 

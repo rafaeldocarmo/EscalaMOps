@@ -8,6 +8,7 @@ import { MonthlyScheduleView } from "@/components/schedule/monthly-schedule-view
 import { DashboardSummaryCards } from "@/components/dashboard/dashboard-summary-cards";
 import { DashboardSwapBadge } from "@/components/dashboard/dashboard-swap-badge";
 import { getMyDashboardData, type MyDashboardData } from "@/server/dashboard/getMyDashboardData";
+import type { SwapRequestStatus } from "@/types/swaps";
 
 interface DashboardTabsProps {
   memberId: string;
@@ -28,8 +29,12 @@ export function DashboardTabs({ memberId, memberName }: DashboardTabsProps) {
 
   const pendingCount = useMemo(() => {
     if (!myData) return null;
-    const pending = ["PENDING", "WAITING_SECOND_USER", "SECOND_USER_ACCEPTED"] as const;
-    return myData.swaps.filter((s) => pending.includes(s.status as any)).length;
+    const pendingStatuses = new Set<SwapRequestStatus>([
+      "PENDING",
+      "WAITING_SECOND_USER",
+      "SECOND_USER_ACCEPTED",
+    ]);
+    return myData.swaps.filter((s) => pendingStatuses.has(s.status)).length;
   }, [myData]);
 
   return (

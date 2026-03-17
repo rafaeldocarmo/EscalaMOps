@@ -1,9 +1,9 @@
 import Link from "next/link";
 import { auth } from "@/auth";
-import { signOut } from "@/auth";
 import { redirect } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Analytics } from '@vercel/analytics/next';
+import { SignOutButton } from "@/components/auth/sign-out-button";
 
 export default async function Home() {
   const session = await auth();
@@ -34,16 +34,7 @@ export default async function Home() {
                   <Link href="/dashboard/team">Gerenciar equipe</Link>
                 </Button>
               )}
-              <form
-                action={async () => {
-                  "use server";
-                  await signOut({ redirectTo: "/login" });
-                }}
-              >
-                <Button type="submit" variant="outline">
-                  Sair
-                </Button>
-              </form>
+              <SignOutButton />
             </div>
           </>
         ) : (

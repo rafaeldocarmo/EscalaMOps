@@ -17,12 +17,12 @@ export async function identifyMemberByPhone(
 ): Promise<IdentifyMemberResult> {
   const session = await auth();
   if (!session?.user) {
-    return { success: false, error: "Não foi possível identificar o membro." };
+    return { success: false, error: "Não foi possível identificar o membro. 1" };
   }
 
   const normalized = normalizePhone(phone).trim();
   if (!normalized) {
-    return { success: false, error: "Não foi possível identificar o membro." };
+    return { success: false, error: "Não foi possível identificar o membro. 2" };
   }
 
   const member = await prisma.teamMember.findFirst({
@@ -31,7 +31,7 @@ export async function identifyMemberByPhone(
   });
 
   if (!member) {
-    return { success: false, error: "Não foi possível identificar o membro." };
+    return { success: false, error: "Não foi possível identificar o membro. 3" };
   }
 
   return {
