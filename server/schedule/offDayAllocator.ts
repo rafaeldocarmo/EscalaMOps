@@ -1,6 +1,36 @@
 import { addDays, subDays, format } from "date-fns";
+import type { GroupKey } from "./queueManager";
 
 const MAX_OFF_PER_DAY = 5;
+
+/** Weekday for compensation: 1=Mon, 2=Tue, 3=Wed, 4=Thu, 5=Fri (date-fns getDay()). */
+const MON = 1;
+const TUE = 2;
+const WED = 3;
+const THU = 4;
+const FRI = 5;
+
+export type CompensationPattern = { dayBefore: number; dayAfter: number };
+
+/**
+ * Gabarito de folgas de compensação por turno e nível (apenas N1/N2; sem ESPC/PRODUCAO).
+ * Um dia na semana anterior ao fim de semana, um na posterior. Sem limite de pessoas nem colisão por nível.
+ * Para grupos com 2 pessoas (ex.: T1_N2, T2_N2): array com 2 padrões — 1ª pessoa usa [0], 2ª usa [1].
+ * dayBefore = dia da semana na semana do sábado (seg–sex); dayAfter = dia na semana após o domingo.
+ */
+export const COMPENSATION_GABARITO: Partial<Record<GroupKey, CompensationPattern | CompensationPattern[]>> = {
+  T1_N1: { dayBefore: THU, dayAfter: WED },  // sex e seg
+  T2_N1: { dayBefore: THU, dayAfter: WED },
+  T3_N1: { dayBefore: THU, dayAfter: WED },   // quarta e terça
+  T1_N2: [                                      // N2: uma sex+seg, outra qui+sext
+    { dayBefore: WED, dayAfter: TUE },           // sex e seg
+    { dayBefore: THU, dayAfter: WED },           // qui e sext
+  ],
+  T2_N2: [                                      // N2: uma sex+seg, outra qui+sext
+    { dayBefore: WED, dayAfter: TUE },           // sex e seg
+    { dayBefore: THU, dayAfter: WED },  
+  ],
+};
 
 /** Assignment shape used for allocation (date as YYYY-MM-DD). */
 export interface ScheduleAssignmentInput {
@@ -59,6 +89,23 @@ function toDateKey(d: Date): string {
 
 function assignmentKey(memberId: string, dateKey: string): string {
   return `${memberId}|${dateKey}`;
+}
+
+/**
+ * Returns the two compensation dates for a weekend: one in the week before (weekday dayBefore),
+ * one in the week after (weekday dayAfter). dayBefore/dayAfter: 1=Mon .. 5=Fri.
+ */
+function getCompensationDatesForWeekend(
+  saturday: Date,
+  sunday: Date,
+  dayBefore: number,
+  dayAfter: number
+): { dateBefore: Date; dateAfter: Date } {
+  // Week before: Monday = saturday - 5, so weekday w = subDays(saturday, 6 - w)
+  const dateBefore = subDays(saturday, 6 - dayBefore);
+  // Week after: weekday w = addDays(sunday, w)
+  const dateAfter = addDays(sunday, dayAfter);
+  return { dateBefore, dateAfter };
 }
 
 /** Count how many employees have OFF on the given date. */
@@ -138,8 +185,8 @@ export function canAssignOffDay(
 
 /**
  * Assign compensation OFF days for weekend workers: one OFF in the week before
- * and one in the week after each weekend. Uses strict priority order for
- * day placement. Does not override weekend WORK or existing OFF.
+ * and one in the week after each weekend. Dias pré-definidos por nível e turno
+ * (gabarito); sem regra de máximo de pessoas nem colisão por nível.
  */
 export function assignCompensationDaysOff(
   weekendsWithWorkers: WeekendWithWorkers[],
@@ -148,7 +195,6 @@ export function assignCompensationDaysOff(
   month: number,
   year: number
 ): ScheduleAssignmentInput[] {
-  const monthStart = new Date(year, month - 1, 1);
   const monthEnd = new Date(year, month - 1 + 1, 0);
 
   const map = new Map<string, "WORK" | "OFF" | "SWAP_REQUESTED">();
@@ -156,87 +202,45 @@ export function assignCompensationDaysOff(
     map.set(assignmentKey(a.memberId, a.date), a.status);
   }
 
-  const offCountByDate = new Map<string, number>();
-  /** Per date: which levels already have someone OFF (same level cannot folgar on the same day). */
-  const offLevelsByDate = new Map<string, Set<string>>();
-
-  function currentStatus(memberId: string, dateKey: string): "WORK" | "OFF" | "SWAP_REQUESTED" | undefined {
-    return map.get(assignmentKey(memberId, dateKey)) as "WORK" | "OFF" | "SWAP_REQUESTED" | undefined;
-  }
-
-  function setOff(memberId: string, dateKey: string, member: MemberForAllocation): void {
+  function setOff(memberId: string, dateKey: string): void {
     map.set(assignmentKey(memberId, dateKey), "OFF");
-    offCountByDate.set(dateKey, (offCountByDate.get(dateKey) ?? 0) + 1);
-    const levels = offLevelsByDate.get(dateKey) ?? new Set<string>();
-    levels.add(member.level);
-    offLevelsByDate.set(dateKey, levels);
-  }
-
-  /** Current number of OFF on this date (includes OFF assigned during this run). */
-  function countOffForDate(dateKey: string): number {
-    if (offCountByDate.has(dateKey)) return offCountByDate.get(dateKey)!;
-    const n = scheduleAssignments.filter((a) => a.date === dateKey && a.status === "OFF").length;
-    offCountByDate.set(dateKey, n);
-    const levels = new Set<string>();
-    for (const a of scheduleAssignments.filter((a) => a.date === dateKey && a.status === "OFF")) {
-      const m = members.find((x) => x.id === a.memberId);
-      if (m) levels.add(m.level);
-    }
-    offLevelsByDate.set(dateKey, levels);
-    return n;
-  }
-
-  /** True if someone with the same level already has OFF on this date (prioridade 1 ocupada → outro vai para prioridade 2). */
-  function hasCollisionForDate(dateKey: string, member: MemberForAllocation): boolean {
-    const levels = offLevelsByDate.get(dateKey);
-    return levels?.has(member.level) ?? false;
-  }
-
-  /** Internal: can we assign OFF for this member on this date? (OFF count < 5, no same-level collision.) */
-  function canAssignOff(member: MemberForAllocation, dateKey: string): boolean {
-    if (currentStatus(member.id, dateKey) === "OFF") return false;
-    const count = countOffForDate(dateKey);
-    if (count >= MAX_OFF_PER_DAY) return false;
-    if (hasCollisionForDate(dateKey, member)) return false;
-    return true;
-  }
-
-  /** Try to assign one OFF in the week before the weekend using priority order. */
-  function assignOffBeforeWeekend(member: MemberForAllocation, saturday: Date): void {
-    const priorityDays = getBeforeWeekendPriorityDays(saturday);
-    for (const day of priorityDays) {
-      const dateKey = toDateKey(day);
-      if (canAssignOff(member, dateKey)) {
-        setOff(member.id, dateKey, member);
-        return;
-      }
-    }
-  }
-
-  /** Try to assign one OFF in the week after the weekend using priority order. */
-  function assignOffAfterWeekend(member: MemberForAllocation, sunday: Date): void {
-    const priorityDays = getAfterWeekendPriorityDays(sunday);
-    for (const day of priorityDays) {
-      const dateKey = toDateKey(day);
-      if (canAssignOff(member, dateKey)) {
-        setOff(member.id, dateKey, member);
-        return;
-      }
-    }
   }
 
   for (const { saturday, workerIds } of weekendsWithWorkers) {
     const sunday = addDays(saturday, 1);
 
+    // Agrupa por turno+nível para N2: 1ª pessoa sex+seg, 2ª qui+sext (ordem estável por memberId)
+    const byGroup = new Map<GroupKey, MemberForAllocation[]>();
     for (const memberId of workerIds) {
       const member = members.find((m) => m.id === memberId);
       if (!member) continue;
+      const groupKey: GroupKey = `${member.shift}_${member.level}` as GroupKey;
+      const gabarito = COMPENSATION_GABARITO[groupKey];
+      if (!gabarito) continue;
+      if (!byGroup.has(groupKey)) byGroup.set(groupKey, []);
+      byGroup.get(groupKey)!.push(member);
+    }
 
-      assignOffBeforeWeekend(member, saturday);
-      assignOffAfterWeekend(member, sunday);
+    for (const [groupKey, groupMembers] of byGroup) {
+      const gabarito = COMPENSATION_GABARITO[groupKey]!;
+      const patterns: CompensationPattern[] = Array.isArray(gabarito) ? gabarito : [gabarito];
+      // Ordena por id para ordem estável: 1ª pessoa padrão [0], 2ª padrão [1], etc.
+      const sorted = [...groupMembers].sort((a, b) => a.id.localeCompare(b.id));
+      sorted.forEach((member, i) => {
+        const pattern = patterns[i % patterns.length];
+        const { dateBefore, dateAfter } = getCompensationDatesForWeekend(
+          saturday,
+          sunday,
+          pattern.dayBefore,
+          pattern.dayAfter
+        );
+        setOff(member.id, toDateKey(dateBefore));
+        setOff(member.id, toDateKey(dateAfter));
+      });
     }
   }
 
+  const monthStart = new Date(year, month - 1, 1);
   // Include first week of next month so "week after" compensation for last weekend is kept
   const resultEnd = addDays(monthEnd, 7);
   const result: ScheduleAssignmentInput[] = [];
@@ -263,7 +267,7 @@ export interface OffDayAssignment {
 
 /**
  * Assign one OFF in the week before and one OFF in the week after for each weekend worker.
- * Respects: max 5 OFF per weekday; same level cannot folgar on the same day.
+ * Uses COMPENSATION_GABARITO (dias fixos por turno/nível); sem máximo por dia nem colisão por nível.
  * @deprecated Prefer assignCompensationDaysOff which uses full assignment state.
  */
 export function allocateCompensationOffDays(
