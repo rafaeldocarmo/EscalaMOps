@@ -284,6 +284,12 @@ export function SwapHistoryList({ memberId, compact, initialList }: SwapHistoryL
                 </span>
               </p>
               <p className="text-muted-foreground">{getDescription(s)}</p>
+              {s.justification && s.justification.trim().length > 0 ? (
+                <p className="text-xs text-muted-foreground whitespace-pre-wrap">
+                  <span className="font-semibold text-foreground">Justificativa:</span>{" "}
+                  {s.justification}
+                </p>
+              ) : null}
 
               {canAcceptAsTarget(s) && (
                 <div className="mt-2 flex flex-wrap gap-2">

@@ -170,6 +170,7 @@ model ScheduleSwapRequest {
   targetMemberId       String?           @map("target_member_id")
   originalDate         DateTime?         @map("original_date")
   targetDate           DateTime?         @map("target_date")
+  justification        String?           @map("justification")
   status               SwapRequestStatus
   secondUserAcceptedAt DateTime?        @map("second_user_accepted_at")
   adminApprovedAt      DateTime?         @map("admin_approved_at")

@@ -224,6 +224,18 @@ export function AdminSwapList({ sessionMemberId }: AdminSwapListProps) {
                             O que solicitou
                           </p>
                           <p className="text-sm text-foreground">{getDescription(s)}</p>
+                        </div>
+                        <div className="space-y-1">
+                          <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                          Justificativa:
+                          </p>
+                          {s.justification && s.justification.trim().length > 0 ? (
+                            <p className="text-sm text-foreground">
+                              {s.justification}
+                            </p>
+                          ) : null}
+                        </div>
+                        <div>
                           <span
                             className={`inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-xs font-medium ${
                               s.status === "APPROVED"

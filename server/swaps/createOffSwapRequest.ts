@@ -24,7 +24,8 @@ function parseDate(dateStr: string): Date {
  */
 export async function createOffSwapRequest(
   originalDateStr: string,
-  targetDateStr: string
+  targetDateStr: string,
+  justification?: string
 ): Promise<SwapActionResult> {
   const session = await auth();
   if (!session?.user || !session.member) {
@@ -86,6 +87,7 @@ export async function createOffSwapRequest(
       targetMemberId: null,
       originalDate,
       targetDate,
+      justification: justification?.trim() ? justification.trim() : null,
       status: "PENDING",
     },
   });
@@ -101,6 +103,9 @@ export async function createOffSwapRequest(
       "Olá Admin,",
       "",
       `${memberName} deseja trocar seu dia de folga ${formatDdMm(originalDateStr)} para o dia ${formatDdMm(targetDateStr)}.`,
+      ...(justification?.trim()
+        ? ["", "Justificativa:", justification.trim()]
+        : []),
       "",
       `Para aceitar ou recusar entre no link ${siteUrl}/dashboard`,
     ].join("\n");

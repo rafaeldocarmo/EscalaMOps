@@ -35,6 +35,7 @@ import { clearSobreavisoForMonth } from "@/server/sobreaviso/clearSobreavisoForM
 import { clearScheduleAssignments } from "@/server/schedule/clearScheduleAssignments";
 import { adminSwapQueuePositions } from "@/server/schedule/adminSwapQueuePositions";
 import { adminSwapOnCallPositions } from "@/server/sobreaviso/adminSwapOnCallPositions";
+import { adminShiftRotationQueueForAllMembers } from "@/server/schedule/adminShiftRotationQueueForAllMembers";
 import type { ScheduleStateMap } from "@/types/schedule";
 import { Button } from "@/components/ui/button";
 
@@ -68,6 +69,7 @@ export function SchedulePageClient({
   const [selectedMemberId, setSelectedMemberId] = useState<string | null>(null);
   const [selectedOnCallMemberId, setSelectedOnCallMemberId] = useState<string | null>(null);
   const [swapLoading, setSwapLoading] = useState(false);
+  const [shiftRotationLoading, setShiftRotationLoading] = useState(false);
   const [levelFilter, setLevelFilter] = useState<Level[]>(["N1", "N2"]);
   const [shiftFilter, setShiftFilter] = useState<Shift[]>(SHIFT_OPTIONS.map((s) => s.value));
 
@@ -287,6 +289,23 @@ export function SchedulePageClient({
     toast.success("Sobreaviso limpo.");
   }, [schedule.month, schedule.year, setSelectedOnCallMemberId]);
 
+  const handleShiftRotationQueue = useCallback(
+    async (dir: 1 | -1) => {
+      if (shiftRotationLoading || clearLoading || saveLoading || generateLoading) return;
+      setShiftRotationLoading(true);
+      const result = await adminShiftRotationQueueForAllMembers(schedule.id, dir);
+      setShiftRotationLoading(false);
+      if (!result.success) {
+        toast.error(result.error ?? "Erro ao mover fila de rotação.");
+        return;
+      }
+      setStateMap(assignmentsToStateMap(result.assignments));
+      setHasGenerated(true);
+      toast.success(dir === 1 ? "Fila avançada (1 fim de semana)." : "Fila recuada (1 fim de semana).");
+    },
+    [shiftRotationLoading, clearLoading, saveLoading, generateLoading, schedule.id]
+  );
+
   return (
     <div className="space-y-6">
       <AlertDialog open={clearOpen} onOpenChange={setClearOpen}>
@@ -378,6 +397,25 @@ export function SchedulePageClient({
           }
         />
       </div>
+
+      {/* <div className="flex flex-wrap items-center justify-end gap-2">
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => handleShiftRotationQueue(-1)}
+          disabled={shiftRotationLoading || scheduleMembersRotationOnly.length === 0}
+        >
+          {shiftRotationLoading ? "Ajustando…" : "Recuar 1 fim de semana"}
+        </Button>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => handleShiftRotationQueue(1)}
+          disabled={shiftRotationLoading || scheduleMembersRotationOnly.length === 0}
+        >
+          {shiftRotationLoading ? "Ajustando…" : "Avançar 1 fim de semana"}
+        </Button>
+      </div> */}
 
       {scheduleMembersRotationOnly.length === 0 ? (
         <div className="rounded-lg border bg-card p-8 text-center text-muted-foreground">

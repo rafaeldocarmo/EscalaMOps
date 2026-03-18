@@ -19,6 +19,7 @@ export interface SwapRequestRow {
   targetMemberName: string | null;
   originalDate: string | null;
   targetDate: string | null;
+  justification: string | null;
   status: SwapRequestStatus;
   secondUserAcceptedAt: string | null; // ISO string
   adminApprovedAt: string | null; // ISO string

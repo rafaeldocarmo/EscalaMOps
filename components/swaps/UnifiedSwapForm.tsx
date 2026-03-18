@@ -59,6 +59,7 @@ export function UnifiedSwapForm({ memberId, initialMode }: UnifiedSwapFormProps)
   const [data, setData] = useState<Awaited<ReturnType<typeof getMySchedule>>>(null);
   const [originalDate, setOriginalDate] = useState<string>("");
   const [targetDate, setTargetDate] = useState<string>("");
+  const [justification, setJustification] = useState<string>("");
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
 
   const [queueMembers, setQueueMembers] = useState<{ id: string; name: string }[]>([]);
@@ -134,11 +135,12 @@ export function UnifiedSwapForm({ memberId, initialMode }: UnifiedSwapFormProps)
     e.preventDefault();
     setMessage(null);
     if (!originalDate || !targetDate) return;
-    const result = await createOffSwapRequest(originalDate, targetDate);
+    const result = await createOffSwapRequest(originalDate, targetDate, justification);
     if (result.success) {
       setMessage({ type: "success", text: "Solicitação enviada. Aguarde aprovação do administrador." });
       setOriginalDate("");
       setTargetDate("");
+      setJustification("");
       toast.success("Troca solicitada com sucesso.");
       if (typeof window !== "undefined") window.dispatchEvent(new CustomEvent("swaps-updated"));
     } else setMessage({ type: "error", text: result.error });
@@ -390,6 +392,16 @@ export function UnifiedSwapForm({ memberId, initialMode }: UnifiedSwapFormProps)
                 {message.text}
               </p>
             )}
+            <div className="space-y-1">
+              <p className="text-xs font-medium text-foreground">Justificativa</p>
+              <textarea
+                value={justification}
+                onChange={(e) => setJustification(e.target.value)}
+                placeholder="Opcional: explique o motivo da troca."
+                rows={3}
+                className="w-full resize-y rounded-md border border-border/50 bg-background px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              />
+            </div>
             <div className="flex gap-2">
               <SubmitButtonOff />
               <Button
@@ -398,6 +410,7 @@ export function UnifiedSwapForm({ memberId, initialMode }: UnifiedSwapFormProps)
                 onClick={() => {
                   setOriginalDate("");
                   setTargetDate("");
+                  setJustification("");
                   setMessage(null);
                 }}
               >
