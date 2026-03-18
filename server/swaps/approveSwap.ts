@@ -170,12 +170,17 @@ export async function approveSwap(swapRequestId: string): Promise<SwapActionResu
         endDate: { gt: rangeStart },
       };
 
+      // Critical: onCallAssignment has a `level` column and the UI groups by `level`.
+      // When approving an ONCALL_SWAP, we must only swap assignments that belong to the same level
+      // as the requesting/target members (otherwise we can "move" a member between level sections).
+      const swapLevel = requester.level;
+
       const [assignmentsA, assignmentsB] = await Promise.all([
         tx.onCallAssignment.findMany({
-          where: { memberId: swap.requesterId, ...overlapWhere },
+          where: { memberId: swap.requesterId, level: swapLevel, ...overlapWhere },
         }),
         tx.onCallAssignment.findMany({
-          where: { memberId: swap.targetMemberId, ...overlapWhere },
+          where: { memberId: swap.targetMemberId, level: swapLevel, ...overlapWhere },
         }),
       ]);
 
