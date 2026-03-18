@@ -30,6 +30,8 @@ import {
 } from "@/lib/scheduleUtils";
 import { saveScheduleAssignments } from "@/server/schedule/saveScheduleAssignments";
 import { generateAutomaticSchedule } from "@/server/schedule/generateAutomaticSchedule";
+import { generateSobreavisoForMonth } from "@/server/sobreaviso/generateSobreavisoForMonth";
+import { clearSobreavisoForMonth } from "@/server/sobreaviso/clearSobreavisoForMonth";
 import { clearScheduleAssignments } from "@/server/schedule/clearScheduleAssignments";
 import { adminSwapQueuePositions } from "@/server/schedule/adminSwapQueuePositions";
 import { adminSwapOnCallPositions } from "@/server/sobreaviso/adminSwapOnCallPositions";
@@ -56,8 +58,11 @@ export function SchedulePageClient({
   const [hasGenerated, setHasGenerated] = useState(() => initialAssignments.length > 0);
   const [saveLoading, setSaveLoading] = useState(false);
   const [generateLoading, setGenerateLoading] = useState(false);
+  const [generateSobreavisoLoading, setGenerateSobreavisoLoading] = useState(false);
   const [clearLoading, setClearLoading] = useState(false);
   const [clearOpen, setClearOpen] = useState(false);
+  const [clearSobreavisoLoading, setClearSobreavisoLoading] = useState(false);
+  const [clearSobreavisoOpen, setClearSobreavisoOpen] = useState(false);
   const [sobreavisoWeeks, setSobreavisoWeeks] = useState(initialSobreavisoWeeks);
   const [selectedMemberId, setSelectedMemberId] = useState<string | null>(null);
   const [selectedOnCallMemberId, setSelectedOnCallMemberId] = useState<string | null>(null);
@@ -225,10 +230,27 @@ export function SchedulePageClient({
     }
   }, [hasGenerated, schedule.id]);
 
+  const handleGenerateSobreaviso = useCallback(async () => {
+    setGenerateSobreavisoLoading(true);
+    const result = await generateSobreavisoForMonth(schedule.month, schedule.year);
+    setGenerateSobreavisoLoading(false);
+    if (!result.success) {
+      toast.error(result.error ?? "Erro ao gerar sobreaviso.");
+      return;
+    }
+    setSobreavisoWeeks(result.sobreavisoWeeks);
+    toast.success("Sobreaviso gerado.");
+  }, [schedule.month, schedule.year]);
+
   const handleClearRequest = useCallback(() => {
     if (clearLoading || saveLoading || generateLoading) return;
     setClearOpen(true);
   }, [clearLoading, saveLoading, generateLoading]);
+
+  const handleClearSobreavisoRequest = useCallback(() => {
+    if (clearSobreavisoLoading || generateSobreavisoLoading) return;
+    setClearSobreavisoOpen(true);
+  }, [clearSobreavisoLoading, generateSobreavisoLoading]);
 
   const handleClearConfirm = useCallback(async () => {
     setClearLoading(true);
@@ -247,6 +269,22 @@ export function SchedulePageClient({
       toast.error(result.error);
     }
   }, [schedule.id, router]);
+
+  const handleClearSobreavisoConfirm = useCallback(async () => {
+    setClearSobreavisoLoading(true);
+    const result = await clearSobreavisoForMonth(schedule.month, schedule.year);
+    setClearSobreavisoLoading(false);
+
+    if (!result.success) {
+      toast.error(result.error ?? "Erro ao limpar sobreaviso.");
+      return;
+    }
+
+    setClearSobreavisoOpen(false);
+    setSelectedOnCallMemberId(null);
+    setSobreavisoWeeks(result.sobreavisoWeeks);
+    toast.success("Sobreaviso limpo.");
+  }, [schedule.month, schedule.year, setSelectedOnCallMemberId]);
 
   return (
     <div className="space-y-6">
@@ -270,6 +308,31 @@ export function SchedulePageClient({
               disabled={clearLoading}
             >
               {clearLoading ? "Limpando…" : "Limpar"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={clearSobreavisoOpen} onOpenChange={setClearSobreavisoOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Limpar sobreaviso</AlertDialogTitle>
+            <AlertDialogDescription>
+              Isso vai limpar o sobreaviso do mês (remover sobreaviso gerado) para todos os níveis.
+              Esta ação não pode ser desfeita.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={clearSobreavisoLoading}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              variant="destructive"
+              onClick={(e) => {
+                e.preventDefault();
+                handleClearSobreavisoConfirm();
+              }}
+              disabled={clearSobreavisoLoading}
+            >
+              {clearSobreavisoLoading ? "Limpando…" : "Limpar"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -331,12 +394,35 @@ export function SchedulePageClient({
         />
       )}
 
-      <SobreavisoTable
-        weeks={sobreavisoWeeks}
-        calendarDays={calendarDays}
-        onMemberClick={handleOnCallMemberClick}
-        selectedMemberId={selectedOnCallMemberId}
-      />
+      <div className="space-y-3">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <h2 className="text-xl font-semibold tracking-tight">Sobreaviso</h2>
+          <div className="flex flex-wrap items-center gap-2">
+            <Button
+              variant="destructive"
+              size="sm"
+              onClick={handleClearSobreavisoRequest}
+              disabled={clearSobreavisoLoading || generateSobreavisoLoading}
+            >
+              {clearSobreavisoLoading ? "Limpando…" : "Limpar sobreaviso"}
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleGenerateSobreaviso}
+              disabled={generateSobreavisoLoading}
+            >
+              {generateSobreavisoLoading ? "Gerando…" : "Gerar Sobreaviso"}
+            </Button>
+          </div>
+        </div>
+        <SobreavisoTable
+          weeks={sobreavisoWeeks}
+          calendarDays={calendarDays}
+          onMemberClick={handleOnCallMemberClick}
+          selectedMemberId={selectedOnCallMemberId}
+        />
+      </div>
     </div>
   );
 }

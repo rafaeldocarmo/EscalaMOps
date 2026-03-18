@@ -12,6 +12,7 @@ export type GenerateAutomaticScheduleResult =
   | { success: true; assignments: ScheduleAssignmentRow[]; sobreavisoWeeks: SobreavisoWeek[] }
   | { success: false; error: string };
 
+// NOTE: Sobreaviso now has its own generator action.
 export async function generateAutomaticSchedule(
   scheduleId: string
 ): Promise<GenerateAutomaticScheduleResult> {
@@ -49,7 +50,7 @@ export async function generateAutomaticSchedule(
       return saveResult;
     }
 
-    await generateSobreavisoSchedule(schedule.month, schedule.year);
+    // Keep returning current sobreaviso snapshot (generation is separate now).
     const sobreavisoWeeks = await getSobreavisoScheduleForMonth(schedule.month, schedule.year);
 
     const assignmentsForClient: ScheduleAssignmentRow[] = assignments.map((a) => ({

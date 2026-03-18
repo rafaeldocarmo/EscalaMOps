@@ -92,7 +92,6 @@ export function SobreavisoTable({ weeks, calendarDays, onMemberClick, selectedMe
 
   return (
     <div className="space-y-2">
-      <h2 className="text-xl font-semibold tracking-tight">Sobreaviso</h2>
       <div className="overflow-x-auto rounded-lg border bg-card">
         <table className="w-full border-collapse text-xs">
           <ScheduleHeader calendarDays={currentMonthDays} />

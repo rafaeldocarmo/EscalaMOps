@@ -59,7 +59,7 @@ export function ScheduleToolbar({
           onClick={onGenerate}
           disabled={generateLoading || generateDisabled}
         >
-          {generateLoading ? "Gerando…" : "Gerar Escala Automática"}
+          {generateLoading ? "Gerando…" : "Gerar Escala"}
         </Button>
         <Button
           size="sm"
