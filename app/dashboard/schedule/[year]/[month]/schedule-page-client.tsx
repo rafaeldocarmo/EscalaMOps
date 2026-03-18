@@ -36,6 +36,7 @@ import { clearScheduleAssignments } from "@/server/schedule/clearScheduleAssignm
 import { adminSwapQueuePositions } from "@/server/schedule/adminSwapQueuePositions";
 import { adminSwapOnCallPositions } from "@/server/sobreaviso/adminSwapOnCallPositions";
 import type { ScheduleStateMap } from "@/types/schedule";
+import { Button } from "@/components/ui/button";
 
 interface SchedulePageClientProps {
   schedule: ScheduleRow;
