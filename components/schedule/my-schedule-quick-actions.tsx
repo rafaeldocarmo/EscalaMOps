@@ -44,7 +44,7 @@ export function MyScheduleQuickActions({
         >
           <CalendarClock className="h-5 w-5 text-muted-foreground group-hover:text-red-600 transition-colors" />
           <span className="text-xs font-medium text-foreground group-hover:text-red-600 transition-colors">
-            Trocar Turno
+            Trocar Fim de Semana
           </span>
         </Button>
         <Button

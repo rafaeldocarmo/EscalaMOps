@@ -179,22 +179,30 @@ export function SwapHistoryList({ memberId, compact, initialList }: SwapHistoryL
 
   useEffect(() => {
     if (!viewSwapModalRequestId || !viewSwapItem) {
-      setPreviewData(null);
-      setCurrentSchedule(null);
+      setTimeout(() => {
+        setPreviewData(null);
+        setCurrentSchedule(null);
+      }, 0);
       return;
     }
     if (viewSwapItem.type === "ONCALL_SWAP") {
-      setPreviewData(null);
-      setCurrentSchedule(null);
+      setTimeout(() => {
+        setPreviewData(null);
+        setCurrentSchedule(null);
+      }, 0);
       return;
     }
     if (viewSwapItem.type !== "QUEUE_SWAP" || !viewSwapItem.requesterId) {
-      setPreviewData(null);
-      setCurrentSchedule(null);
+      setTimeout(() => {
+        setPreviewData(null);
+        setCurrentSchedule(null);
+      }, 0);
       return;
     }
-    setPreviewData(null);
-    setCurrentSchedule(null);
+    setTimeout(() => {
+      setPreviewData(null);
+      setCurrentSchedule(null);
+    }, 0);
     getFullQueueSwapPreview(viewSwapItem.requesterId).then((data) => {
       setPreviewData(data ?? null);
     });
@@ -219,11 +227,13 @@ export function SwapHistoryList({ memberId, compact, initialList }: SwapHistoryL
   const pageItems = list.slice(start, start + PAGE_SIZE);
 
   useEffect(() => {
-    if (page > totalPages && totalPages >= 1) setPage(totalPages);
+    if (page > totalPages && totalPages >= 1) {
+      setTimeout(() => setPage(totalPages), 0);
+    }
   }, [page, totalPages]);
 
   const canAcceptAsTarget = (s: SwapRequestRow) =>
-    (s.type === "QUEUE_SWAP" || s.type === "ONCALL_SWAP") &&
+    (s.type === "QUEUE_SWAP" || s.type === "ONCALL_SWAP" || s.type === "OFF_SWAP") &&
     s.status === "WAITING_SECOND_USER" &&
     s.targetMemberId === memberId;
 
@@ -278,6 +288,9 @@ export function SwapHistoryList({ memberId, compact, initialList }: SwapHistoryL
               <p className="text-xs text-muted-foreground">
                 Data de solicitação: <strong className="text-foreground">{formatDate(createdDate)}</strong>
               </p>
+              <p className="text-xs text-muted-foreground">
+                Solicitante: <strong className="text-foreground">{s.requesterName}</strong>
+              </p>
               <p>
                 <span className={`inline-block rounded border px-2 py-0.5 text-xs font-medium ${statusDisplay.className}`}>
                   {statusDisplay.label}
@@ -296,13 +309,15 @@ export function SwapHistoryList({ memberId, compact, initialList }: SwapHistoryL
                   <Button size="sm" onClick={() => handleAccept(s.id)}>
                     Aceitar troca
                   </Button>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => setViewSwapModalRequestId(s.id)}
-                  >
-                    Ver troca
-                  </Button>
+                  {s.type !== "OFF_SWAP" && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => setViewSwapModalRequestId(s.id)}
+                    >
+                      Ver troca
+                    </Button>
+                  )}
                   <Button size="sm" variant="destructive" onClick={() => handleReject(s.id)}>
                     Recusar
                   </Button>
@@ -345,7 +360,7 @@ export function SwapHistoryList({ memberId, compact, initialList }: SwapHistoryL
       )}
 
       <Dialog open={!!viewSwapModalRequestId} onOpenChange={(open) => !open && setViewSwapModalRequestId(null)}>
-        <DialogContent className="max-w-[80vw]! max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-[1000px]! max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>
               {viewSwapItem?.type === "ONCALL_SWAP" ? "Comparação de sobreaviso" : "Comparação de agendas"}

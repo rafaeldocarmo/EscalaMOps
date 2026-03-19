@@ -20,8 +20,8 @@ export async function rejectQueueSwapAsTarget(swapRequestId: string): Promise<Sw
   if (!swap) {
     return { success: false, error: "Solicitação não encontrada." };
   }
-  if (swap.type !== "QUEUE_SWAP" && swap.type !== "ONCALL_SWAP") {
-    return { success: false, error: "Apenas trocas de fila/sobreaviso podem ser recusadas pelo destinatário." };
+  if (swap.type !== "QUEUE_SWAP" && swap.type !== "ONCALL_SWAP" && swap.type !== "OFF_SWAP") {
+    return { success: false, error: "Apenas trocas de fila/sobreaviso/folga podem ser recusadas pelo destinatário." };
   }
   if (swap.targetMemberId !== session.member.id) {
     return { success: false, error: "Você não é o destinatário desta solicitação." };

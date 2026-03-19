@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from "react";
 import { getSwapRequestsForAdmin } from "@/server/swaps/getSwaps";
-import { getScheduleCalendarDays } from "@/lib/scheduleUtils";
 import { approveSwap } from "@/server/swaps/approveSwap";
 import { rejectSwap } from "@/server/swaps/rejectSwap";
 import { acceptQueueSwap } from "@/server/swaps/acceptQueueSwap";
@@ -85,14 +84,17 @@ export function AdminSwapList({ sessionMemberId }: AdminSwapListProps) {
   });
 
   const canApprove = (s: SwapRequestRow) =>
-    (s.type === "OFF_SWAP" && s.status === "PENDING") ||
-    ((s.type === "QUEUE_SWAP" || s.type === "ONCALL_SWAP") && s.status === "SECOND_USER_ACCEPTED");
+    (s.type === "OFF_SWAP"
+      ? s.targetMemberId
+        ? s.status === "SECOND_USER_ACCEPTED"
+        : s.status === "PENDING"
+      : (s.type === "QUEUE_SWAP" || s.type === "ONCALL_SWAP") && s.status === "SECOND_USER_ACCEPTED");
 
   const canReject = (s: SwapRequestRow) =>
     s.status !== "APPROVED" && s.status !== "REJECTED" && s.status !== "CANCELLED";
 
   const canAcceptAsSecondUser = (s: SwapRequestRow) =>
-    (s.type === "QUEUE_SWAP" || s.type === "ONCALL_SWAP") &&
+    (s.type === "QUEUE_SWAP" || s.type === "ONCALL_SWAP" || s.type === "OFF_SWAP") &&
     s.status === "WAITING_SECOND_USER" &&
     s.targetMemberId === sessionMemberId;
 
@@ -367,6 +369,111 @@ export function AdminSwapList({ sessionMemberId }: AdminSwapListProps) {
                               </div>
                             </div>
                           </div>
+                        ) : s.type === "OFF_SWAP" &&
+                          s.originalDate &&
+                          s.targetDate &&
+                          s.targetMemberId &&
+                          s.targetMemberName ? (
+                          (() => {
+                            const originalDateKey = s.originalDate!;
+                            const targetDateKey = s.targetDate!;
+
+                            const monthFromOriginal = (() => {
+                              const [y, m] = originalDateKey.split("-").map(Number);
+                              return { year: y, month: m };
+                            })();
+                            const monthFromTarget = (() => {
+                              const [y, m] = targetDateKey.split("-").map(Number);
+                              return { year: y, month: m };
+                            })();
+
+                            const sameMonth = monthFromOriginal.year === monthFromTarget.year && monthFromOriginal.month === monthFromTarget.month;
+
+                            // Requester (quem pediu): current=originalDate, new=targetDate
+                            const requesterCurrentInOriginalMonth = originalDateKey;
+                            const requesterNewInTargetMonth = targetDateKey;
+
+                            // Target (membro alvo): current=targetDate, new=originalDate
+                            const targetCurrentInTargetMonth = targetDateKey;
+                            const targetNewInOriginalMonth = originalDateKey;
+
+                            return (
+                              <div className="flex min-h-0 flex-1 flex-col gap-4">
+                                <div className="grid grid-cols-1 min-h-0 flex-1 gap-4 sm:grid-cols-2">
+                                  <div className="flex min-h-0 flex-col">
+                                    <p className="mb-2 shrink-0 text-sm font-bold uppercase tracking-wider text-foreground">
+                                      Folga {s.requesterName}
+                                    </p>
+                                    <div className="min-h-0 min-w-0 flex-1">
+                                      <div className="flex gap-4">
+                                        <div className="min-h-0 min-w-0 flex-1">
+                                          <MemberScheduleMiniCalendar
+                                            memberId={s.requesterId}
+                                            year={monthFromOriginal.year}
+                                            month={monthFromOriginal.month}
+                                            highlightCurrentDateKeys={[requesterCurrentInOriginalMonth]}
+                                            highlightNewDateKeys={sameMonth ? [requesterNewInTargetMonth] : []}
+                                          />
+                                        </div>
+                                        {!sameMonth && (
+                                          <div className="min-h-0 min-w-0 flex-1">
+                                            <MemberScheduleMiniCalendar
+                                              memberId={s.requesterId}
+                                              year={monthFromTarget.year}
+                                              month={monthFromTarget.month}
+                                              highlightCurrentDateKeys={[]}
+                                              highlightNewDateKeys={[requesterNewInTargetMonth]}
+                                            />
+                                          </div>
+                                        )}
+                                      </div>
+                                    </div>
+                                  </div>
+
+                                  <div className="flex min-h-0 flex-col">
+                                    <p className="mb-2 shrink-0 text-sm font-bold uppercase tracking-wider text-foreground">
+                                      Folga {s.targetMemberName}
+                                    </p>
+                                    <div className="min-h-0 min-w-0 flex-1">
+                                      <div className="flex gap-4">
+                                        <div className="min-h-0 min-w-0 flex-1">
+                                          <MemberScheduleMiniCalendar
+                                            memberId={s.targetMemberId}
+                                            year={monthFromOriginal.year}
+                                            month={monthFromOriginal.month}
+                                            highlightCurrentDateKeys={sameMonth ? [targetCurrentInTargetMonth] : []}
+                                            highlightNewDateKeys={[targetNewInOriginalMonth]}
+                                          />
+                                        </div>
+                                        {!sameMonth && (
+                                          <div className="min-h-0 min-w-0 flex-1">
+                                            <MemberScheduleMiniCalendar
+                                              memberId={s.targetMemberId}
+                                              year={monthFromTarget.year}
+                                              month={monthFromTarget.month}
+                                              highlightCurrentDateKeys={[targetCurrentInTargetMonth]}
+                                              highlightNewDateKeys={[]}
+                                            />
+                                          </div>
+                                        )}
+                                      </div>
+                                    </div>
+                                  </div>
+                                </div>
+
+                                <div className="flex flex-wrap items-center gap-3 pt-1">
+                                  <div className="flex items-center gap-1.5">
+                                    <span className="inline-block h-3 w-3 rounded-sm bg-blue-200 border border-blue-400" />
+                                    <span className="text-xs text-muted-foreground">Folga atual</span>
+                                  </div>
+                                  <div className="flex items-center gap-1.5">
+                                    <span className="inline-block h-3 w-3 rounded-sm bg-blue-500 border border-blue-700" />
+                                    <span className="text-xs text-muted-foreground">Novo dia</span>
+                                  </div>
+                                </div>
+                              </div>
+                            );
+                          })()
                         ) : (
                           <>
                             <p className="mb-3 shrink-0 text-sm font-bold uppercase tracking-wider text-foreground">

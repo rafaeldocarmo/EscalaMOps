@@ -9,9 +9,11 @@ import { getMembersForOnCallSwap } from "@/server/swaps/getMembersForOnCallSwap"
 import { getFullQueueSwapPreview } from "@/server/swaps/getWeekendSwapPreview";
 import { FullSchedulePreviewCalendar } from "@/components/swaps/FullSchedulePreviewCalendar";
 import { createOffSwapRequest } from "@/server/swaps/createOffSwapRequest";
+import { createOffSwapWithMemberRequest } from "@/server/swaps/createOffSwapWithMemberRequest";
 import { createQueueSwapRequest } from "@/server/swaps/createQueueSwapRequest";
 import { createOnCallSwapRequest } from "@/server/swaps/createOnCallSwapRequest";
 import { getOnCallScheduleForMember, type OnCallPeriod } from "@/server/sobreaviso/getOnCallScheduleForMember";
+import { getMemberScheduleForSwapPreview, type MemberScheduleDay } from "@/server/schedule/getSchedule";
 import { MonthNavigator } from "@/components/schedule/month-navigator";
 import { WEEKDAY_LABELS } from "@/lib/constants";
 import { formatDateKeyToDDMMYYYY } from "@/lib/formatDate";
@@ -20,7 +22,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
-type SwapMode = "off" | "weekend" | "sobreaviso";
+type SwapMode = "off" | "off_member" | "weekend" | "sobreaviso";
 
 interface UnifiedSwapFormProps {
   memberId: string;
@@ -30,6 +32,10 @@ interface UnifiedSwapFormProps {
 
 function SubmitButtonOff() {
   return <SubmitButton label="Solicitar troca" />;
+}
+
+function SubmitButtonOffWithMember() {
+  return <SubmitButton label="Solicitar troca com membro" />;
 }
 
 function SubmitButtonQueue() {
@@ -51,7 +57,9 @@ function SubmitButton({ label }: { label: string }) {
 
 export function UnifiedSwapForm({ memberId, initialMode }: UnifiedSwapFormProps) {
   const [mode, setMode] = useState<SwapMode>(initialMode ?? "off");
-  const singleMode = initialMode != null;
+  // Quando o modal abre a partir de "Trocar Folga" (initialMode="off"),
+  // queremos mostrar as abas (incluindo a nova "trocar folga com membro").
+  const singleMode = initialMode != null && initialMode !== "off";
 
   const now = new Date();
   const [year, setYear] = useState(now.getFullYear());
@@ -69,6 +77,7 @@ export function UnifiedSwapForm({ memberId, initialMode }: UnifiedSwapFormProps)
 
   const [myOnCallPeriods, setMyOnCallPeriods] = useState<OnCallPeriod[]>([]);
   const [targetOnCallPeriods, setTargetOnCallPeriods] = useState<OnCallPeriod[]>([]);
+  const [targetMemberScheduleDays, setTargetMemberScheduleDays] = useState<MemberScheduleDay[] | null>(null);
 
   const { goPrev, goNext } = useMonthNavigation({
     year,
@@ -85,7 +94,7 @@ export function UnifiedSwapForm({ memberId, initialMode }: UnifiedSwapFormProps)
   }, [memberId, year, month, mode]);
 
   useEffect(() => {
-    if (mode === "weekend") getMembersForQueueSwap().then(setQueueMembers);
+    if (mode === "weekend" || mode === "off_member") getMembersForQueueSwap().then(setQueueMembers);
     if (mode === "sobreaviso") getMembersForOnCallSwap().then(setOnCallMembers);
   }, [mode]);
 
@@ -105,6 +114,16 @@ export function UnifiedSwapForm({ memberId, initialMode }: UnifiedSwapFormProps)
     }
   }, [mode, selectedMemberId, year, month]);
 
+  useEffect(() => {
+    if (mode === "off_member" && selectedMemberId) {
+      getMemberScheduleForSwapPreview(selectedMemberId, year, month).then((res) => {
+        setTargetMemberScheduleDays(res?.days ?? null);
+      });
+    } else {
+      setTargetMemberScheduleDays(null);
+    }
+  }, [mode, selectedMemberId, year, month]);
+
   const statusByDate = useMemo(() => {
     const map = new Map<string, "WORK" | "OFF">();
     if (data?.days) {
@@ -112,6 +131,14 @@ export function UnifiedSwapForm({ memberId, initialMode }: UnifiedSwapFormProps)
     }
     return map;
   }, [data?.days]);
+
+  const targetStatusByDate = useMemo(() => {
+    const map = new Map<string, "WORK" | "OFF">();
+    if (targetMemberScheduleDays) {
+      for (const d of targetMemberScheduleDays) map.set(d.dateKey, d.status);
+    }
+    return map;
+  }, [targetMemberScheduleDays]);
 
   const calendarDays = useMemo(
     () => getScheduleCalendarDays(year, month),
@@ -131,6 +158,9 @@ export function UnifiedSwapForm({ memberId, initialMode }: UnifiedSwapFormProps)
 
   const canSubmitOff = Boolean(originalDate && targetDate);
 
+  const isOffMemberMode = mode === "off_member";
+  const canSubmitOffWithMember = isOffMemberMode && Boolean(originalDate && targetDate && selectedMemberId);
+
   async function handleSubmitOff(e: React.FormEvent) {
     e.preventDefault();
     setMessage(null);
@@ -144,6 +174,29 @@ export function UnifiedSwapForm({ memberId, initialMode }: UnifiedSwapFormProps)
       toast.success("Troca solicitada com sucesso.");
       if (typeof window !== "undefined") window.dispatchEvent(new CustomEvent("swaps-updated"));
     } else setMessage({ type: "error", text: result.error });
+  }
+
+  async function handleSubmitOffWithMember(e: React.FormEvent) {
+    e.preventDefault();
+    setMessage(null);
+    if (!originalDate || !targetDate || !selectedMemberId) return;
+    const result = await createOffSwapWithMemberRequest(
+      originalDate,
+      selectedMemberId,
+      targetDate,
+      justification
+    );
+    if (result.success) {
+      setMessage({ type: "success", text: "Solicitação enviada. Aguarde aceite do outro membro e depois do administrador." });
+      setOriginalDate("");
+      setTargetDate("");
+      setSelectedMemberId("");
+      setJustification("");
+      toast.success("Troca solicitada com sucesso.");
+      if (typeof window !== "undefined") window.dispatchEvent(new CustomEvent("swaps-updated"));
+    } else {
+      setMessage({ type: "error", text: result.error });
+    }
   }
 
   async function handleSubmitQueue(e: React.FormEvent) {
@@ -198,13 +251,26 @@ export function UnifiedSwapForm({ memberId, initialMode }: UnifiedSwapFormProps)
               : mode === "weekend"
                 ? "Trocar turno"
                 : "Trocar sobreaviso"
-            : "Solicitar troca"}
+            : mode === "off"
+              ? "Trocar dia de folga"
+              : mode === "off_member"
+                ? "Trocar folga com membro"
+                : mode === "weekend"
+                  ? "Trocar turno"
+                  : "Trocar sobreaviso"}
         </CardTitle>
         {!singleMode && (
         <div className="flex gap-2 rounded-lg border bg-muted/30 p-1">
           <button
             type="button"
-            onClick={() => setMode("off")}
+            onClick={() => {
+              setMode("off");
+              setSelectedMemberId("");
+              setOriginalDate("");
+              setTargetDate("");
+              setJustification("");
+              setMessage(null);
+            }}
             className={`flex-1 rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
               isOffMode ? "bg-background shadow text-foreground" : "text-muted-foreground hover:text-foreground"
             }`}
@@ -213,18 +279,30 @@ export function UnifiedSwapForm({ memberId, initialMode }: UnifiedSwapFormProps)
           </button>
           <button
             type="button"
-            onClick={() => setMode("weekend")}
+            onClick={() => {
+              setMode("off_member");
+              setSelectedMemberId("");
+              setOriginalDate("");
+              setTargetDate("");
+              setJustification("");
+              setMessage(null);
+            }}
             className={`flex-1 rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
-              isWeekendMode ? "bg-background shadow text-foreground" : "text-muted-foreground hover:text-foreground"
+              isOffMemberMode ? "bg-background shadow text-foreground" : "text-muted-foreground hover:text-foreground"
             }`}
           >
-            Trocar final de semana
+            Trocar folga com membro
           </button>
         </div>
         )}
         {isOffMode && (
           <p className="text-sm text-muted-foreground">
             Clique em uma folga (vermelho) e depois no dia que será sua nova folga (verde).
+          </p>
+        )}
+        {isOffMemberMode && (
+          <p className="text-sm text-muted-foreground my-2">
+            Selecione um colega do mesmo nível e turno e escolha um dia de folga em cada calendário. Ao final, a troca será solicitada e deve ser aceita pelo outro membro antes do admin.
           </p>
         )}
         {isWeekendMode && (
@@ -249,6 +327,34 @@ export function UnifiedSwapForm({ memberId, initialMode }: UnifiedSwapFormProps)
               ))}
               {queueMembers.length === 0 && (
                 <span className="text-sm text-muted-foreground">Nenhum colega do mesmo nível/turno</span>
+              )}
+            </div>
+          </div>
+        )}
+        {isOffMemberMode && (
+          <div className="mb-3">
+            <p className="mb-2 text-sm font-medium">Trocar com:</p>
+            <div className="flex flex-wrap gap-2">
+              {queueMembers.map((m) => (
+                <Button
+                  key={m.id}
+                  type="button"
+                  variant={selectedMemberId === m.id ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => {
+                    const next = selectedMemberId === m.id ? "" : m.id;
+                    setSelectedMemberId(next);
+                    setTargetDate("");
+                    setMessage(null);
+                  }}
+                >
+                  {m.name}
+                </Button>
+              ))}
+              {queueMembers.length === 0 && (
+                <span className="text-sm text-muted-foreground">
+                  Nenhum colega do mesmo nível/turno
+                </span>
               )}
             </div>
           </div>
@@ -283,77 +389,209 @@ export function UnifiedSwapForm({ memberId, initialMode }: UnifiedSwapFormProps)
       </CardHeader>
       <CardContent className="flex-1 min-h-0 overflow-auto space-y-4">
         {/* Agenda mensal */}
-        <div className="grid grid-cols-7 gap-1 text-xs">
-          {WEEKDAY_LABELS.map((label) => (
-            <div
-              key={label}
-              className="rounded border border-transparent bg-muted/50 px-1 py-0.5 text-center font-medium text-muted-foreground"
-            >
-              {label}
+        {isOffMemberMode ? (
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
+            <div className="space-y-1">
+              <div className="text-center font-medium text-muted-foreground">
+                Sua folga
+              </div>
+              <div className="grid grid-cols-7 gap-1">
+                {WEEKDAY_LABELS.map((label) => (
+                  <div
+                    key={label}
+                    className="rounded border border-transparent bg-muted/50 px-1 py-0.5 text-center font-medium text-muted-foreground"
+                  >
+                    {label}
+                  </div>
+                ))}
+              </div>
+              <div className="grid grid-cols-7 gap-1">
+                {calendarDays.map((day) => {
+                  const status = day.isCurrentMonth ? statusByDate.get(day.dateKey) ?? "WORK" : null;
+                  const dayNum = day.isCurrentMonth ? parseInt(day.dayLabel, 10) : null;
+                  const isOff = status === "OFF";
+                  const isSelected = originalDate === day.dateKey;
+                  const selectable = day.isCurrentMonth && isOff;
+
+                  return (
+                    <button
+                      key={day.dateKey}
+                      type="button"
+                      disabled={!selectable}
+                      onClick={() => {
+                        setOriginalDate(day.dateKey);
+                        setTargetDate("");
+                        setMessage(null);
+                      }}
+                      className={`rounded border min-h-[2rem] flex flex-col items-center justify-center gap-0 ${
+                        !day.isCurrentMonth
+                          ? "bg-muted/20 border-transparent opacity-50"
+                          : isOff
+                            ? "bg-red-500/20 border-red-500/30 hover:bg-red-500/30"
+                            : "bg-green-500/20 border-green-500/30 opacity-60"
+                      } ${selectable ? "cursor-pointer" : "cursor-default"} ${
+                        isSelected ? "ring-2 ring-red-600 ring-offset-2" : ""
+                      }`}
+                    >
+                      {dayNum != null && (
+                        <span className="text-xs font-medium">{dayNum}</span>
+                      )}
+                      {day.isCurrentMonth && isOff && (
+                        <span className="text-[9px]">FOLGA</span>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
             </div>
-          ))}
-          {calendarDays.map((day) => {
-            const status = day.isCurrentMonth ? (statusByDate.get(day.dateKey) ?? "WORK") : null;
-            const dayNum = day.isCurrentMonth ? parseInt(day.dayLabel, 10) : null;
-            const isOff = status === "OFF";
-            const isWork = status === "WORK";
-            const isSelectedOriginal = originalDate === day.dateKey;
-            const isSelectedTarget = targetDate === day.dateKey;
-            const clickable = calendarClickable && day.isCurrentMonth && (isOff || (isWork && originalDate && day.dateKey !== originalDate));
 
-            if (isOnCallMode) {
-              const isMine = myOnCallDates.has(day.dateKey);
-              const isTarget = targetOnCallDates.has(day.dateKey);
-              let cellClass = "bg-white border-border/40";
-              let label = "";
-              if (!day.isCurrentMonth) {
-                cellClass = "bg-muted/20 border-transparent opacity-50";
-              } else if (hasOnCallTarget && isTarget) {
-                cellClass = "bg-blue-500 border-blue-600 text-white";
-                label = "NOVO";
-              } else if (hasOnCallTarget && isMine) {
-                cellClass = "bg-blue-200 border-blue-300 text-blue-800";
-                label = "ATUAL";
-              } else if (!hasOnCallTarget && isMine) {
-                cellClass = "bg-blue-500 border-blue-600 text-white";
-                label = "SOBREAVISO";
-              }
-              return (
-                <div
-                  key={day.dateKey}
-                  className={`rounded border min-h-[2rem] flex flex-col items-center justify-center gap-0 ${cellClass}`}
-                >
-                  {dayNum != null && <span className="text-xs font-medium">{dayNum}</span>}
-                  {day.isCurrentMonth && label && <span className="text-[8px] font-semibold">{label}</span>}
+            <div className="space-y-1">
+              <div className="text-center font-medium text-muted-foreground">
+                Folga de{" "}
+                {queueMembers.find((m) => m.id === selectedMemberId)?.name ?? "membro"}
+              </div>
+
+              {selectedMemberId && targetMemberScheduleDays ? (
+                <>
+                  <div className="grid grid-cols-7 gap-1">
+                    {WEEKDAY_LABELS.map((label) => (
+                      <div
+                        key={label}
+                        className="rounded border border-transparent bg-muted/50 px-1 py-0.5 text-center font-medium text-muted-foreground"
+                      >
+                        {label}
+                      </div>
+                    ))}
+                  </div>
+                  <div className="grid grid-cols-7 gap-1">
+                    {calendarDays.map((day) => {
+                      const status = day.isCurrentMonth ? targetStatusByDate.get(day.dateKey) ?? "WORK" : null;
+                      const dayNum = day.isCurrentMonth ? parseInt(day.dayLabel, 10) : null;
+                      const isOff = status === "OFF";
+                      const isSelected = targetDate === day.dateKey;
+                      const selectable = day.isCurrentMonth && isOff;
+
+                      return (
+                        <button
+                          key={day.dateKey}
+                          type="button"
+                          disabled={!selectable}
+                          onClick={() => {
+                            setTargetDate(day.dateKey);
+                            setMessage(null);
+                          }}
+                          className={`rounded border min-h-[2rem] flex flex-col items-center justify-center gap-0 ${
+                            !day.isCurrentMonth
+                              ? "bg-muted/20 border-transparent opacity-50"
+                              : isOff
+                                ? "bg-red-500/20 border-red-500/30 hover:bg-red-500/30"
+                                : "bg-green-500/20 border-green-500/30 opacity-60"
+                          } ${selectable ? "cursor-pointer" : "cursor-default"} ${
+                            isSelected ? "ring-2 ring-green-600 ring-offset-2" : ""
+                          }`}
+                        >
+                          {dayNum != null && (
+                            <span className="text-xs font-medium">{dayNum}</span>
+                          )}
+                          {day.isCurrentMonth && isOff && (
+                            <span className="text-[9px]">FOLGA</span>
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </>
+              ) : (
+                <div className="rounded-lg border border-border/50 bg-muted/10 p-3 text-center text-xs text-muted-foreground">
+                  Selecione um membro para ver o calendário.
                 </div>
-              );
-            }
-
-            return (
-              <button
-                key={day.dateKey}
-                type="button"
-                disabled={!clickable}
-                onClick={() => clickable && handleDayClick(day.dateKey)}
-                className={`rounded border min-h-[2rem] flex flex-col items-center justify-center gap-0 ${
-                  !day.isCurrentMonth
-                    ? "bg-muted/20 border-transparent opacity-50"
-                    : isOff
-                      ? "bg-red-500/20 border-red-500/30 hover:bg-red-500/30"
-                      : isWork
-                        ? "bg-green-500/20 border-green-500/30 hover:bg-green-500/30"
-                        : "bg-muted/20 border-transparent"
-                } ${clickable ? "cursor-pointer" : "cursor-default"} ${
-                  isSelectedOriginal ? "ring-2 ring-red-600 ring-offset-2" : ""
-                } ${isSelectedTarget ? "ring-2 ring-green-600 ring-offset-2" : ""}`}
+              )}
+            </div>
+          </div>
+        ) : (
+          <div className="grid grid-cols-7 gap-1 text-xs">
+            {WEEKDAY_LABELS.map((label) => (
+              <div
+                key={label}
+                className="rounded border border-transparent bg-muted/50 px-1 py-0.5 text-center font-medium text-muted-foreground"
               >
-                {dayNum != null && <span className="text-xs font-medium">{dayNum}</span>}
-                {day.isCurrentMonth && isOff && <span className="text-[9px]">FOLGA</span>}
-                {day.isCurrentMonth && isWork && !isOff && <span className="text-[9px]">TRABALHO</span>}
-              </button>
-            );
-          })}
-        </div>
+                {label}
+              </div>
+            ))}
+            {calendarDays.map((day) => {
+              const status = day.isCurrentMonth ? (statusByDate.get(day.dateKey) ?? "WORK") : null;
+              const dayNum = day.isCurrentMonth ? parseInt(day.dayLabel, 10) : null;
+              const isOff = status === "OFF";
+              const isWork = status === "WORK";
+              const isSelectedOriginal = originalDate === day.dateKey;
+              const isSelectedTarget = targetDate === day.dateKey;
+              const clickable =
+                calendarClickable &&
+                day.isCurrentMonth &&
+                (isOff || (isWork && originalDate && day.dateKey !== originalDate));
+
+              if (isOnCallMode) {
+                const isMine = myOnCallDates.has(day.dateKey);
+                const isTarget = targetOnCallDates.has(day.dateKey);
+                let cellClass = "bg-white border-border/40";
+                let label = "";
+                if (!day.isCurrentMonth) {
+                  cellClass = "bg-muted/20 border-transparent opacity-50";
+                } else if (hasOnCallTarget && isTarget) {
+                  cellClass = "bg-blue-500 border-blue-600 text-white";
+                  label = "NOVO";
+                } else if (hasOnCallTarget && isMine) {
+                  cellClass = "bg-blue-200 border-blue-300 text-blue-800";
+                  label = "ATUAL";
+                } else if (!hasOnCallTarget && isMine) {
+                  cellClass = "bg-blue-500 border-blue-600 text-white";
+                  label = "SOBREAVISO";
+                }
+                return (
+                  <div
+                    key={day.dateKey}
+                    className={`rounded border min-h-[2rem] flex flex-col items-center justify-center gap-0 ${cellClass}`}
+                  >
+                    {dayNum != null && (
+                      <span className="text-xs font-medium">{dayNum}</span>
+                    )}
+                    {day.isCurrentMonth && label && (
+                      <span className="text-[8px] font-semibold">{label}</span>
+                    )}
+                  </div>
+                );
+              }
+
+              return (
+                <button
+                  key={day.dateKey}
+                  type="button"
+                  disabled={!clickable}
+                  onClick={() => clickable && handleDayClick(day.dateKey)}
+                  className={`rounded border min-h-[2rem] flex flex-col items-center justify-center gap-0 ${
+                    !day.isCurrentMonth
+                      ? "bg-muted/20 border-transparent opacity-50"
+                      : isOff
+                        ? "bg-red-500/20 border-red-500/30 hover:bg-red-500/30"
+                        : isWork
+                          ? "bg-green-500/20 border-green-500/30 hover:bg-green-500/30"
+                          : "bg-muted/20 border-transparent"
+                  } ${clickable ? "cursor-pointer" : "cursor-default"} ${
+                    isSelectedOriginal ? "ring-2 ring-red-600 ring-offset-2" : ""
+                  } ${isSelectedTarget ? "ring-2 ring-green-600 ring-offset-2" : ""}`}
+                >
+                  {dayNum != null && (
+                    <span className="text-xs font-medium">{dayNum}</span>
+                  )}
+                  {day.isCurrentMonth && isOff && <span className="text-[9px]">FOLGA</span>}
+                  {day.isCurrentMonth && isWork && !isOff && (
+                    <span className="text-[9px]">TRABALHO</span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        )}
 
         {/* Legenda sobreaviso */}
         {isOnCallMode && (
@@ -419,6 +657,75 @@ export function UnifiedSwapForm({ memberId, initialMode }: UnifiedSwapFormProps)
             </div>
           </form>
         )}
+
+        {isOffMemberMode && canSubmitOffWithMember && (
+          <form
+            onSubmit={handleSubmitOffWithMember}
+            className="space-y-3 rounded-lg border bg-muted/30 p-3"
+          >
+            <p className="text-sm font-medium text-foreground">
+              Deseja trocar sua folga do dia{" "}
+              <strong>{formatDateKeyToDDMMYYYY(originalDate)}</strong> pelo dia de{" "}
+              <strong>
+                {queueMembers.find((m) => m.id === selectedMemberId)?.name ?? "membro"}
+              </strong>
+              {" "}({formatDateKeyToDDMMYYYY(targetDate)})?
+            </p>
+            <p className="text-xs text-muted-foreground">
+              A folga sairá de{" "}
+              {formatDateKeyToDDMMYYYY(originalDate)} e passará para{" "}
+              {formatDateKeyToDDMMYYYY(targetDate)}. Aguarde aceite do outro membro e depois aprovação do administrador.
+            </p>
+            {message && (
+              <p className={`text-sm ${message.type === "success" ? "text-green-600" : "text-destructive"}`}>
+                {message.text}
+              </p>
+            )}
+            <div className="space-y-1">
+              <p className="text-xs font-medium text-foreground">Justificativa</p>
+              <textarea
+                value={justification}
+                onChange={(e) => setJustification(e.target.value)}
+                placeholder="Opcional: explique o motivo da troca."
+                rows={3}
+                className="w-full resize-y rounded-md border border-border/50 bg-background px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              />
+            </div>
+            <div className="flex gap-2">
+              <SubmitButtonOffWithMember />
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => {
+                  setOriginalDate("");
+                  setTargetDate("");
+                  setSelectedMemberId("");
+                  setJustification("");
+                  setMessage(null);
+                }}
+              >
+                Limpar
+              </Button>
+            </div>
+          </form>
+        )}
+
+        {isOffMemberMode &&
+          selectedMemberId &&
+          originalDate &&
+          !targetDate && (
+            <p className="text-xs text-muted-foreground">
+              Agora clique em um dia de <strong>folga</strong> (vermelho) no calendário do colega.
+            </p>
+          )}
+
+        {isOffMemberMode &&
+          selectedMemberId &&
+          !originalDate && (
+            <p className="text-xs text-muted-foreground">
+              Agora clique em um dia de <strong>folga</strong> (vermelho) no seu calendário.
+            </p>
+          )}
 
         {isOffMode && !canSubmitOff && originalDate && (
           <p className="text-xs text-muted-foreground">

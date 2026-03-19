@@ -10,12 +10,16 @@ export function MemberScheduleMiniCalendar({
   year,
   month,
   highlightDateKeys = [],
+  highlightCurrentDateKeys,
+  highlightNewDateKeys,
   className,
 }: {
   memberId: string;
   year: number;
   month: number;
   highlightDateKeys?: string[];
+  highlightCurrentDateKeys?: string[];
+  highlightNewDateKeys?: string[];
   className?: string;
 }) {
   const [data, setData] = useState<Awaited<ReturnType<typeof getMemberScheduleForAdmin>>>(null);
@@ -67,13 +71,19 @@ export function MemberScheduleMiniCalendar({
         {calendarDays.map((day) => {
           const status = day.isCurrentMonth ? (statusByDate.get(day.dateKey) ?? "WORK") : null;
           const dayNum = day.isCurrentMonth ? parseInt(day.dayLabel, 10) : null;
-          const isHighlight = highlightDateKeys.includes(day.dateKey);
+          const isAmberHighlight = highlightDateKeys.includes(day.dateKey);
+          const isCurrentBlue = (highlightCurrentDateKeys ?? []).includes(day.dateKey);
+          const isNewBlue = (highlightNewDateKeys ?? []).includes(day.dateKey);
           return (
             <div
               key={day.dateKey}
-              className={`flex min-h-0 flex flex-col items-center justify-center rounded border ${
-                isHighlight
-                  ? "bg-amber-400/50 border-amber-500 ring-1 ring-amber-600/50"
+              className={`flex min-h-[2.8rem] flex-col items-center justify-center rounded border ${
+                isNewBlue
+                  ? "bg-blue-500/50 border-blue-700 text-white ring-1 ring-blue-800/50"
+                  : isCurrentBlue
+                    ? "bg-blue-200/60 border-blue-400 ring-1 ring-blue-500/40"
+                    : isAmberHighlight
+                      ? "bg-amber-400/50 border-amber-500 ring-1 ring-amber-600/50"
                   : !day.isCurrentMonth
                     ? "bg-muted/10 border-transparent opacity-50"
                     : status === "OFF"
@@ -81,8 +91,14 @@ export function MemberScheduleMiniCalendar({
                       : "bg-green-500/20 border-green-500/30"
               }`}
             >
-              {dayNum != null && <span className="text-[10px] font-medium">{dayNum}</span>}
-              {isHighlight && <span className="text-[8px] text-amber-900 font-medium">Troca</span>}
+              {dayNum != null && <span className="text-[12px] font-medium leading-tight">{dayNum}</span>}
+              {(isCurrentBlue || isNewBlue || (isAmberHighlight && !isCurrentBlue && !isNewBlue)) && (
+                <span className={`text-[9px] font-semibold leading-tight mt-0.5 ${
+                  isAmberHighlight ? "text-amber-900" : "text-inherit"
+                }`}>
+                  {isNewBlue ? "NOVO" : isCurrentBlue ? "ATUAL" : "Troca"}
+                </span>
+              )}
             </div>
           );
         })}

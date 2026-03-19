@@ -89,8 +89,18 @@ export async function approveSwap(swapRequestId: string): Promise<SwapActionResu
   if ((swap.type === "QUEUE_SWAP" || swap.type === "ONCALL_SWAP") && swap.status !== "SECOND_USER_ACCEPTED") {
     return { success: false, error: "O outro membro ainda precisa aceitar a troca." };
   }
-  if (swap.type === "OFF_SWAP" && swap.status !== "PENDING") {
-    return { success: false, error: "Status inválido para aprovação." };
+  if (swap.type === "OFF_SWAP") {
+    if (swap.targetMemberId) {
+      // OFF_SWAP com membro: precisa do aceite do segundo membro
+      if (swap.status !== "SECOND_USER_ACCEPTED") {
+        return { success: false, error: "O outro membro ainda precisa aceitar a troca." };
+      }
+    } else {
+      // OFF_SWAP legado (troca só da própria folga): precisa estar PENDING
+      if (swap.status !== "PENDING") {
+        return { success: false, error: "Status inválido para aprovação." };
+      }
+    }
   }
 
   await prisma.$transaction(async (tx) => {
@@ -108,22 +118,81 @@ export async function approveSwap(swapRequestId: string): Promise<SwapActionResu
       ]);
 
       if (schedOrig && schedTarg) {
-        await tx.scheduleAssignment.deleteMany({
-          where: {
-            scheduleId: schedOrig.id,
-            memberId: swap.requesterId,
-            date: orig,
-            status: "OFF",
-          },
-        });
-        await tx.scheduleAssignment.create({
-          data: {
-            scheduleId: schedTarg.id,
-            memberId: swap.requesterId,
-            date: targ,
-            status: "OFF",
-          },
-        });
+        if (swap.targetMemberId) {
+          const requesterId = swap.requesterId;
+          const targetId = swap.targetMemberId;
+
+          // Remove OFF nos dois lados e cria OFF nas posições trocadas.
+          await Promise.all([
+            tx.scheduleAssignment.deleteMany({
+              where: {
+                scheduleId: schedOrig.id,
+                memberId: requesterId,
+                date: orig,
+                status: "OFF",
+              },
+            }),
+            tx.scheduleAssignment.deleteMany({
+              where: {
+                scheduleId: schedOrig.id,
+                memberId: targetId,
+                date: orig,
+                status: "OFF",
+              },
+            }),
+            tx.scheduleAssignment.deleteMany({
+              where: {
+                scheduleId: schedTarg.id,
+                memberId: requesterId,
+                date: targ,
+                status: "OFF",
+              },
+            }),
+            tx.scheduleAssignment.deleteMany({
+              where: {
+                scheduleId: schedTarg.id,
+                memberId: targetId,
+                date: targ,
+                status: "OFF",
+              },
+            }),
+            tx.scheduleAssignment.create({
+              data: {
+                scheduleId: schedTarg.id,
+                memberId: requesterId,
+                date: targ,
+                status: "OFF",
+              },
+            }),
+            tx.scheduleAssignment.create({
+              data: {
+                scheduleId: schedOrig.id,
+                memberId: targetId,
+                date: orig,
+                status: "OFF",
+              },
+            }),
+          ]);
+        } else {
+          // OFF_SWAP legado: troca da folga apenas do solicitante
+          await tx.scheduleAssignment.deleteMany({
+            where: {
+              scheduleId: schedOrig.id,
+              memberId: swap.requesterId,
+              date: orig,
+              status: "OFF",
+            },
+          });
+
+          await tx.scheduleAssignment.create({
+            data: {
+              scheduleId: schedTarg.id,
+              memberId: swap.requesterId,
+              date: targ,
+              status: "OFF",
+            },
+          });
+        }
       }
     }
 

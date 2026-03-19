@@ -19,7 +19,7 @@ export async function acceptQueueSwap(swapRequestId: string): Promise<SwapAction
     include: { requester: true, targetMember: true },
   });
 
-  if (!swap || (swap.type !== "QUEUE_SWAP" && swap.type !== "ONCALL_SWAP")) {
+  if (!swap || (swap.type !== "QUEUE_SWAP" && swap.type !== "ONCALL_SWAP" && swap.type !== "OFF_SWAP")) {
     return { success: false, error: "Solicitação não encontrada ou tipo inválido." };
   }
   if (swap.status !== "WAITING_SECOND_USER") {
@@ -41,14 +41,29 @@ export async function acceptQueueSwap(swapRequestId: string): Promise<SwapAction
     const siteUrl = process.env.NEXT_PUBLIC_APP_URL ?? "https://escala-mops.vercel.app";
     const requesterName = swap.requester.name;
     const targetName = swap.targetMember?.name ?? "Membro";
-    const typeLabel = swap.type === "ONCALL_SWAP" ? "sobreaviso" : "escala do final de semana";
-    const message = [
-      "Olá Admin,",
-      "",
-      `${requesterName} deseja trocar sua ${typeLabel} com ${targetName}. Os dois já aprovaram a troca.`,
-      "",
-      `Para aceitar ou recusar entre no link ${siteUrl}/dashboard`,
-    ].join("\n");
+    const fmtDd = (d: Date) =>
+      `${String(d.getUTCDate()).padStart(2, "0")}/${String(d.getUTCMonth() + 1).padStart(2, "0")}`;
+
+    const message =
+      swap.type === "OFF_SWAP" && swap.originalDate && swap.targetDate
+        ? [
+            "Olá Admin,",
+            "",
+            `${requesterName} deseja trocar sua folga do dia ${fmtDd(swap.originalDate)} para o dia ${fmtDd(
+              swap.targetDate
+            )} com ${targetName}. Os dois já aprovaram a troca.`,
+            "",
+            `Para aceitar ou recusar entre no link ${siteUrl}/dashboard`,
+          ].join("\n")
+        : [
+            "Olá Admin,",
+            "",
+            `${requesterName} deseja trocar sua ${
+              swap.type === "ONCALL_SWAP" ? "posição de sobreaviso" : "escala do final de semana"
+            } com ${targetName}. Os dois já aprovaram a troca.`,
+            "",
+            `Para aceitar ou recusar entre no link ${siteUrl}/dashboard`,
+          ].join("\n");
     const adminNumber = process.env.WHAPI_ADMIN_TO;
     await sendWhatsappMessage(message, adminNumber);
   } catch (err) {

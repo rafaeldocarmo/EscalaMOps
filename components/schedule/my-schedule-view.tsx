@@ -346,21 +346,21 @@ export function MyScheduleView({
 
       <Dialog open={swapOffModalOpen} onOpenChange={setSwapOffModalOpen}>
         {swapOffModalOpen && (
-          <DialogContent className="max-w-[80vw]! max-h-[90vh] overflow-y-auto">
+          <DialogContent className="max-w-[1000px]! max-h-[90vh] overflow-y-auto">
             <UnifiedSwapForm memberId={memberId} initialMode="off" />
           </DialogContent>
         )}
       </Dialog>
       <Dialog open={swapQueueModalOpen} onOpenChange={setSwapQueueModalOpen}>
         {swapQueueModalOpen && (
-          <DialogContent className="max-w-[80vw]! max-h-[90vh] overflow-y-auto">
+          <DialogContent className="max-w-[1000px]! max-h-[90vh] overflow-y-auto">
             <UnifiedSwapForm memberId={memberId} initialMode="weekend" />
           </DialogContent>
         )}
       </Dialog>
       <Dialog open={swapOnCallModalOpen} onOpenChange={setSwapOnCallModalOpen}>
         {swapOnCallModalOpen && (
-          <DialogContent className="max-w-[80vw]! max-h-[90vh] overflow-y-auto">
+          <DialogContent className="max-w-[1000px]! max-h-[90vh] overflow-y-auto">
             <UnifiedSwapForm memberId={memberId} initialMode="sobreaviso" />
           </DialogContent>
         )}
