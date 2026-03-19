@@ -3,6 +3,7 @@ import { Inter } from "next/font/google";
 import { Providers } from "@/components/providers";
 import { Toaster } from "@/components/ui/sonner";
 import { auth } from "@/auth";
+import { Analytics } from "@vercel/analytics/next";
 import "./globals.css";
 
 const inter = Inter({
@@ -29,6 +30,7 @@ export default async function RootLayout({
       <body className={`${inter.variable} font-sans antialiased`}>
         <Providers session={session}>{children}</Providers>
         <Toaster richColors position="top-center" />
+        <Analytics />
       </body>
     </html>
   );
