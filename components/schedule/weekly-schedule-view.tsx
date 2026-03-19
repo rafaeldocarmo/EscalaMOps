@@ -3,6 +3,10 @@
 import React, { useEffect, useState } from "react";
 import { getWeeklySchedule } from "@/server/schedule/getWeeklySchedule";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  getSobreavisoSummaryForWeek,
+  type OnCallSummaryByWeekPart,
+} from "@/server/sobreaviso/getSobreavisoSummaryForWeek";
 
 function displayNameFromFull(name: string): string {
   const trimmed = name.trim();
@@ -16,9 +20,16 @@ interface WeeklyScheduleViewProps {
 
 export function WeeklyScheduleView({ memberName }: WeeklyScheduleViewProps) {
   const [data, setData] = useState<Awaited<ReturnType<typeof getWeeklySchedule>>>(null);
+  const [onCallSummary, setOnCallSummary] = useState<OnCallSummaryByWeekPart | null>(
+    null
+  );
 
   useEffect(() => {
     getWeeklySchedule().then(setData);
+  }, []);
+
+  useEffect(() => {
+    getSobreavisoSummaryForWeek().then(setOnCallSummary);
   }, []);
 
   const myDisplayName = displayNameFromFull(memberName ?? "");
@@ -42,9 +53,46 @@ export function WeeklyScheduleView({ memberName }: WeeklyScheduleViewProps) {
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="text-lg">Escala Semanal</CardTitle>
+          <CardTitle className="text-lg">Escala Semanal</CardTitle>
       </CardHeader>
       <CardContent>
+          <div className="mb-4">
+            <div className="text-sm font-semibold tracking-tight">
+              Sobreaviso de Segunda a Quinta
+            </div>
+            <div className="mt-2 space-y-1">
+              {(onCallSummary?.weekSummary ?? []).length > 0 ? (
+                (onCallSummary?.weekSummary ?? []).map((s) => (
+                  <div key={s.level} className="text-xs text-muted-foreground">
+                    <span className="font-medium text-foreground">{s.level}:</span>{" "}
+                    {s.memberNames.join(", ")}
+                  </div>
+                ))
+              ) : (
+                <div className="text-xs text-muted-foreground">
+                  Nenhum sobreaviso (Seg-Quinta).
+                </div>
+              )}
+            </div>
+
+            <div className="mt-3 text-sm font-semibold tracking-tight">
+              Sobreaviso de Sexta a Domingo
+            </div>
+            <div className="mt-2 space-y-1">
+              {(onCallSummary?.weekendSummary ?? []).length > 0 ? (
+                (onCallSummary?.weekendSummary ?? []).map((s) => (
+                  <div key={s.level} className="text-xs text-muted-foreground">
+                    <span className="font-medium text-foreground">{s.level}:</span>{" "}
+                    {s.memberNames.join(", ")}
+                  </div>
+                ))
+              ) : (
+                <div className="text-xs text-muted-foreground">
+                  Nenhum sobreaviso (Sexta-Domingo).
+                </div>
+              )}
+            </div>
+          </div>
         <div className="overflow-x-auto rounded-md border border-border">
           <table className="w-full border-collapse text-sm">
             <thead>
