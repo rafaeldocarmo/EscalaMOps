@@ -25,7 +25,7 @@ export default async function SchedulePage({ params }: PageProps) {
 
   const [scheduleData, members, sobreavisoWeeks] = await Promise.all([
     getSchedule(month, year),
-    getTeamMembers({ forSchedule: true }),
+    getTeamMembers(), // todos os membros (sobreaviso usa elegíveis; escala normal filtra por participatesInSchedule no client)
     getSobreavisoScheduleForMonth(month, year),
   ]);
 

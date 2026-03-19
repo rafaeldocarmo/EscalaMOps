@@ -2,7 +2,7 @@
 
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
-import { startOfMonth, endOfMonth, addDays, format } from "date-fns";
+import { startOfMonth, format } from "date-fns";
 
 export interface SobreavisoWeek {
   id: string;
@@ -21,12 +21,19 @@ export async function getSobreavisoScheduleForMonth(
   if (!session?.user) return [];
 
   const monthStart = startOfMonth(new Date(year, month - 1));
-  const monthEnd = addDays(endOfMonth(new Date(year, month - 1)), 1);
+  const nextMonthStart = startOfMonth(new Date(year, month));
+
+  // Assignments são gravados com "T12:00:00.000Z". Usamos esse mesmo marco como fim exclusivo
+  // para não puxar o "transição" que cai no dia 1 do próximo mês.
+  const monthStartNoonUtc = new Date(format(monthStart, "yyyy-MM-dd") + "T12:00:00.000Z");
+  const nextMonthStartNoonUtc = new Date(
+    format(nextMonthStart, "yyyy-MM-dd") + "T12:00:00.000Z"
+  );
 
   const assignments = await prisma.onCallAssignment.findMany({
     where: {
-      startDate: { lt: monthEnd },
-      endDate: { gt: monthStart },
+      startDate: { lt: nextMonthStartNoonUtc },
+      endDate: { gt: monthStartNoonUtc },
     },
     include: {
       member: { select: { name: true } },

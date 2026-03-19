@@ -2,7 +2,7 @@
 
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
-import { endOfMonth, startOfMonth } from "date-fns";
+import { startOfMonth, format } from "date-fns";
 import {
   getSobreavisoScheduleForMonth,
   type SobreavisoWeek,
@@ -31,13 +31,21 @@ export async function clearSobreavisoForMonth(
 
   try {
     const monthStart = startOfMonth(new Date(year, month - 1));
-    const monthEnd = endOfMonth(new Date(year, month - 1));
+    const nextMonthStart = startOfMonth(new Date(year, month));
 
-    // Remove all on-call assignments overlapping this month window.
+    // Assignments são gravados com "T12:00:00.000Z". Alinhar a janela evita apagar o mês anterior
+    // quando um assignment termina exatamente no começo do mês seguinte.
+    const monthStartNoonUtc = new Date(format(monthStart, "yyyy-MM-dd") + "T12:00:00.000Z");
+    const nextMonthStartNoonUtc = new Date(
+      format(nextMonthStart, "yyyy-MM-dd") + "T12:00:00.000Z"
+    );
+
+    // Remove todos os períodos de sobreaviso que tocam o mês (a vista do mês fica vazia).
+    // Isso inclui o período transversal (ex.: sexta anterior ao dia 1) que entra no mês.
     await prisma.onCallAssignment.deleteMany({
       where: {
-        startDate: { lte: monthEnd },
-        endDate: { gte: monthStart },
+        startDate: { lt: nextMonthStartNoonUtc },
+        endDate: { gt: monthStartNoonUtc },
       },
     });
 

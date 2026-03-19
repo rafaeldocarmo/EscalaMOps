@@ -8,9 +8,17 @@ import { formatMemberName } from "@/lib/formatMemberName";
 import type { ScheduleCalendarDay } from "@/lib/scheduleUtils";
 import type { SobreavisoWeek } from "@/server/sobreaviso/getSobreavisoScheduleForMonth";
 
+export interface SobreavisoEligibleMember {
+  id: string;
+  name: string;
+  level: string;
+}
+
 interface SobreavisoTableProps {
   weeks: SobreavisoWeek[];
   calendarDays: ScheduleCalendarDay[];
+  /** Participantes do sobreaviso (sobreaviso=true, nível N2/ESPC/PRODUCAO). Todos aparecem na tabela. */
+  eligibleMembers?: SobreavisoEligibleMember[];
   onMemberClick?: (memberId: string) => void;
   selectedMemberId?: string | null;
 }
@@ -30,8 +38,27 @@ function toUtcDateKey(d: Date): string {
   return `${y}-${m}-${day}`;
 }
 
-function buildSobreavisoMembers(weeks: SobreavisoWeek[]): SobreavisoMember[] {
+const ON_CALL_LEVELS = ["N2", "ESPC", "PRODUCAO"];
+
+function buildSobreavisoMembers(
+  weeks: SobreavisoWeek[],
+  eligibleMembers?: SobreavisoEligibleMember[]
+): SobreavisoMember[] {
   const map = new Map<string, SobreavisoMember>();
+
+  // Inclui todos os participantes elegíveis (para ninguém “sumir” da escala).
+  if (eligibleMembers?.length) {
+    for (const m of eligibleMembers) {
+      if (!ON_CALL_LEVELS.includes(m.level)) continue;
+      map.set(m.id, {
+        memberId: m.id,
+        memberName: m.name,
+        level: m.level,
+        activeDates: new Set(),
+        transitionDates: new Set(),
+      });
+    }
+  }
 
   for (const w of weeks) {
     const key = w.memberId;
@@ -85,10 +112,17 @@ function groupByLevel(members: SobreavisoMember[]): { level: string; members: So
   return groups;
 }
 
-export function SobreavisoTable({ weeks, calendarDays, onMemberClick, selectedMemberId }: SobreavisoTableProps) {
+export function SobreavisoTable({
+  weeks,
+  calendarDays,
+  eligibleMembers,
+  onMemberClick,
+  selectedMemberId,
+}: SobreavisoTableProps) {
   const currentMonthDays = calendarDays.filter((d) => d.isCurrentMonth);
-  const sobreavisoMembers = buildSobreavisoMembers(weeks);
+  const sobreavisoMembers = buildSobreavisoMembers(weeks, eligibleMembers);
   const sections = groupByLevel(sobreavisoMembers);
+  const hasEligible = eligibleMembers && eligibleMembers.length > 0;
 
   return (
     <div className="space-y-2">
@@ -102,7 +136,9 @@ export function SobreavisoTable({ weeks, calendarDays, onMemberClick, selectedMe
                   colSpan={currentMonthDays.length + 1}
                   className="h-24 px-4 text-center text-muted-foreground"
                 >
-                  Nenhum sobreaviso gerado para este mês.
+                  {hasEligible
+                    ? "Nenhum sobreaviso gerado para este mês."
+                    : "Nenhum participante de sobreaviso na equipe."}
                 </td>
               </tr>
             ) : (

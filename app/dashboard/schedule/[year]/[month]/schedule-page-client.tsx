@@ -35,7 +35,7 @@ import { clearSobreavisoForMonth } from "@/server/sobreaviso/clearSobreavisoForM
 import { clearScheduleAssignments } from "@/server/schedule/clearScheduleAssignments";
 import { adminSwapQueuePositions } from "@/server/schedule/adminSwapQueuePositions";
 import { adminSwapOnCallPositions } from "@/server/sobreaviso/adminSwapOnCallPositions";
-import { adminShiftRotationQueueForAllMembers } from "@/server/schedule/adminShiftRotationQueueForAllMembers";
+import { adminBackCycleRotationQueueForAllMembers } from "@/server/schedule/adminBackCycleRotationQueueForAllMembers";
 import type { ScheduleStateMap } from "@/types/schedule";
 import { Button } from "@/components/ui/button";
 
@@ -69,7 +69,7 @@ export function SchedulePageClient({
   const [selectedMemberId, setSelectedMemberId] = useState<string | null>(null);
   const [selectedOnCallMemberId, setSelectedOnCallMemberId] = useState<string | null>(null);
   const [swapLoading, setSwapLoading] = useState(false);
-  const [shiftRotationLoading, setShiftRotationLoading] = useState(false);
+  const [backCycleLoading, setBackCycleLoading] = useState(false);
   const [levelFilter, setLevelFilter] = useState<Level[]>(["N1", "N2"]);
   const [shiftFilter, setShiftFilter] = useState<Shift[]>(SHIFT_OPTIONS.map((s) => s.value));
 
@@ -90,8 +90,13 @@ export function SchedulePageClient({
     [members]
   );
 
+  const scheduleMembersOnly = useMemo(
+    () => members.filter((m) => m.participatesInSchedule !== false),
+    [members]
+  );
+
   const scheduleMembersVisible = useMemo(() => {
-    let list = members;
+    let list = scheduleMembersOnly;
     if (levelFilter.length > 0) {
       list = list.filter((m) => levelFilter.includes(m.level));
     }
@@ -99,16 +104,28 @@ export function SchedulePageClient({
       list = list.filter((m) => shiftFilter.includes(m.shift));
     }
     return list;
-  }, [members, levelFilter, shiftFilter]);
+  }, [scheduleMembersOnly, levelFilter, shiftFilter]);
 
   const scheduleMembersRotationOnly = useMemo(
-    () => members.filter((m) => m.level === "N1" || m.level === "N2"),
-    [members]
+    () => scheduleMembersOnly.filter((m) => m.level === "N1" || m.level === "N2"),
+    [scheduleMembersOnly]
   );
 
   const sections = useMemo(
     () => buildScheduleSections(scheduleMembersVisible),
     [scheduleMembersVisible]
+  );
+
+  const sobreavisoEligibleMembers = useMemo(
+    () =>
+      members
+        .filter(
+          (m) =>
+            m.sobreaviso &&
+            (m.level === "N2" || m.level === "ESPC" || m.level === "PRODUCAO")
+        )
+        .map((m) => ({ id: m.id, name: m.name, level: m.level })),
+    [members]
   );
 
   const handleCellToggle = useCallback((memberId: string, dateKeyStr: string) => {
@@ -289,22 +306,28 @@ export function SchedulePageClient({
     toast.success("Sobreaviso limpo.");
   }, [schedule.month, schedule.year, setSelectedOnCallMemberId]);
 
-  const handleShiftRotationQueue = useCallback(
-    async (dir: 1 | -1) => {
-      if (shiftRotationLoading || clearLoading || saveLoading || generateLoading) return;
-      setShiftRotationLoading(true);
-      const result = await adminShiftRotationQueueForAllMembers(schedule.id, dir);
-      setShiftRotationLoading(false);
-      if (!result.success) {
-        toast.error(result.error ?? "Erro ao mover fila de rotação.");
-        return;
-      }
-      setStateMap(assignmentsToStateMap(result.assignments));
-      setHasGenerated(true);
-      toast.success(dir === 1 ? "Fila avançada (1 fim de semana)." : "Fila recuada (1 fim de semana).");
-    },
-    [shiftRotationLoading, clearLoading, saveLoading, generateLoading, schedule.id]
-  );
+  const handleBackScale = useCallback(async () => {
+    if (backCycleLoading || clearLoading || saveLoading || generateLoading) return;
+    setBackCycleLoading(true);
+    const result = await adminBackCycleRotationQueueForAllMembers(schedule.id);
+    setBackCycleLoading(false);
+    if (!result.success) {
+      toast.error(result.error ?? "Erro ao voltar a escala.");
+      return;
+    }
+    setStateMap(assignmentsToStateMap(result.assignments));
+    setSobreavisoWeeks(result.sobreavisoWeeks);
+    setHasGenerated(true);
+    setSelectedMemberId(null);
+    setSelectedOnCallMemberId(null);
+    toast.success("Escala recuada (voltar a fila).");
+  }, [
+    backCycleLoading,
+    clearLoading,
+    saveLoading,
+    generateLoading,
+    schedule.id,
+  ]);
 
   return (
     <div className="space-y-6">
@@ -398,24 +421,22 @@ export function SchedulePageClient({
         />
       </div>
 
-      {/* <div className="flex flex-wrap items-center justify-end gap-2">
+      <div className="flex flex-wrap items-center justify-end gap-2">
         <Button
           variant="outline"
           size="sm"
-          onClick={() => handleShiftRotationQueue(-1)}
-          disabled={shiftRotationLoading || scheduleMembersRotationOnly.length === 0}
+          onClick={() => handleBackScale()}
+          disabled={
+            backCycleLoading ||
+            clearLoading ||
+            saveLoading ||
+            generateLoading ||
+            scheduleMembersRotationOnly.length === 0
+          }
         >
-          {shiftRotationLoading ? "Ajustando…" : "Recuar 1 fim de semana"}
+          {backCycleLoading ? "Ajustando…" : "Voltar a escala"}
         </Button>
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => handleShiftRotationQueue(1)}
-          disabled={shiftRotationLoading || scheduleMembersRotationOnly.length === 0}
-        >
-          {shiftRotationLoading ? "Ajustando…" : "Avançar 1 fim de semana"}
-        </Button>
-      </div> */}
+      </div>
 
       {scheduleMembersRotationOnly.length === 0 ? (
         <div className="rounded-lg border bg-card p-8 text-center text-muted-foreground">
@@ -449,7 +470,8 @@ export function SchedulePageClient({
               variant="outline"
               size="sm"
               onClick={handleGenerateSobreaviso}
-              disabled={generateSobreavisoLoading}
+              disabled={generateSobreavisoLoading || sobreavisoWeeks.length > 0}
+              title={sobreavisoWeeks.length > 0 ? "Limpe o sobreaviso do mês para gerar novamente." : undefined}
             >
               {generateSobreavisoLoading ? "Gerando…" : "Gerar Sobreaviso"}
             </Button>
@@ -458,6 +480,7 @@ export function SchedulePageClient({
         <SobreavisoTable
           weeks={sobreavisoWeeks}
           calendarDays={calendarDays}
+          eligibleMembers={sobreavisoEligibleMembers}
           onMemberClick={handleOnCallMemberClick}
           selectedMemberId={selectedOnCallMemberId}
         />
