@@ -44,6 +44,11 @@ export async function acceptQueueSwap(swapRequestId: string): Promise<SwapAction
     const fmtDd = (d: Date) =>
       `${String(d.getUTCDate()).padStart(2, "0")}/${String(d.getUTCMonth() + 1).padStart(2, "0")}`;
 
+    const justificationLines =
+      swap.justification && swap.justification.trim().length > 0
+        ? ["", "Justificativa:", swap.justification.trim()]
+        : [];
+
     const message =
       swap.type === "OFF_SWAP" && swap.originalDate && swap.targetDate
         ? [
@@ -52,6 +57,7 @@ export async function acceptQueueSwap(swapRequestId: string): Promise<SwapAction
             `${requesterName} deseja trocar sua folga do dia ${fmtDd(swap.originalDate)} para o dia ${fmtDd(
               swap.targetDate
             )} com ${targetName}. Os dois já aprovaram a troca.`,
+            ...justificationLines,
             "",
             `Para aceitar ou recusar entre no link ${siteUrl}/dashboard`,
           ].join("\n")
@@ -61,6 +67,7 @@ export async function acceptQueueSwap(swapRequestId: string): Promise<SwapAction
             `${requesterName} deseja trocar sua ${
               swap.type === "ONCALL_SWAP" ? "posição de sobreaviso" : "escala do final de semana"
             } com ${targetName}. Os dois já aprovaram a troca.`,
+            ...justificationLines,
             "",
             `Para aceitar ou recusar entre no link ${siteUrl}/dashboard`,
           ].join("\n");
