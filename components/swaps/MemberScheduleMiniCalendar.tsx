@@ -12,6 +12,7 @@ export function MemberScheduleMiniCalendar({
   highlightDateKeys = [],
   highlightCurrentDateKeys,
   highlightNewDateKeys,
+  highlightPurpleDateKeys,
   className,
 }: {
   memberId: string;
@@ -20,6 +21,7 @@ export function MemberScheduleMiniCalendar({
   highlightDateKeys?: string[];
   highlightCurrentDateKeys?: string[];
   highlightNewDateKeys?: string[];
+  highlightPurpleDateKeys?: string[];
   className?: string;
 }) {
   const [data, setData] = useState<Awaited<ReturnType<typeof getMemberScheduleForAdmin>>>(null);
@@ -74,6 +76,7 @@ export function MemberScheduleMiniCalendar({
           const isAmberHighlight = highlightDateKeys.includes(day.dateKey);
           const isCurrentBlue = (highlightCurrentDateKeys ?? []).includes(day.dateKey);
           const isNewBlue = (highlightNewDateKeys ?? []).includes(day.dateKey);
+          const isPurpleHighlight = (highlightPurpleDateKeys ?? []).includes(day.dateKey);
           return (
             <div
               key={day.dateKey}
@@ -82,6 +85,8 @@ export function MemberScheduleMiniCalendar({
                   ? "bg-blue-500/50 border-blue-700 text-white ring-1 ring-blue-800/50"
                   : isCurrentBlue
                     ? "bg-blue-200/60 border-blue-400 ring-1 ring-blue-500/40"
+                    : isPurpleHighlight
+                      ? "bg-purple-400/50 border-purple-600 text-white ring-1 ring-purple-700/40"
                     : isAmberHighlight
                       ? "bg-amber-400/50 border-amber-500 ring-1 ring-amber-600/50"
                   : !day.isCurrentMonth
@@ -92,11 +97,11 @@ export function MemberScheduleMiniCalendar({
               }`}
             >
               {dayNum != null && <span className="text-[12px] font-medium leading-tight">{dayNum}</span>}
-              {(isCurrentBlue || isNewBlue || (isAmberHighlight && !isCurrentBlue && !isNewBlue)) && (
+              {(isCurrentBlue || isNewBlue || isPurpleHighlight || (isAmberHighlight && !isCurrentBlue && !isNewBlue && !isPurpleHighlight)) && (
                 <span className={`text-[9px] font-semibold leading-tight mt-0.5 ${
                   isAmberHighlight ? "text-amber-900" : "text-inherit"
                 }`}>
-                  {isNewBlue ? "NOVO" : isCurrentBlue ? "ATUAL" : "Troca"}
+                  {isNewBlue ? "NOVO" : isCurrentBlue ? "ATUAL" : isPurpleHighlight ? "TURNO" : "Troca"}
                 </span>
               )}
             </div>

@@ -17,6 +17,7 @@ import { useMonthNavigation } from "@/hooks/useMonthNavigation";
 import { SobreavisoTable } from "./sobreaviso-table";
 import { getSobreavisoScheduleForMonth } from "@/server/sobreaviso/getSobreavisoScheduleForMonth";
 import type { SobreavisoWeek } from "@/server/sobreaviso/getSobreavisoScheduleForMonth";
+import { getShiftSwapRequestsForMonth } from "@/server/swaps/getShiftSwapRequestsForMonth";
 
 export function MonthlyScheduleView() {
   const now = new Date();
@@ -24,6 +25,7 @@ export function MonthlyScheduleView() {
   const [month, setMonth] = useState(now.getMonth() + 1);
   const [data, setData] = useState<Awaited<ReturnType<typeof getMonthlySchedule>>>(null);
   const [sobreavisoWeeks, setSobreavisoWeeks] = useState<SobreavisoWeek[]>([]);
+  const [shiftSwapPurpleByMemberId, setShiftSwapPurpleByMemberId] = useState<Record<string, string[]>>({});
   const [levelFilter, setLevelFilter] = useState<Level[]>(["N1", "N2"]);
   const [shiftFilter, setShiftFilter] = useState<Shift[]>(SHIFT_OPTIONS.map((s) => s.value));
 
@@ -33,6 +35,17 @@ export function MonthlyScheduleView() {
 
   useEffect(() => {
     getSobreavisoScheduleForMonth(month, year).then(setSobreavisoWeeks);
+  }, [year, month]);
+
+  useEffect(() => {
+    getShiftSwapRequestsForMonth(year, month).then((list) => {
+      const map: Record<string, string[]> = {};
+      for (const r of list) {
+        if (!map[r.requesterId]) map[r.requesterId] = [];
+        map[r.requesterId].push(r.originalDate);
+      }
+      setShiftSwapPurpleByMemberId(map);
+    });
   }, [year, month]);
 
   const { goPrev, goNext } = useMonthNavigation({
@@ -104,6 +117,7 @@ export function MonthlyScheduleView() {
               calendarDays={calendarDays}
               stateMap={stateMap}
               onCellToggle={() => {}}
+              shiftSwapPurpleByMemberId={shiftSwapPurpleByMemberId}
               locked
             />
             <div className="mt-6 pt-4 border-t border-border/50">

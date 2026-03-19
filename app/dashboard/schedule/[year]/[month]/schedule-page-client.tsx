@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { ScheduleToolbar } from "@/components/schedule/schedule-toolbar";
@@ -38,6 +38,7 @@ import { adminSwapOnCallPositions } from "@/server/sobreaviso/adminSwapOnCallPos
 import { adminBackCycleRotationQueueForAllMembers } from "@/server/schedule/adminBackCycleRotationQueueForAllMembers";
 import type { ScheduleStateMap } from "@/types/schedule";
 import { Button } from "@/components/ui/button";
+import { getShiftSwapRequestsForMonth } from "@/server/swaps/getShiftSwapRequestsForMonth";
 
 interface SchedulePageClientProps {
   schedule: ScheduleRow;
@@ -70,6 +71,7 @@ export function SchedulePageClient({
   const [selectedOnCallMemberId, setSelectedOnCallMemberId] = useState<string | null>(null);
   const [swapLoading, setSwapLoading] = useState(false);
   const [backCycleLoading, setBackCycleLoading] = useState(false);
+  const [shiftSwapPurpleByMemberId, setShiftSwapPurpleByMemberId] = useState<Record<string, string[]>>({});
   const [levelFilter, setLevelFilter] = useState<Level[]>(["N1", "N2"]);
   const [shiftFilter, setShiftFilter] = useState<Shift[]>(SHIFT_OPTIONS.map((s) => s.value));
 
@@ -84,6 +86,17 @@ export function SchedulePageClient({
     () => getScheduleCalendarDays(schedule.year, schedule.month),
     [schedule.year, schedule.month]
   );
+
+  useEffect(() => {
+    getShiftSwapRequestsForMonth(schedule.year, schedule.month).then((list) => {
+      const map: Record<string, string[]> = {};
+      for (const r of list) {
+        if (!map[r.requesterId]) map[r.requesterId] = [];
+        map[r.requesterId].push(r.originalDate);
+      }
+      setShiftSwapPurpleByMemberId(map);
+    });
+  }, [schedule.year, schedule.month]);
 
   const memberById = useMemo(
     () => new Map(members.map((m) => [m.id, m] as const)),
@@ -447,6 +460,7 @@ export function SchedulePageClient({
           sections={sections}
           calendarDays={calendarDays}
           stateMap={stateMap}
+              shiftSwapPurpleByMemberId={shiftSwapPurpleByMemberId}
           onCellToggle={handleCellToggle}
           onMemberClick={handleMemberClick}
           selectedMemberId={selectedMemberId}

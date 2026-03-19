@@ -152,6 +152,7 @@ enum SwapType {
   OFF_SWAP
   QUEUE_SWAP
   ONCALL_SWAP
+  SHIFT_SWAP
 }
 
 enum SwapRequestStatus {

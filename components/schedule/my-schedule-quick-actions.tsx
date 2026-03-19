@@ -9,12 +9,14 @@ export function MyScheduleQuickActions({
   onSwapQueue,
   onSwapHistory,
   onSwapOnCall,
+  onSwapTurn,
   onCallEnabled,
 }: {
   onSwapOff: () => void;
   onSwapQueue: () => void;
   onSwapHistory: () => void;
   onSwapOnCall: () => void;
+  onSwapTurn: () => void;
   onCallEnabled: boolean;
 }) {
   return (
@@ -68,6 +70,18 @@ export function MyScheduleQuickActions({
           <ShieldCheck className="h-5 w-5 text-muted-foreground group-hover:text-blue-600 transition-colors" />
           <span className="text-xs font-medium text-foreground group-hover:text-blue-600 transition-colors">
             Trocar Sobreaviso
+          </span>
+        </Button>
+
+        <Button
+          variant="outline"
+          size="sm"
+          className="group h-auto flex-col gap-2 py-3 cursor-pointer border-border hover:border-purple-500 hover:bg-purple-500/10 hover:text-purple-600"
+          onClick={onSwapTurn}
+        >
+          <CalendarClock className="h-5 w-5 text-muted-foreground group-hover:text-purple-600 transition-colors" />
+          <span className="text-xs font-medium text-foreground group-hover:text-purple-600 transition-colors">
+            Trocar Turno
           </span>
         </Button>
       </CardContent>

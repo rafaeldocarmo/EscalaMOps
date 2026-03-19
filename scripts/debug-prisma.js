@@ -1,6 +1,5 @@
-const { PrismaClient } = require("../lib/generated/prisma");
-
 async function main() {
+  const { PrismaClient } = await import("../lib/generated/prisma");
   const prisma = new PrismaClient();
 
   const schedules = await prisma.schedule.findMany({

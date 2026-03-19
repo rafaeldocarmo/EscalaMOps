@@ -141,6 +141,9 @@ function getDescription(row: SwapRequestRow): string {
   if (row.type === "ONCALL_SWAP" && row.targetMemberName) {
     return `Troca de sobreaviso com ${row.targetMemberName}.`;
   }
+  if (row.type === "SHIFT_SWAP" && row.originalDate) {
+    return `Troca de turno no dia ${formatDateKeyToDDMM(row.originalDate)}.`;
+  }
   if (row.type === "ONCALL_SWAP") return "Troca de sobreaviso.";
   return row.type === "OFF_SWAP" ? "Troca de folga." : "Troca de fila.";
 }

@@ -15,6 +15,7 @@ interface ScheduleCellProps {
   status: AssignmentStatus;
   locked: boolean;
   isCurrentMonth: boolean;
+  shiftSwapPurple?: boolean;
   onToggle: (dateKey: string) => void;
 }
 
@@ -23,6 +24,7 @@ function ScheduleCellComponent({
   status,
   locked,
   isCurrentMonth,
+  shiftSwapPurple,
   onToggle,
 }: ScheduleCellProps) {
   const isClickable =
@@ -36,6 +38,9 @@ function ScheduleCellComponent({
       className={cn(
         "h-8 min-w-[2.25rem] border-b border-r border-border p-0 text-xs transition-colors last:border-r-0",
         statusStyles[status],
+        shiftSwapPurple && isCurrentMonth
+          ? "bg-purple-900/75"
+          : "",
         isClickable && "cursor-pointer",
         !isClickable && "cursor-default",
         !isCurrentMonth && "opacity-40 pointer-events-none"

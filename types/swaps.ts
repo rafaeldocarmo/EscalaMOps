@@ -1,6 +1,6 @@
 // Swap request types (client-safe)
 
-export type SwapType = "OFF_SWAP" | "QUEUE_SWAP" | "ONCALL_SWAP";
+export type SwapType = "OFF_SWAP" | "QUEUE_SWAP" | "ONCALL_SWAP" | "SHIFT_SWAP";
 
 export type SwapRequestStatus =
   | "PENDING"

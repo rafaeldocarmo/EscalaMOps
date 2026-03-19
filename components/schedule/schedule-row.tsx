@@ -12,6 +12,7 @@ interface ScheduleRowProps {
   member: TeamMemberRow;
   calendarDays: ScheduleCalendarDay[];
   stateSlice: Record<string, AssignmentStatus>;
+  shiftSwapPurpleDateKeys?: string[];
   locked: boolean;
   onCellToggle: (memberId: string, dateKey: string) => void;
   onMemberClick?: (memberId: string) => void;
@@ -23,6 +24,7 @@ function ScheduleRowComponent({
   member,
   calendarDays,
   stateSlice,
+  shiftSwapPurpleDateKeys,
   locked,
   onCellToggle,
   onMemberClick,
@@ -30,6 +32,7 @@ function ScheduleRowComponent({
   stickyColumnWidth,
 }: ScheduleRowProps) {
   const handleToggle = (dateKey: string) => onCellToggle(member.id, dateKey);
+  const shiftSwapPurpleSet = new Set(shiftSwapPurpleDateKeys ?? []);
 
   return (
     <tr className="border-b border-border hover:bg-muted/30 transition-colors">
@@ -53,6 +56,7 @@ function ScheduleRowComponent({
           status={stateSlice[day.dateKey] ?? "WORK"}
           locked={locked}
           isCurrentMonth={day.isCurrentMonth}
+          shiftSwapPurple={day.isCurrentMonth && shiftSwapPurpleSet.has(day.dateKey)}
           onToggle={handleToggle}
         />
       ))}

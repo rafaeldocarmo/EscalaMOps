@@ -25,6 +25,7 @@ const TYPE_LABELS: Record<SwapRequestRow["type"], string> = {
   OFF_SWAP: "Troca de folga",
   QUEUE_SWAP: "Troca de fila",
   ONCALL_SWAP: "Troca de sobreaviso",
+  SHIFT_SWAP: "Troca de turno",
 };
 
 type FilterTab = "pending" | "approved" | "rejected";
@@ -51,6 +52,9 @@ function getDescription(s: SwapRequestRow): string {
   }
   if (s.type === "ONCALL_SWAP" && s.targetMemberName) {
     return `Troca de sobreaviso com ${s.targetMemberName}.`;
+  }
+  if (s.type === "SHIFT_SWAP" && s.originalDate) {
+    return `Troca de turno no dia ${formatDateKeyToDDMMYYYY(s.originalDate)}.`;
   }
   if (s.type === "ONCALL_SWAP") return "Troca de sobreaviso.";
   return s.type === "OFF_SWAP" ? "Troca de folga." : "Troca de fila.";
@@ -88,7 +92,9 @@ export function AdminSwapList({ sessionMemberId }: AdminSwapListProps) {
       ? s.targetMemberId
         ? s.status === "SECOND_USER_ACCEPTED"
         : s.status === "PENDING"
-      : (s.type === "QUEUE_SWAP" || s.type === "ONCALL_SWAP") && s.status === "SECOND_USER_ACCEPTED");
+      : s.type === "SHIFT_SWAP"
+        ? s.status === "PENDING"
+        : (s.type === "QUEUE_SWAP" || s.type === "ONCALL_SWAP") && s.status === "SECOND_USER_ACCEPTED");
 
   const canReject = (s: SwapRequestRow) =>
     s.status !== "APPROVED" && s.status !== "REJECTED" && s.status !== "CANCELLED";
@@ -182,9 +188,13 @@ export function AdminSwapList({ sessionMemberId }: AdminSwapListProps) {
         <ul className="space-y-5 sm:space-y-6">
           {filteredList.map((s) => {
             const highlightDates: string[] = [];
+            const highlightPurpleDates: string[] = [];
             if (s.type === "OFF_SWAP" && s.originalDate) highlightDates.push(s.originalDate);
             if (s.type === "OFF_SWAP" && s.targetDate && s.targetDate !== s.originalDate) {
               highlightDates.push(s.targetDate);
+            }
+            if (s.type === "SHIFT_SWAP" && s.originalDate) {
+              highlightPurpleDates.push(s.originalDate);
             }
             const monthFromOriginal = s.originalDate
               ? (() => {
@@ -486,6 +496,7 @@ export function AdminSwapList({ sessionMemberId }: AdminSwapListProps) {
                                   year={monthFromOriginal.year}
                                   month={monthFromOriginal.month}
                                   highlightDateKeys={highlightDates}
+                                  highlightPurpleDateKeys={highlightPurpleDates}
                                 />
                               </div>
                               {monthFromTarget &&
@@ -497,6 +508,7 @@ export function AdminSwapList({ sessionMemberId }: AdminSwapListProps) {
                                       year={monthFromTarget.year}
                                       month={monthFromTarget.month}
                                       highlightDateKeys={highlightDates}
+                                      highlightPurpleDateKeys={highlightPurpleDates}
                                     />
                                   </div>
                                 )}

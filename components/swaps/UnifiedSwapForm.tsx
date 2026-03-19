@@ -12,6 +12,7 @@ import { createOffSwapRequest } from "@/server/swaps/createOffSwapRequest";
 import { createOffSwapWithMemberRequest } from "@/server/swaps/createOffSwapWithMemberRequest";
 import { createQueueSwapRequest } from "@/server/swaps/createQueueSwapRequest";
 import { createOnCallSwapRequest } from "@/server/swaps/createOnCallSwapRequest";
+import { createShiftSwapRequest } from "@/server/swaps/createShiftSwapRequest";
 import { getOnCallScheduleForMember, type OnCallPeriod } from "@/server/sobreaviso/getOnCallScheduleForMember";
 import { getMemberScheduleForSwapPreview, type MemberScheduleDay } from "@/server/schedule/getSchedule";
 import { MonthNavigator } from "@/components/schedule/month-navigator";
@@ -21,8 +22,17 @@ import { useMonthNavigation } from "@/hooks/useMonthNavigation";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { SHIFT_OPTIONS } from "@/types/team";
+import type { Shift } from "@/types/team";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
-type SwapMode = "off" | "off_member" | "weekend" | "sobreaviso";
+type SwapMode = "off" | "off_member" | "weekend" | "sobreaviso" | "turno";
 
 interface UnifiedSwapFormProps {
   memberId: string;
@@ -68,6 +78,7 @@ export function UnifiedSwapForm({ memberId, initialMode }: UnifiedSwapFormProps)
   const [originalDate, setOriginalDate] = useState<string>("");
   const [targetDate, setTargetDate] = useState<string>("");
   const [justification, setJustification] = useState<string>("");
+  const [turnTargetShift, setTurnTargetShift] = useState<Shift | "">("");
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
 
   const [queueMembers, setQueueMembers] = useState<{ id: string; name: string }[]>([]);
@@ -102,7 +113,7 @@ export function UnifiedSwapForm({ memberId, initialMode }: UnifiedSwapFormProps)
     if (mode === "weekend" && selectedMemberId) {
       getFullQueueSwapPreview(selectedMemberId).then(setFullPreview);
     } else {
-      setFullPreview(null);
+      setTimeout(() => setFullPreview(null), 0);
     }
   }, [mode, selectedMemberId]);
 
@@ -110,7 +121,7 @@ export function UnifiedSwapForm({ memberId, initialMode }: UnifiedSwapFormProps)
     if (mode === "sobreaviso" && selectedMemberId) {
       getOnCallScheduleForMember(selectedMemberId, year, month).then(setTargetOnCallPeriods);
     } else {
-      setTargetOnCallPeriods([]);
+      setTimeout(() => setTargetOnCallPeriods([]), 0);
     }
   }, [mode, selectedMemberId, year, month]);
 
@@ -120,7 +131,7 @@ export function UnifiedSwapForm({ memberId, initialMode }: UnifiedSwapFormProps)
         setTargetMemberScheduleDays(res?.days ?? null);
       });
     } else {
-      setTargetMemberScheduleDays(null);
+      setTimeout(() => setTargetMemberScheduleDays(null), 0);
     }
   }, [mode, selectedMemberId, year, month]);
 
@@ -130,7 +141,7 @@ export function UnifiedSwapForm({ memberId, initialMode }: UnifiedSwapFormProps)
       for (const d of data.days) map.set(d.dateKey, d.status);
     }
     return map;
-  }, [data?.days]);
+  }, [data]);
 
   const targetStatusByDate = useMemo(() => {
     const map = new Map<string, "WORK" | "OFF">();
@@ -146,17 +157,28 @@ export function UnifiedSwapForm({ memberId, initialMode }: UnifiedSwapFormProps)
   );
 
   const handleDayClick = (dateKey: string) => {
-    if (mode !== "off") return;
     const status = statusByDate.get(dateKey) ?? "WORK";
-    if (status === "OFF") {
+    if (mode === "off") {
+      if (status === "OFF") {
+        setOriginalDate(dateKey);
+        setTargetDate("");
+      } else if (status === "WORK" && originalDate && dateKey !== originalDate) {
+        setTargetDate(dateKey);
+      }
+      return;
+    }
+
+    if (mode === "turno") {
+      if (status !== "WORK") return;
       setOriginalDate(dateKey);
       setTargetDate("");
-    } else if (status === "WORK" && originalDate && dateKey !== originalDate) {
-      setTargetDate(dateKey);
+      setMessage(null);
     }
   };
 
   const canSubmitOff = Boolean(originalDate && targetDate);
+
+  const canSubmitTurnSwap = mode === "turno" && Boolean(originalDate && turnTargetShift);
 
   const isOffMemberMode = mode === "off_member";
   const canSubmitOffWithMember = isOffMemberMode && Boolean(originalDate && targetDate && selectedMemberId);
@@ -199,6 +221,23 @@ export function UnifiedSwapForm({ memberId, initialMode }: UnifiedSwapFormProps)
     }
   }
 
+  async function handleSubmitTurnSwap(e: React.FormEvent) {
+    e.preventDefault();
+    setMessage(null);
+    if (!originalDate || !turnTargetShift) return;
+    const result = await createShiftSwapRequest(originalDate, turnTargetShift as Shift, justification);
+    if (result.success) {
+      setMessage({ type: "success", text: "Solicitação enviada. Aguarde aprovação do administrador." });
+      setOriginalDate("");
+      setTurnTargetShift("");
+      setJustification("");
+      toast.success("Troca de turno solicitada com sucesso.");
+      if (typeof window !== "undefined") window.dispatchEvent(new CustomEvent("swaps-updated"));
+    } else {
+      setMessage({ type: "error", text: result.error });
+    }
+  }
+
   async function handleSubmitQueue(e: React.FormEvent) {
     e.preventDefault();
     setMessage(null);
@@ -235,7 +274,8 @@ export function UnifiedSwapForm({ memberId, initialMode }: UnifiedSwapFormProps)
   const isOffMode = mode === "off";
   const isWeekendMode = mode === "weekend";
   const isOnCallMode = mode === "sobreaviso";
-  const calendarClickable = isOffMode;
+  const isTurnMode = mode === "turno";
+  const calendarClickable = isOffMode || isTurnMode;
 
   const myOnCallDates = isOnCallMode ? periodsToDateSet(myOnCallPeriods) : new Set<string>();
   const targetOnCallDates = isOnCallMode ? periodsToDateSet(targetOnCallPeriods) : new Set<string>();
@@ -248,6 +288,8 @@ export function UnifiedSwapForm({ memberId, initialMode }: UnifiedSwapFormProps)
           {singleMode
             ? mode === "off"
               ? "Trocar dia de folga"
+              : mode === "turno"
+                ? "Trocar turno"
               : mode === "weekend"
                 ? "Trocar turno"
                 : "Trocar sobreaviso"
@@ -255,6 +297,8 @@ export function UnifiedSwapForm({ memberId, initialMode }: UnifiedSwapFormProps)
               ? "Trocar dia de folga"
               : mode === "off_member"
                 ? "Trocar folga com membro"
+                : mode === "turno"
+                  ? "Trocar turno"
                 : mode === "weekend"
                   ? "Trocar turno"
                   : "Trocar sobreaviso"}
@@ -383,6 +427,32 @@ export function UnifiedSwapForm({ memberId, initialMode }: UnifiedSwapFormProps)
                 <span className="text-sm text-muted-foreground">Nenhum colega do mesmo nível com sobreaviso</span>
               )}
             </div>
+          </div>
+        )}
+
+        {isTurnMode && (
+          <div className="mb-3">
+            <p className="mb-2 text-sm font-medium">Ir para o turno</p>
+            <Select
+              value={turnTargetShift}
+              onValueChange={(v) => setTurnTargetShift(v as Shift)}
+            >
+              <SelectTrigger size="sm">
+                <SelectValue placeholder="Selecione o turno" />
+              </SelectTrigger>
+              <SelectContent>
+                {SHIFT_OPTIONS.map((opt) => (
+                  <SelectItem key={opt.value} value={opt.value}>
+                    {opt.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {originalDate && (
+              <p className="mt-2 text-xs text-muted-foreground">
+                Dia selecionado: {formatDateKeyToDDMMYYYY(originalDate)}
+              </p>
+            )}
           </div>
         )}
         <MonthNavigator year={year} month={month} onPrevious={goPrev} onNext={goNext} />
@@ -525,10 +595,11 @@ export function UnifiedSwapForm({ memberId, initialMode }: UnifiedSwapFormProps)
               const isWork = status === "WORK";
               const isSelectedOriginal = originalDate === day.dateKey;
               const isSelectedTarget = targetDate === day.dateKey;
-              const clickable =
-                calendarClickable &&
-                day.isCurrentMonth &&
-                (isOff || (isWork && originalDate && day.dateKey !== originalDate));
+              const clickable = isTurnMode
+                ? calendarClickable && day.isCurrentMonth && isWork
+                : calendarClickable &&
+                    day.isCurrentMonth &&
+                    (isOff || (isWork && originalDate && day.dateKey !== originalDate));
 
               if (isOnCallMode) {
                 const isMine = myOnCallDates.has(day.dateKey);
@@ -577,7 +648,11 @@ export function UnifiedSwapForm({ memberId, initialMode }: UnifiedSwapFormProps)
                           ? "bg-green-500/20 border-green-500/30 hover:bg-green-500/30"
                           : "bg-muted/20 border-transparent"
                   } ${clickable ? "cursor-pointer" : "cursor-default"} ${
-                    isSelectedOriginal ? "ring-2 ring-red-600 ring-offset-2" : ""
+                    isSelectedOriginal
+                      ? isTurnMode
+                        ? "ring-2 ring-purple-600 ring-offset-2"
+                        : "ring-2 ring-red-600 ring-offset-2"
+                      : ""
                   } ${isSelectedTarget ? "ring-2 ring-green-600 ring-offset-2" : ""}`}
                 >
                   {dayNum != null && (
@@ -648,6 +723,50 @@ export function UnifiedSwapForm({ memberId, initialMode }: UnifiedSwapFormProps)
                 onClick={() => {
                   setOriginalDate("");
                   setTargetDate("");
+                  setJustification("");
+                  setMessage(null);
+                }}
+              >
+                Limpar
+              </Button>
+            </div>
+          </form>
+        )}
+
+        {isTurnMode && canSubmitTurnSwap && (
+          <form onSubmit={handleSubmitTurnSwap} className="space-y-3 rounded-lg border bg-muted/30 p-3">
+            <p className="text-sm font-medium text-foreground">
+              Deseja trocar seu turno no dia <strong>{formatDateKeyToDDMMYYYY(originalDate)}</strong> para{" "}
+              <strong>{SHIFT_OPTIONS.find((o) => o.value === turnTargetShift)?.label ?? turnTargetShift}</strong>?
+            </p>
+            <p className="text-xs text-muted-foreground">
+              A solicitação será enviada ao administrador para aprovação.
+            </p>
+            {message && (
+              <p className={`text-sm ${message.type === "success" ? "text-green-600" : "text-destructive"}`}>
+                {message.text}
+              </p>
+            )}
+            <div className="space-y-1">
+              <p className="text-xs font-medium text-foreground">Justificativa</p>
+              <textarea
+                value={justification}
+                onChange={(e) => setJustification(e.target.value)}
+                placeholder="Opcional: explique o motivo da troca."
+                rows={3}
+                className="w-full resize-y rounded-md border border-border/50 bg-background px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              />
+            </div>
+            <div className="flex gap-2">
+              <Button type="submit">
+                Solicitar troca de turno
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => {
+                  setOriginalDate("");
+                  setTurnTargetShift("");
                   setJustification("");
                   setMessage(null);
                 }}

@@ -102,6 +102,9 @@ export async function approveSwap(swapRequestId: string): Promise<SwapActionResu
       }
     }
   }
+  if (swap.type === "SHIFT_SWAP" && swap.status !== "PENDING") {
+    return { success: false, error: "Status inválido para aprovação." };
+  }
 
   await prisma.$transaction(async (tx) => {
     if (swap.type === "OFF_SWAP" && swap.originalDate && swap.targetDate) {

@@ -23,7 +23,7 @@ export async function getMonthlySchedule(
   const session = await auth();
   if (!session?.user || !session.member) return null;
 
-  let schedule = await prisma.schedule.findUnique({
+  const schedule = await prisma.schedule.findUnique({
     where: { year_month: { year, month } },
     include: { assignments: true },
   });

@@ -10,6 +10,7 @@ interface ScheduleGridProps {
   sections: ScheduleSection[];
   calendarDays: ScheduleCalendarDay[];
   stateMap: ScheduleStateMap;
+  shiftSwapPurpleByMemberId?: Record<string, string[]>;
   onCellToggle: (memberId: string, dateKey: string) => void;
   onMemberClick?: (memberId: string) => void;
   selectedMemberId?: string | null;
@@ -20,6 +21,7 @@ export function ScheduleGrid({
   sections,
   calendarDays,
   stateMap,
+  shiftSwapPurpleByMemberId,
   onCellToggle,
   onMemberClick,
   selectedMemberId,
@@ -51,6 +53,7 @@ export function ScheduleGrid({
                   member={member}
                   calendarDays={calendarDays}
                   stateSlice={stateMap[member.id] ?? {}}
+                  shiftSwapPurpleDateKeys={shiftSwapPurpleByMemberId?.[member.id]}
                   locked={locked}
                   onCellToggle={onCellToggle}
                   onMemberClick={onMemberClick}

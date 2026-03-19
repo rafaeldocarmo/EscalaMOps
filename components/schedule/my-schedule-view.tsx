@@ -54,10 +54,13 @@ export function MyScheduleView({
   const now = new Date();
   const [data, setData] = useState<Awaited<ReturnType<typeof getMySchedule>>>(dashboardData?.schedule ?? null);
   const [swapHighlightDateKeys, setSwapHighlightDateKeys] = useState<string[]>([]);
+  const [turnSwapPendingDateKeys, setTurnSwapPendingDateKeys] = useState<string[]>([]);
+  const [turnSwapApprovedDateKeys, setTurnSwapApprovedDateKeys] = useState<string[]>([]);
   const [onCallPeriods, setOnCallPeriods] = useState<MyOnCallPeriod[]>(dashboardData?.onCallPeriods ?? []);
   const [swapOffModalOpen, setSwapOffModalOpen] = useState(false);
   const [swapQueueModalOpen, setSwapQueueModalOpen] = useState(false);
   const [swapOnCallModalOpen, setSwapOnCallModalOpen] = useState(false);
+  const [swapTurnModalOpen, setSwapTurnModalOpen] = useState(false);
   const [swapHistoryModalOpen, setSwapHistoryModalOpen] = useState(false);
   const searchParams = useSearchParams();
 
@@ -70,6 +73,26 @@ export function MyScheduleView({
       if (s.type === "OFF_SWAP" && s.targetDate && s.targetDate !== s.originalDate) {
         keys.push(s.targetDate);
       }
+    }
+    return keys;
+  }, [dashboardData?.swaps]);
+
+  const initialTurnSwapPendingDateKeys = useMemo(() => {
+    const list = dashboardData?.swaps ?? [];
+    const keys: string[] = [];
+    for (const s of list) {
+      if (s.type !== "SHIFT_SWAP" || s.originalDate == null) continue;
+      if (s.status === "PENDING") keys.push(s.originalDate);
+    }
+    return keys;
+  }, [dashboardData?.swaps]);
+
+  const initialTurnSwapApprovedDateKeys = useMemo(() => {
+    const list = dashboardData?.swaps ?? [];
+    const keys: string[] = [];
+    for (const s of list) {
+      if (s.type !== "SHIFT_SWAP" || s.originalDate == null) continue;
+      if (s.status === "APPROVED") keys.push(s.originalDate);
     }
     return keys;
   }, [dashboardData?.swaps]);
@@ -87,24 +110,43 @@ export function MyScheduleView({
   useEffect(() => {
     // Keep local state in sync with the consolidated dashboard fetch.
     if (dashboardData) {
-      setData(dashboardData.schedule ?? null);
-      setOnCallPeriods(dashboardData.onCallPeriods ?? []);
-      setSwapHighlightDateKeys(initialSwapHighlightKeys);
+      const id = setTimeout(() => {
+        setData(dashboardData.schedule ?? null);
+        setOnCallPeriods(dashboardData.onCallPeriods ?? []);
+        setSwapHighlightDateKeys(initialSwapHighlightKeys);
+        setTurnSwapPendingDateKeys(initialTurnSwapPendingDateKeys);
+        setTurnSwapApprovedDateKeys(initialTurnSwapApprovedDateKeys);
+      }, 0);
+      return () => clearTimeout(id);
     }
-  }, [dashboardData, initialSwapHighlightKeys]);
+  }, [
+    dashboardData,
+    initialSwapHighlightKeys,
+    initialTurnSwapPendingDateKeys,
+    initialTurnSwapApprovedDateKeys,
+  ]);
 
   useEffect(() => {
     const handler = () => {
       getMySwapRequests().then((list) => {
         const pending = list.filter((s) => PENDING_STATUSES.includes(s.status));
         const keys: string[] = [];
+        const turnPendingKeys: string[] = [];
+        const turnApprovedKeys: string[] = [];
         for (const s of pending) {
           if (s.type === "OFF_SWAP" && s.originalDate) keys.push(s.originalDate);
           if (s.type === "OFF_SWAP" && s.targetDate && s.targetDate !== s.originalDate) {
             keys.push(s.targetDate);
           }
         }
+        for (const s of list) {
+          if (s.type !== "SHIFT_SWAP" || !s.originalDate) continue;
+          if (s.status === "PENDING") turnPendingKeys.push(s.originalDate);
+          if (s.status === "APPROVED") turnApprovedKeys.push(s.originalDate);
+        }
         setSwapHighlightDateKeys(keys);
+        setTurnSwapPendingDateKeys(turnPendingKeys);
+        setTurnSwapApprovedDateKeys(turnApprovedKeys);
       });
     };
     window.addEventListener("swaps-updated", handler);
@@ -124,7 +166,7 @@ export function MyScheduleView({
       }
     }
     return map;
-  }, [data?.days]);
+  }, [data]);
 
   const { onCallDates, onCallTransitionDates } = useMemo(() => {
     const dates = new Set<string>();
@@ -242,13 +284,18 @@ export function MyScheduleView({
                   : null;
                 const dayNum = day.isCurrentMonth ? parseInt(day.dayLabel, 10) : null;
                 const isSwapHighlight = day.isCurrentMonth && swapHighlightDateKeys.includes(day.dateKey);
+                const isTurnSwapPending = day.isCurrentMonth && turnSwapPendingDateKeys.includes(day.dateKey);
+                const isTurnSwapApproved = day.isCurrentMonth && turnSwapApprovedDateKeys.includes(day.dateKey);
+                const isTurnSwapHighlight = isTurnSwapPending || isTurnSwapApproved;
                 const isOnCall = day.isCurrentMonth && onCallDates.has(day.dateKey);
                 const isOnCallTransition = day.isCurrentMonth && onCallTransitionDates.has(day.dateKey);
                 return (
                   <div
                     key={day.dateKey}
                     className={`relative aspect-[3/2] flex min-h-[4rem] flex-col items-center justify-center gap-0.5 rounded-lg border p-2 transition-colors overflow-hidden ${
-                      isSwapHighlight
+                      isTurnSwapHighlight
+                        ? "border-purple-500/60 bg-purple-400/50 ring-1 ring-purple-600/40 hover:bg-purple-400/60 hover:ring-1 hover:ring-purple-600/50"
+                        : isSwapHighlight
                         ? "border-amber-500/60 bg-amber-400/50 ring-1 ring-amber-600/40 hover:bg-amber-400/60 hover:ring-1 hover:ring-amber-600/50"
                         : status === "OFF"
                           ? "border-red-500/30 bg-red-500/20 hover:bg-red-500/30 hover:ring-1 hover:ring-red-500/40"
@@ -267,20 +314,31 @@ export function MyScheduleView({
                     {dayNum != null && (
                       <span
                         className={`relative z-10 text-sm font-semibold ${
-                          isSwapHighlight ? "text-amber-900" : status === "OFF" ? "text-red-800" : "text-green-800"
+                          isTurnSwapHighlight
+                            ? "text-purple-900"
+                            : isSwapHighlight
+                              ? "text-amber-900"
+                              : status === "OFF"
+                                ? "text-red-800"
+                                : "text-green-800"
                         }`}
                       >
                         {dayNum}
                       </span>
                     )}
-                    {status === "WORK" && !isSwapHighlight && (
+                    {status === "WORK" && !isSwapHighlight && !isTurnSwapHighlight && (
                       <span className="relative z-10 text-[10px] font-medium text-green-800">TRABALHO</span>
                     )}
-                    {status === "OFF" && !isSwapHighlight && (
+                    {status === "OFF" && !isSwapHighlight && !isTurnSwapHighlight && (
                       <span className="relative z-10 text-[10px] font-medium text-red-800">FOLGA</span>
                     )}
-                    {isSwapHighlight && (
+                    {isSwapHighlight && !isTurnSwapHighlight && (
                       <span className="relative z-10 text-[10px] font-medium text-amber-900">TROCA</span>
+                    )}
+                    {isTurnSwapHighlight && (
+                      <span className="relative z-10 text-[10px] font-medium text-purple-900">
+                        {isTurnSwapPending ? "TROCA TURNO PENDENTE" : "TROCA TURNO"}
+                      </span>
                     )}
                   </div>
                 );
@@ -299,6 +357,10 @@ export function MyScheduleView({
                 <span className="h-3 w-3 rounded-full bg-amber-400" aria-hidden />
                 <span className="text-xs text-muted-foreground">Troca Solicitada</span>
               </div>
+              <div className="flex items-center gap-2">
+                <span className="h-3 w-3 rounded-full bg-purple-400" aria-hidden />
+                <span className="text-xs text-muted-foreground">Troca de Turno</span>
+              </div>
               {onCallDates.size > 0 && (
                 <div className="flex items-center gap-2">
                   <span className="h-3 w-3 rounded-full bg-blue-500/60" aria-hidden />
@@ -316,6 +378,7 @@ export function MyScheduleView({
           onSwapQueue={() => setSwapQueueModalOpen(true)}
           onSwapHistory={() => setSwapHistoryModalOpen(true)}
           onSwapOnCall={() => setSwapOnCallModalOpen(true)}
+          onSwapTurn={() => setSwapTurnModalOpen(true)}
           onCallEnabled={onCallDates.size !== 0 || onCallTransitionDates.size !== 0}
         />
 
@@ -362,6 +425,13 @@ export function MyScheduleView({
         {swapOnCallModalOpen && (
           <DialogContent className="max-w-[1000px]! max-h-[90vh] overflow-y-auto">
             <UnifiedSwapForm memberId={memberId} initialMode="sobreaviso" />
+          </DialogContent>
+        )}
+      </Dialog>
+      <Dialog open={swapTurnModalOpen} onOpenChange={setSwapTurnModalOpen}>
+        {swapTurnModalOpen && (
+          <DialogContent className="max-w-[1000px]! max-h-[90vh] overflow-y-auto">
+            <UnifiedSwapForm memberId={memberId} initialMode="turno" />
           </DialogContent>
         )}
       </Dialog>
