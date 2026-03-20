@@ -4,6 +4,7 @@ import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import type { BankHoursActionResult } from "@/types/bankHours";
 import { extraHoursSchema } from "@/lib/validations/bankHours";
+import { sendWhatsappMessage } from "@/server/whatsapp/sendWhatsappMessage";
 
 function parseDate(dateKey: string): Date {
   return new Date(dateKey + "T12:00:00.000Z");
@@ -14,6 +15,11 @@ function isFutureDate(dateKey: string): boolean {
   const now = new Date();
   const todayNoonUtc = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 12, 0, 0));
   return d.getTime() > todayNoonUtc.getTime();
+}
+
+function formatDateKeyToDDMM(dateKey: string): string {
+  const [, m, d] = dateKey.split("-");
+  return `${d}/${m}`;
 }
 
 export async function createExtraHoursRequest(
@@ -46,6 +52,14 @@ export async function createExtraHoursRequest(
       status: "PENDING",
     },
   });
+
+  // #region notify admin (WhatsApp)
+  const requesterName = session.member.name ?? "Membro";
+  const ddmm = formatDateKeyToDDMM(dateKey);
+  const cleanJust = parsed.data.justification.trim();
+  const message = `Olá Admin,\n\n${requesterName} deseja solicitar ${parsed.data.hours} horas extras no dia ${ddmm}.\n\nJustificativa: ${cleanJust}`;
+  await sendWhatsappMessage(message).catch(() => {});
+  // #endregion
 
   return { success: true };
 }

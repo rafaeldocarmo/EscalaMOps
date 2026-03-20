@@ -12,7 +12,9 @@ export async function GET(request: Request) {
   }
 
   try {
-    await sendDailyScheduleSummary();
+    const tomorrow = new Date();
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    await sendDailyScheduleSummary(tomorrow);
     return NextResponse.json({ ok: true });
   } catch (error) {
     console.error("Cron daily schedule error", error);

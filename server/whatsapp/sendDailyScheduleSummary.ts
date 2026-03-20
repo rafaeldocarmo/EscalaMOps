@@ -1,7 +1,6 @@
 import { prisma } from "@/lib/prisma";
-import { format, startOfDay, endOfDay } from "date-fns";
-import { ptBR } from "date-fns/locale";
-import { sendWhatsappMessage } from "./sendWhatsappMessage";
+import { startOfDay, endOfDay } from "date-fns";
+import { pinWhatsappMessage, sendWhatsappMessage } from "./sendWhatsappMessage";
 
 type Level = "N1" | "N2";
 type Shift = "T1" | "T2" | "T3";
@@ -92,10 +91,8 @@ export async function sendDailyScheduleSummary(targetDate?: Date): Promise<void>
     }
   }
 
-  const dateLabel = format(dayStart, "dd/MM/yy", { locale: ptBR });
-
   const lines: string[] = [];
-  lines.push(`*Escala* - ${dateLabel}`, "");
+  lines.push(`*Escala para esse final de semana*`, "");
 
   for (const level of levels) {
     lines.push(`*${level}*`);
@@ -132,6 +129,10 @@ export async function sendDailyScheduleSummary(targetDate?: Date): Promise<void>
   lines.push("* Verifique se sua senha está próxima de expirar.");
 
   const message = lines.join("\n");
-  await sendWhatsappMessage(message);
+  const { messageId } = await sendWhatsappMessage(message);
+  if (messageId) {
+    // Fixamos/pinamos a mensagem do dia para ficar sempre visível.
+    await pinWhatsappMessage(messageId).catch(() => {});
+  }
 }
 

@@ -454,6 +454,9 @@ export function MyScheduleView({
       <Dialog open={swapOffModalOpen} onOpenChange={setSwapOffModalOpen}>
         {swapOffModalOpen && (
           <DialogContent className="max-w-[1000px]! max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle className="sr-only">Solicitações de troca</DialogTitle>
+            </DialogHeader>
             <UnifiedSwapForm memberId={memberId} initialMode="off" />
           </DialogContent>
         )}
@@ -461,6 +464,9 @@ export function MyScheduleView({
       <Dialog open={swapQueueModalOpen} onOpenChange={setSwapQueueModalOpen}>
         {swapQueueModalOpen && (
           <DialogContent className="max-w-[1000px]! max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle className="sr-only">Solicitações de troca</DialogTitle>
+            </DialogHeader>
             <UnifiedSwapForm memberId={memberId} initialMode="weekend" />
           </DialogContent>
         )}
@@ -468,6 +474,9 @@ export function MyScheduleView({
       <Dialog open={swapOnCallModalOpen} onOpenChange={setSwapOnCallModalOpen}>
         {swapOnCallModalOpen && (
           <DialogContent className="max-w-[1000px]! max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle className="sr-only">Solicitações de troca</DialogTitle>
+            </DialogHeader>
             <UnifiedSwapForm memberId={memberId} initialMode="sobreaviso" />
           </DialogContent>
         )}
@@ -475,6 +484,9 @@ export function MyScheduleView({
       <Dialog open={swapTurnModalOpen} onOpenChange={setSwapTurnModalOpen}>
         {swapTurnModalOpen && (
           <DialogContent className="max-w-[1000px]! max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle className="sr-only">Solicitações de troca</DialogTitle>
+            </DialogHeader>
             <UnifiedSwapForm memberId={memberId} initialMode="turno" />
           </DialogContent>
         )}
@@ -493,6 +505,9 @@ export function MyScheduleView({
       <Dialog open={bankHoursModalOpen} onOpenChange={setBankHoursModalOpen}>
         {bankHoursModalOpen && (
           <DialogContent className="max-w-[900px]! max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle className="sr-only">Banco de horas</DialogTitle>
+            </DialogHeader>
             <BankHoursForm memberId={memberId} defaultMode="extra" />
           </DialogContent>
         )}

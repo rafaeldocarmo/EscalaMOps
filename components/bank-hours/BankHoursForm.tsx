@@ -189,9 +189,19 @@ export function BankHoursForm({
           {loadingBalance ? " (carregando...)" : ""}
         </div>
         <Tabs value={mode} onValueChange={(v) => setMode(v as Mode)} className="mt-3">
-          <TabsList className="w-full justify-start">
-            <TabsTrigger value="extra">Horas extras</TabsTrigger>
-            <TabsTrigger value="off">Folga</TabsTrigger>
+          <TabsList className="w-full flex h-auto gap-2 justify-start rounded-lg border bg-muted/30 p-1">
+            <TabsTrigger
+              value="extra"
+              className="flex-1 text-muted-foreground hover:text-foreground transition-colors px-3 py-1.5"
+            >
+              Horas extras
+            </TabsTrigger>
+            <TabsTrigger
+              value="off"
+              className="flex-1 text-muted-foreground hover:text-foreground transition-colors px-3 py-1.5"
+            >
+              Folga
+            </TabsTrigger>
           </TabsList>
           <TabsContent value="extra">
             <CardContent className="p-0 mt-2">
