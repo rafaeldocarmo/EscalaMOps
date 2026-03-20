@@ -11,7 +11,13 @@ export async function POST(request: Request) {
       request.headers.get("x-real-ip") ??
       "unknown";
 
-    const { success } = await registerRateLimit.limit(`ip:${ip}`);
+    const { success } = await (async () => {
+      try {
+        return await registerRateLimit.limit(`ip:${ip}`);
+      } catch {
+        return { success: true };
+      }
+    })();
     if (!success) {
       return NextResponse.json(
         { error: "Muitas tentativas. Aguarde e tente novamente." },
@@ -44,7 +50,6 @@ export async function POST(request: Request) {
         { status: 400 }
       );
     }
-
     const hashedPassword = await bcrypt.hash(password, 12);
     await prisma.user.create({
       data: {
