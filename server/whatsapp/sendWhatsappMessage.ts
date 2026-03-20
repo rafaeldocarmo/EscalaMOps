@@ -1,6 +1,5 @@
 const WHAPI_URL = "https://gate.whapi.cloud/messages/text";
 const WHAPI_PIN_URL_BASE = "https://gate.whapi.cloud/messages";
-const WHAPI_GROUP = "1580148882@g.us";
 
 
 type WhapiSendResponse = {
@@ -18,7 +17,7 @@ export async function sendWhatsappMessage(message: string, to?: string): Promise
     return {};
   }
 
-  const destination = WHAPI_GROUP ?? process.env.WHAPI_ADMIN_TO;
+  const destination = to ?? process.env.WHAPI_ADMIN_TO;
   if (!destination) {
     console.error("WhatsApp send error: no destination number provided and WHAPI_TO is not set");
     return {};
