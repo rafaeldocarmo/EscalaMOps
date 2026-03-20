@@ -34,7 +34,10 @@ export default async function DashboardPage() {
             </Link>
           </Button>
           <Button asChild variant="outline">
-            <Link href="/dashboard/swaps">Trocas</Link>
+            <Link href="/dashboard/swaps">Aprovações</Link>
+          </Button>
+          <Button asChild variant="outline">
+            <Link href="/dashboard/bank-hours">Banco de Horas</Link>
           </Button>
         </div>
       </div>

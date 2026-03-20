@@ -13,6 +13,7 @@ interface ScheduleRowProps {
   calendarDays: ScheduleCalendarDay[];
   stateSlice: Record<string, AssignmentStatus>;
   shiftSwapPurpleDateKeys?: string[];
+  hoursWithdrawnOrangeDateKeys?: string[];
   locked: boolean;
   onCellToggle: (memberId: string, dateKey: string) => void;
   onMemberClick?: (memberId: string) => void;
@@ -25,6 +26,7 @@ function ScheduleRowComponent({
   calendarDays,
   stateSlice,
   shiftSwapPurpleDateKeys,
+  hoursWithdrawnOrangeDateKeys,
   locked,
   onCellToggle,
   onMemberClick,
@@ -33,6 +35,7 @@ function ScheduleRowComponent({
 }: ScheduleRowProps) {
   const handleToggle = (dateKey: string) => onCellToggle(member.id, dateKey);
   const shiftSwapPurpleSet = new Set(shiftSwapPurpleDateKeys ?? []);
+  const hoursWithdrawnOrangeSet = new Set(hoursWithdrawnOrangeDateKeys ?? []);
 
   return (
     <tr className="border-b border-border hover:bg-muted/30 transition-colors">
@@ -57,6 +60,7 @@ function ScheduleRowComponent({
           locked={locked}
           isCurrentMonth={day.isCurrentMonth}
           shiftSwapPurple={day.isCurrentMonth && shiftSwapPurpleSet.has(day.dateKey)}
+          hoursWithdrawnOrange={day.isCurrentMonth && hoursWithdrawnOrangeSet.has(day.dateKey)}
           onToggle={handleToggle}
         />
       ))}

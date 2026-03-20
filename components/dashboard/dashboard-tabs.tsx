@@ -9,6 +9,8 @@ import { DashboardSummaryCards } from "@/components/dashboard/dashboard-summary-
 import { DashboardSwapBadge } from "@/components/dashboard/dashboard-swap-badge";
 import { getMyDashboardData, type MyDashboardData } from "@/server/dashboard/getMyDashboardData";
 import type { SwapRequestStatus } from "@/types/swaps";
+import { getMyBankHourBalance } from "@/server/bank-hours/getMyBankHourBalance";
+import { getMyBankHourPendingCount } from "@/server/bank-hours/getMyBankHourPendingCount";
 
 interface DashboardTabsProps {
   memberId: string;
@@ -21,11 +23,39 @@ export function DashboardTabs({ memberId, memberName }: DashboardTabsProps) {
   const [year, setYear] = useState(now.getFullYear());
   const [month, setMonth] = useState(now.getMonth() + 1);
   const [myData, setMyData] = useState<MyDashboardData | null>(null);
+  const [bankHoursBalance, setBankHoursBalance] = useState<number | null>(null);
+  const [bankHoursPendingCount, setBankHoursPendingCount] = useState<number | null>(null);
 
   useEffect(() => {
     if (value !== "my") return;
     getMyDashboardData(memberId, year, month).then(setMyData);
   }, [memberId, month, value, year]);
+
+  useEffect(() => {
+    let cancelled = false;
+    const load = async () => {
+      const b = await getMyBankHourBalance();
+      if (cancelled) return;
+      setBankHoursBalance(b);
+    };
+    if (value === "my") load();
+    return () => {
+      cancelled = true;
+    };
+  }, [memberId, value]);
+
+  useEffect(() => {
+    let cancelled = false;
+    const load = async () => {
+      const c = await getMyBankHourPendingCount();
+      if (cancelled) return;
+      setBankHoursPendingCount(c);
+    };
+    if (value === "my") load();
+    return () => {
+      cancelled = true;
+    };
+  }, [memberId, value]);
 
   const pendingCount = useMemo(() => {
     if (!myData) return null;
@@ -68,7 +98,15 @@ export function DashboardTabs({ memberId, memberName }: DashboardTabsProps) {
         </TabsList>
       </div>
 
-      {value === "my" && <DashboardSummaryCards year={year} month={month} data={myData} />}
+      {value === "my" && (
+        <DashboardSummaryCards
+          year={year}
+          month={month}
+          data={myData}
+          bankHoursBalance={bankHoursBalance}
+          bankHoursPendingCount={bankHoursPendingCount}
+        />
+      )}
 
       <TabsContent value="my" className="mt-0">
         <MyScheduleView

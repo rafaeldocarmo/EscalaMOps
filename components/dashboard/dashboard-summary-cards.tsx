@@ -3,7 +3,7 @@
 import { useMemo } from "react";
 import type { MyDashboardData } from "@/server/dashboard/getMyDashboardData";
 import { Card, CardContent } from "@/components/ui/card";
-import { Calendar, CalendarOff, Clock, ArrowLeftRight, ShieldCheck } from "lucide-react";
+import { Calendar, CalendarOff, CalendarClock, ArrowLeftRight, ShieldCheck, Clock3 } from "lucide-react";
 
 const PENDING_STATUSES = ["PENDING", "WAITING_SECOND_USER", "SECOND_USER_ACCEPTED"];
 
@@ -11,9 +11,17 @@ interface DashboardSummaryCardsProps {
   year: number;
   month: number;
   data: MyDashboardData | null;
+  bankHoursBalance?: number | null;
+  bankHoursPendingCount?: number | null;
 }
 
-export function DashboardSummaryCards({ year, month, data }: DashboardSummaryCardsProps) {
+export function DashboardSummaryCards({
+  year,
+  month,
+  data,
+  bankHoursBalance,
+  bankHoursPendingCount,
+}: DashboardSummaryCardsProps) {
   const { workDays, offDays, nextOffDate, pendingSwaps, onCallDays } = useMemo(() => {
     const now = new Date();
     const schedule = data?.schedule ?? null;
@@ -69,6 +77,9 @@ export function DashboardSummaryCards({ year, month, data }: DashboardSummaryCar
     };
   }, [data, month, year]);
 
+  const pendingApprovalsTotal =
+    (pendingSwaps ?? 0) + (bankHoursPendingCount ?? 0);
+
   const cards = [
     {
       label: "Dias de Trabalho",
@@ -87,16 +98,23 @@ export function DashboardSummaryCards({ year, month, data }: DashboardSummaryCar
     {
       label: "Próxima Folga",
       value: nextOffDate ?? "—",
-      icon: Clock,
+      icon: CalendarClock,
       iconBg: "bg-blue-500/15",
       iconColor: "text-blue-600",
     },
     {
-      label: "Trocas Pendentes",
-      value: pendingSwaps,
+      label: "Aprovações Pendentes",
+      value: pendingApprovalsTotal,
       icon: ArrowLeftRight,
       iconBg: "bg-amber-500/15",
       iconColor: "text-amber-600",
+    },
+    {
+      label: "Saldo Banco de Horas",
+      value: bankHoursBalance == null ? "—" : Math.round(bankHoursBalance),
+      icon: Clock3,
+      iconBg: "bg-indigo-500/15",
+      iconColor: "text-indigo-600",
     },
     ...(onCallDays != null
       ? [

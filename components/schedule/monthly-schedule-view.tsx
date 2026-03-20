@@ -18,6 +18,7 @@ import { SobreavisoTable } from "./sobreaviso-table";
 import { getSobreavisoScheduleForMonth } from "@/server/sobreaviso/getSobreavisoScheduleForMonth";
 import type { SobreavisoWeek } from "@/server/sobreaviso/getSobreavisoScheduleForMonth";
 import { getShiftSwapRequestsForMonth } from "@/server/swaps/getShiftSwapRequestsForMonth";
+import { getApprovedOffHoursWithdrawnDatesForMonth } from "@/server/bank-hours/getApprovedOffHoursWithdrawnDatesForMonth";
 
 export function MonthlyScheduleView() {
   const now = new Date();
@@ -26,6 +27,7 @@ export function MonthlyScheduleView() {
   const [data, setData] = useState<Awaited<ReturnType<typeof getMonthlySchedule>>>(null);
   const [sobreavisoWeeks, setSobreavisoWeeks] = useState<SobreavisoWeek[]>([]);
   const [shiftSwapPurpleByMemberId, setShiftSwapPurpleByMemberId] = useState<Record<string, string[]>>({});
+  const [hoursWithdrawnOrangeByMemberId, setHoursWithdrawnOrangeByMemberId] = useState<Record<string, string[]>>({});
   const [levelFilter, setLevelFilter] = useState<Level[]>(["N1", "N2"]);
   const [shiftFilter, setShiftFilter] = useState<Shift[]>(SHIFT_OPTIONS.map((s) => s.value));
 
@@ -46,6 +48,20 @@ export function MonthlyScheduleView() {
       }
       setShiftSwapPurpleByMemberId(map);
     });
+  }, [year, month]);
+
+  useEffect(() => {
+    getApprovedOffHoursWithdrawnDatesForMonth(year, month).then((map) => setHoursWithdrawnOrangeByMemberId(map));
+  }, [year, month]);
+
+  useEffect(() => {
+    const handler = () => {
+      // Recarrega a escala (8h) e também o destaque laranja (<8).
+      getMonthlySchedule(year, month).then(setData);
+      getApprovedOffHoursWithdrawnDatesForMonth(year, month).then(setHoursWithdrawnOrangeByMemberId);
+    };
+    window.addEventListener("bank-hours-updated", handler);
+    return () => window.removeEventListener("bank-hours-updated", handler);
   }, [year, month]);
 
   const { goPrev, goNext } = useMonthNavigation({
@@ -118,6 +134,7 @@ export function MonthlyScheduleView() {
               stateMap={stateMap}
               onCellToggle={() => {}}
               shiftSwapPurpleByMemberId={shiftSwapPurpleByMemberId}
+              hoursWithdrawnOrangeByMemberId={hoursWithdrawnOrangeByMemberId}
               locked
             />
             <div className="mt-6 pt-4 border-t border-border/50">

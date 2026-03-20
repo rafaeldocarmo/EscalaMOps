@@ -5,6 +5,9 @@ import { getMemberScheduleForAdmin } from "@/server/schedule/getSchedule";
 import { getScheduleCalendarDays } from "@/lib/scheduleUtils";
 import { WEEKDAY_LABELS } from "@/lib/constants";
 
+type MemberScheduleMiniCalendarData = Awaited<ReturnType<typeof getMemberScheduleForAdmin>>;
+const memberScheduleCache = new Map<string, Promise<MemberScheduleMiniCalendarData>>();
+
 export function MemberScheduleMiniCalendar({
   memberId,
   year,
@@ -13,6 +16,7 @@ export function MemberScheduleMiniCalendar({
   highlightCurrentDateKeys,
   highlightNewDateKeys,
   highlightPurpleDateKeys,
+  hideHighlightText = false,
   className,
 }: {
   memberId: string;
@@ -22,12 +26,29 @@ export function MemberScheduleMiniCalendar({
   highlightCurrentDateKeys?: string[];
   highlightNewDateKeys?: string[];
   highlightPurpleDateKeys?: string[];
+  hideHighlightText?: boolean;
   className?: string;
 }) {
   const [data, setData] = useState<Awaited<ReturnType<typeof getMemberScheduleForAdmin>>>(null);
 
   useEffect(() => {
-    getMemberScheduleForAdmin(memberId, year, month).then(setData);
+    let cancelled = false;
+
+    const cacheKey = `${memberId}-${year}-${month}`;
+    let p = memberScheduleCache.get(cacheKey);
+    if (!p) {
+      p = getMemberScheduleForAdmin(memberId, year, month);
+      memberScheduleCache.set(cacheKey, p);
+    }
+
+    p.then((res) => {
+      if (cancelled) return;
+      setData(res);
+    });
+
+    return () => {
+      cancelled = true;
+    };
   }, [memberId, year, month]);
 
   if (!data) {
@@ -97,13 +118,19 @@ export function MemberScheduleMiniCalendar({
               }`}
             >
               {dayNum != null && <span className="text-[12px] font-medium leading-tight">{dayNum}</span>}
-              {(isCurrentBlue || isNewBlue || isPurpleHighlight || (isAmberHighlight && !isCurrentBlue && !isNewBlue && !isPurpleHighlight)) && (
-                <span className={`text-[9px] font-semibold leading-tight mt-0.5 ${
-                  isAmberHighlight ? "text-amber-900" : "text-inherit"
-                }`}>
-                  {isNewBlue ? "NOVO" : isCurrentBlue ? "ATUAL" : isPurpleHighlight ? "TURNO" : "Troca"}
-                </span>
-              )}
+              {!hideHighlightText &&
+                (isCurrentBlue ||
+                  isNewBlue ||
+                  isPurpleHighlight ||
+                  (isAmberHighlight && !isCurrentBlue && !isNewBlue && !isPurpleHighlight)) && (
+                  <span
+                    className={`text-[9px] font-semibold leading-tight mt-0.5 ${
+                      isAmberHighlight ? "text-amber-900" : "text-inherit"
+                    }`}
+                  >
+                    {isNewBlue ? "NOVO" : isCurrentBlue ? "ATUAL" : isPurpleHighlight ? "TURNO" : "Troca"}
+                  </span>
+                )}
             </div>
           );
         })}

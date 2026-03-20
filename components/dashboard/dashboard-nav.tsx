@@ -37,7 +37,7 @@ export function DashboardNav({ hasMemberView }: { hasMemberView: boolean }) {
         Escala
       </NavLink>
       <NavLink href="/dashboard/swaps" active={pathname.startsWith("/dashboard/swaps")}>
-        Trocas
+        Aprovações
       </NavLink>
       <ViewAsMemberLink hasMemberView={hasMemberView} />
     </nav>

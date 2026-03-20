@@ -16,6 +16,7 @@ interface ScheduleCellProps {
   locked: boolean;
   isCurrentMonth: boolean;
   shiftSwapPurple?: boolean;
+  hoursWithdrawnOrange?: boolean;
   onToggle: (dateKey: string) => void;
 }
 
@@ -25,6 +26,7 @@ function ScheduleCellComponent({
   locked,
   isCurrentMonth,
   shiftSwapPurple,
+  hoursWithdrawnOrange,
   onToggle,
 }: ScheduleCellProps) {
   const isClickable =
@@ -38,8 +40,10 @@ function ScheduleCellComponent({
       className={cn(
         "h-8 min-w-[2.25rem] border-b border-r border-border p-0 text-xs transition-colors last:border-r-0",
         statusStyles[status],
-        shiftSwapPurple && isCurrentMonth
-          ? "bg-purple-900/75"
+        shiftSwapPurple && isCurrentMonth ? "bg-purple-900/75" : "",
+        // Retirada de horas (banco de horas): destaque laranja apenas quando o dia ainda é WORK.
+        hoursWithdrawnOrange && isCurrentMonth && status === "WORK" && !shiftSwapPurple
+          ? "bg-orange-500/90"
           : "",
         isClickable && "cursor-pointer",
         !isClickable && "cursor-default",

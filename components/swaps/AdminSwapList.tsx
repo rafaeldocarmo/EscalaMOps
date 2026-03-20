@@ -62,13 +62,21 @@ function getDescription(s: SwapRequestRow): string {
 
 interface AdminSwapListProps {
   sessionMemberId?: string | null;
+  filter?: FilterTab;
+  onFilterChange?: (filter: FilterTab) => void;
+  hideFilterTabs?: boolean;
 }
 
-export function AdminSwapList({ sessionMemberId }: AdminSwapListProps) {
+export function AdminSwapList({
+  sessionMemberId,
+  filter: filterProp,
+  onFilterChange,
+  hideFilterTabs = false,
+}: AdminSwapListProps) {
   const [list, setList] = useState<SwapRequestRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [actionId, setActionId] = useState<string | null>(null);
-  const [filter, setFilter] = useState<FilterTab>("pending");
+  const [internalFilter, setInternalFilter] = useState<FilterTab>("pending");
 
   const load = () => {
     getSwapRequestsForAdmin().then((data) => {
@@ -80,6 +88,12 @@ export function AdminSwapList({ sessionMemberId }: AdminSwapListProps) {
   useEffect(() => {
     load();
   }, []);
+
+  const filter = filterProp ?? internalFilter;
+  const setFilter = (next: FilterTab) => {
+    if (onFilterChange) onFilterChange(next);
+    else setInternalFilter(next);
+  };
 
   const filteredList = list.filter((s) => {
     if (filter === "pending") return PENDING_STATUSES.includes(s.status);
@@ -140,41 +154,43 @@ export function AdminSwapList({ sessionMemberId }: AdminSwapListProps) {
 
   return (
     <div className="space-y-6">
-      <div className="inline-flex rounded-lg border border-border bg-muted/20 p-1">
-        <button
-          type="button"
-          onClick={() => setFilter("pending")}
-          className={`rounded-md px-4 py-2 text-sm font-medium transition-colors ${
-            filter === "pending"
-              ? "bg-background text-foreground shadow-sm"
-              : "text-muted-foreground hover:text-foreground"
-          }`}
-        >
-          Pendentes
-        </button>
-        <button
-          type="button"
-          onClick={() => setFilter("approved")}
-          className={`rounded-md px-4 py-2 text-sm font-medium transition-colors ${
-            filter === "approved"
-              ? "bg-background text-foreground shadow-sm"
-              : "text-muted-foreground hover:text-foreground"
-          }`}
-        >
-          Aprovadas
-        </button>
-        <button
-          type="button"
-          onClick={() => setFilter("rejected")}
-          className={`rounded-md px-4 py-2 text-sm font-medium transition-colors ${
-            filter === "rejected"
-              ? "bg-background text-foreground shadow-sm"
-              : "text-muted-foreground hover:text-foreground"
-          }`}
-        >
-          Rejeitadas
-        </button>
-      </div>
+      {!hideFilterTabs ? (
+        <div className="inline-flex rounded-lg border border-border bg-muted/20 p-1">
+          <button
+            type="button"
+            onClick={() => setFilter("pending")}
+            className={`rounded-md px-4 py-2 text-sm font-medium transition-colors ${
+              filter === "pending"
+                ? "bg-background text-foreground shadow-sm"
+                : "text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            Pendentes
+          </button>
+          <button
+            type="button"
+            onClick={() => setFilter("approved")}
+            className={`rounded-md px-4 py-2 text-sm font-medium transition-colors ${
+              filter === "approved"
+                ? "bg-background text-foreground shadow-sm"
+                : "text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            Aprovadas
+          </button>
+          <button
+            type="button"
+            onClick={() => setFilter("rejected")}
+            className={`rounded-md px-4 py-2 text-sm font-medium transition-colors ${
+              filter === "rejected"
+                ? "bg-background text-foreground shadow-sm"
+                : "text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            Rejeitadas
+          </button>
+        </div>
+      ) : null}
 
       {filteredList.length === 0 ? (
         <Card>
@@ -263,7 +279,7 @@ export function AdminSwapList({ sessionMemberId }: AdminSwapListProps) {
                         <div className="flex flex-wrap gap-2 pt-1">
                           {canAcceptAsSecondUser(s) && (
                             <Button
-                              size="sm"
+                              size="lg"
                               variant="outline"
                               disabled={actionId === s.id}
                               onClick={() => handleAccept(s.id)}
@@ -273,7 +289,7 @@ export function AdminSwapList({ sessionMemberId }: AdminSwapListProps) {
                           )}
                           {canApprove(s) && (
                             <Button
-                              size="sm"
+                              size="lg"
                               disabled={actionId === s.id}
                               onClick={() => handleApprove(s.id)}
                             >
@@ -282,7 +298,7 @@ export function AdminSwapList({ sessionMemberId }: AdminSwapListProps) {
                           )}
                           {canReject(s) && (
                             <Button
-                              size="sm"
+                              size="lg"
                               variant="destructive"
                               disabled={actionId === s.id}
                               onClick={() => handleReject(s.id)}

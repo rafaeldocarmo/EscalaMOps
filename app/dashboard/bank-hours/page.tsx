@@ -1,8 +1,8 @@
 import { auth } from "@/auth";
 import { redirect } from "next/navigation";
-import { AdminApprovalsToggle } from "@/components/dashboard/admin-approvals-toggle";
+import { AdminBankHoursList } from "@/components/bank-hours/AdminBankHoursList";
 
-export default async function AdminSwapsPage() {
+export default async function BankHoursAdminPage() {
   const session = await auth();
   if (!session?.user) redirect("/login");
   if (session.user.role !== "ADMIN") redirect("/dashboard");
@@ -10,11 +10,10 @@ export default async function AdminSwapsPage() {
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-4">
-        <h1 className="text-2xl font-bold tracking-tight text-foreground">
-          Aprovações
-        </h1>
+        <h1 className="text-2xl font-bold tracking-tight text-foreground">Banco de Horas</h1>
       </div>
-      <AdminApprovalsToggle sessionMemberId={session.member?.id ?? null} />
+      <AdminBankHoursList />
     </div>
   );
 }
+

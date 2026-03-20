@@ -1,6 +1,6 @@
 "use client";
 
-import { Calendar, CalendarClock, FileText, ShieldCheck } from "lucide-react";
+import { Calendar, CalendarClock, FileText, ShieldCheck, Clock3 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 
@@ -10,6 +10,7 @@ export function MyScheduleQuickActions({
   onSwapHistory,
   onSwapOnCall,
   onSwapTurn,
+  onBankHours,
   onCallEnabled,
 }: {
   onSwapOff: () => void;
@@ -17,6 +18,7 @@ export function MyScheduleQuickActions({
   onSwapHistory: () => void;
   onSwapOnCall: () => void;
   onSwapTurn: () => void;
+  onBankHours: () => void;
   onCallEnabled: boolean;
 }) {
   return (
@@ -46,7 +48,7 @@ export function MyScheduleQuickActions({
         >
           <CalendarClock className="h-5 w-5 text-muted-foreground group-hover:text-red-600 transition-colors" />
           <span className="text-xs font-medium text-foreground group-hover:text-red-600 transition-colors">
-            Trocar Fim de Semana
+            Trocar FDS
           </span>
         </Button>
         <Button
@@ -82,6 +84,18 @@ export function MyScheduleQuickActions({
           <CalendarClock className="h-5 w-5 text-muted-foreground group-hover:text-purple-600 transition-colors" />
           <span className="text-xs font-medium text-foreground group-hover:text-purple-600 transition-colors">
             Trocar Turno
+          </span>
+        </Button>
+
+        <Button
+          variant="outline"
+          size="sm"
+          className="group h-auto flex-col gap-2 py-3 cursor-pointer border-border hover:border-indigo-500 hover:bg-indigo-500/10 hover:text-indigo-600"
+          onClick={onBankHours}
+        >
+          <Clock3 className="h-5 w-5 text-muted-foreground group-hover:text-indigo-600 transition-colors" />
+          <span className="text-xs font-medium text-foreground group-hover:text-indigo-600 transition-colors">
+            Banco de Horas
           </span>
         </Button>
       </CardContent>

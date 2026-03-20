@@ -96,6 +96,10 @@ model TeamMember {
   swapRequestsAsTarget    ScheduleSwapRequest[] @relation("SwapTarget")
   onCallAssignments       OnCallAssignment[]
 
+  bankHourBalance       BankHourBalance? @relation("BankHourBalance")
+  bankHourRequests      BankHourRequest[] @relation("BankHourRequests")
+  bankHourTransactions   BankHourTransaction[] @relation("BankHourTransactions")
+
   @@index([normalizedPhone])
   @@map("team_members")
 }
@@ -196,4 +200,59 @@ model OnCallAssignment {
   member TeamMember @relation(fields: [memberId], references: [id], onDelete: Cascade)
 
   @@map("on_call_assignments")
+}
+
+enum BankHourRequestType {
+  EXTRA_HOURS
+  OFF_HOURS
+}
+
+enum BankHourRequestStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+model BankHourBalance {
+  memberId     String   @id @map("member_id")
+  balanceHours Decimal  @default(0) @map("balance_hours") @db.Decimal(10, 2)
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  member TeamMember @relation("BankHourBalance", fields: [memberId], references: [id], onDelete: Cascade)
+
+  @@map("bank_hour_balances")
+}
+
+model BankHourRequest {
+  id             String                  @id @default(cuid())
+  type           BankHourRequestType
+  requesterId    String                  @map("requester_id")
+  date           DateTime                @map("date")
+  hours          Decimal                 @map("hours") @db.Decimal(10, 2)
+  justification  String?                 @map("justification")
+  status         BankHourRequestStatus
+  adminApprovedAt DateTime?             @map("admin_approved_at")
+  adminRejectedAt DateTime?             @map("admin_rejected_at")
+  createdAt      DateTime                @default(now())
+  updatedAt      DateTime                @updatedAt
+
+  requester TeamMember @relation("BankHourRequests", fields: [requesterId], references: [id], onDelete: Cascade)
+  transaction BankHourTransaction?
+
+  @@index([requesterId, status])
+
+  @@map("bank_hour_requests")
+}
+
+model BankHourTransaction {
+  id          String            @id @default(cuid())
+  memberId    String            @map("member_id")
+  requestId   String            @unique @map("request_id")
+  deltaHours  Decimal           @map("delta_hours") @db.Decimal(10, 2)
+  createdAt   DateTime          @default(now()) @map("created_at")
+
+  member   TeamMember     @relation("BankHourTransactions", fields: [memberId], references: [id], onDelete: Cascade)
+  request  BankHourRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+
+  @@map("bank_hour_transactions")
 }

@@ -4,11 +4,11 @@ import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { getMySchedule } from "@/server/schedule/getMySchedule";
 import { getMySwapRequests } from "@/server/swaps/getSwaps";
-import { getMyOnCallSchedule, type MyOnCallPeriod } from "@/server/sobreaviso/getMyOnCallSchedule";
+import { type MyOnCallPeriod } from "@/server/sobreaviso/getMyOnCallSchedule";
 import { getScheduleCalendarDays } from "@/lib/scheduleUtils";
+import { getApprovedOffHoursWithdrawnDatesForMonth } from "@/server/bank-hours/getApprovedOffHoursWithdrawnDatesForMonth";
 import { MonthNavigator } from "./month-navigator";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
 import { WEEKDAY_LABELS, MONTH_NAMES } from "@/lib/constants";
 import { useMonthNavigation } from "@/hooks/useMonthNavigation";
 import {
@@ -19,14 +19,9 @@ import {
 } from "@/components/ui/dialog";
 import { UnifiedSwapForm } from "@/components/swaps/UnifiedSwapForm";
 import { SwapHistoryList } from "@/components/swaps/SwapHistoryList";
-import {
-  FileText,
-  Briefcase,
-  Coffee,
-} from "lucide-react";
-import { ShieldCheck } from "lucide-react";
 import { MyScheduleQuickActions } from "@/components/schedule/my-schedule-quick-actions";
 import { MyScheduleUpcomingEvents } from "@/components/schedule/my-schedule-upcoming-events";
+import { BankHoursForm } from "@/components/bank-hours/BankHoursForm";
 
 const PENDING_STATUSES = ["PENDING", "WAITING_SECOND_USER", "SECOND_USER_ACCEPTED"];
 
@@ -56,11 +51,13 @@ export function MyScheduleView({
   const [swapHighlightDateKeys, setSwapHighlightDateKeys] = useState<string[]>([]);
   const [turnSwapPendingDateKeys, setTurnSwapPendingDateKeys] = useState<string[]>([]);
   const [turnSwapApprovedDateKeys, setTurnSwapApprovedDateKeys] = useState<string[]>([]);
+  const [bankHourWithdrawnDateKeys, setBankHourWithdrawnDateKeys] = useState<string[]>([]);
   const [onCallPeriods, setOnCallPeriods] = useState<MyOnCallPeriod[]>(dashboardData?.onCallPeriods ?? []);
   const [swapOffModalOpen, setSwapOffModalOpen] = useState(false);
   const [swapQueueModalOpen, setSwapQueueModalOpen] = useState(false);
   const [swapOnCallModalOpen, setSwapOnCallModalOpen] = useState(false);
   const [swapTurnModalOpen, setSwapTurnModalOpen] = useState(false);
+  const [bankHoursModalOpen, setBankHoursModalOpen] = useState(false);
   const [swapHistoryModalOpen, setSwapHistoryModalOpen] = useState(false);
   const searchParams = useSearchParams();
 
@@ -152,6 +149,34 @@ export function MyScheduleView({
     window.addEventListener("swaps-updated", handler);
     return () => window.removeEventListener("swaps-updated", handler);
   }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const load = async () => {
+      const [scheduleRes, withdrawnMap] = await Promise.all([
+        getMySchedule(memberId, year, month),
+        getApprovedOffHoursWithdrawnDatesForMonth(year, month),
+      ]);
+      if (cancelled) return;
+
+      setData(scheduleRes);
+      setBankHourWithdrawnDateKeys(withdrawnMap[memberId] ?? []);
+    };
+
+    // Carrega no mount (e quando year/month mudarem) e também ao receber o evento.
+    load();
+
+    const handler = () => {
+      load();
+    };
+
+    window.addEventListener("bank-hours-updated", handler);
+    return () => {
+      cancelled = true;
+      window.removeEventListener("bank-hours-updated", handler);
+    };
+  }, [memberId, year, month]);
 
   const calendarDays = useMemo(
     () => getScheduleCalendarDays(year, month),
@@ -287,6 +312,10 @@ export function MyScheduleView({
                 const isTurnSwapPending = day.isCurrentMonth && turnSwapPendingDateKeys.includes(day.dateKey);
                 const isTurnSwapApproved = day.isCurrentMonth && turnSwapApprovedDateKeys.includes(day.dateKey);
                 const isTurnSwapHighlight = isTurnSwapPending || isTurnSwapApproved;
+                const isBankHourWithdrawn =
+                  day.isCurrentMonth &&
+                  status === "WORK" &&
+                  bankHourWithdrawnDateKeys.includes(day.dateKey);
                 const isOnCall = day.isCurrentMonth && onCallDates.has(day.dateKey);
                 const isOnCallTransition = day.isCurrentMonth && onCallTransitionDates.has(day.dateKey);
                 return (
@@ -297,6 +326,8 @@ export function MyScheduleView({
                         ? "border-purple-500/60 bg-purple-400/50 ring-1 ring-purple-600/40 hover:bg-purple-400/60 hover:ring-1 hover:ring-purple-600/50"
                         : isSwapHighlight
                         ? "border-amber-500/60 bg-amber-400/50 ring-1 ring-amber-600/40 hover:bg-amber-400/60 hover:ring-1 hover:ring-amber-600/50"
+                          : isBankHourWithdrawn
+                            ? "border-orange-500/60 bg-orange-400/50 ring-1 ring-orange-600/40 hover:bg-orange-400/60 hover:ring-1 hover:ring-orange-600/50"
                         : status === "OFF"
                           ? "border-red-500/30 bg-red-500/20 hover:bg-red-500/30 hover:ring-1 hover:ring-red-500/40"
                           : status === "WORK"
@@ -318,6 +349,8 @@ export function MyScheduleView({
                             ? "text-purple-900"
                             : isSwapHighlight
                               ? "text-amber-900"
+                              : isBankHourWithdrawn
+                                ? "text-orange-900"
                               : status === "OFF"
                                 ? "text-red-800"
                                 : "text-green-800"
@@ -326,9 +359,15 @@ export function MyScheduleView({
                         {dayNum}
                       </span>
                     )}
-                    {status === "WORK" && !isSwapHighlight && !isTurnSwapHighlight && (
-                      <span className="relative z-10 text-[10px] font-medium text-green-800">TRABALHO</span>
+                    {isBankHourWithdrawn && !isSwapHighlight && !isTurnSwapHighlight && (
+                      <span className="relative z-10 text-[10px] font-medium text-orange-900">RETIRADA DE HORAS</span>
                     )}
+                    {status === "WORK" &&
+                      !isSwapHighlight &&
+                      !isTurnSwapHighlight &&
+                      !isBankHourWithdrawn && (
+                        <span className="relative z-10 text-[10px] font-medium text-green-800">TRABALHO</span>
+                      )}
                     {status === "OFF" && !isSwapHighlight && !isTurnSwapHighlight && (
                       <span className="relative z-10 text-[10px] font-medium text-red-800">FOLGA</span>
                     )}
@@ -358,6 +397,10 @@ export function MyScheduleView({
                 <span className="text-xs text-muted-foreground">Troca Solicitada</span>
               </div>
               <div className="flex items-center gap-2">
+                <span className="h-3 w-3 rounded-full bg-orange-400" aria-hidden />
+                <span className="text-xs text-muted-foreground">Retirada de horas</span>
+              </div>
+              <div className="flex items-center gap-2">
                 <span className="h-3 w-3 rounded-full bg-purple-400" aria-hidden />
                 <span className="text-xs text-muted-foreground">Troca de Turno</span>
               </div>
@@ -379,6 +422,7 @@ export function MyScheduleView({
           onSwapHistory={() => setSwapHistoryModalOpen(true)}
           onSwapOnCall={() => setSwapOnCallModalOpen(true)}
           onSwapTurn={() => setSwapTurnModalOpen(true)}
+          onBankHours={() => setBankHoursModalOpen(true)}
           onCallEnabled={onCallDates.size !== 0 || onCallTransitionDates.size !== 0}
         />
 
@@ -442,6 +486,14 @@ export function MyScheduleView({
               <DialogTitle>Solicitações de troca</DialogTitle>
             </DialogHeader>
             <SwapHistoryList memberId={memberId} initialList={initialSwaps} />
+          </DialogContent>
+        )}
+      </Dialog>
+
+      <Dialog open={bankHoursModalOpen} onOpenChange={setBankHoursModalOpen}>
+        {bankHoursModalOpen && (
+          <DialogContent className="max-w-[900px]! max-h-[90vh] overflow-y-auto">
+            <BankHoursForm memberId={memberId} defaultMode="extra" />
           </DialogContent>
         )}
       </Dialog>

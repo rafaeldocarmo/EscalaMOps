@@ -39,6 +39,7 @@ import { adminBackCycleRotationQueueForAllMembers } from "@/server/schedule/admi
 import type { ScheduleStateMap } from "@/types/schedule";
 import { Button } from "@/components/ui/button";
 import { getShiftSwapRequestsForMonth } from "@/server/swaps/getShiftSwapRequestsForMonth";
+import { getApprovedOffHoursWithdrawnDatesForMonth } from "@/server/bank-hours/getApprovedOffHoursWithdrawnDatesForMonth";
 
 interface SchedulePageClientProps {
   schedule: ScheduleRow;
@@ -72,6 +73,7 @@ export function SchedulePageClient({
   const [swapLoading, setSwapLoading] = useState(false);
   const [backCycleLoading, setBackCycleLoading] = useState(false);
   const [shiftSwapPurpleByMemberId, setShiftSwapPurpleByMemberId] = useState<Record<string, string[]>>({});
+  const [hoursWithdrawnOrangeByMemberId, setHoursWithdrawnOrangeByMemberId] = useState<Record<string, string[]>>({});
   const [levelFilter, setLevelFilter] = useState<Level[]>(["N1", "N2"]);
   const [shiftFilter, setShiftFilter] = useState<Shift[]>(SHIFT_OPTIONS.map((s) => s.value));
 
@@ -97,6 +99,23 @@ export function SchedulePageClient({
       setShiftSwapPurpleByMemberId(map);
     });
   }, [schedule.year, schedule.month]);
+
+  useEffect(() => {
+    getApprovedOffHoursWithdrawnDatesForMonth(schedule.year, schedule.month).then((map) => {
+      setHoursWithdrawnOrangeByMemberId(map);
+    });
+  }, [schedule.year, schedule.month]);
+
+  useEffect(() => {
+    const handler = () => {
+      // Atualiza também OFF completo (8h) na escala.
+      router.refresh();
+      getApprovedOffHoursWithdrawnDatesForMonth(schedule.year, schedule.month).then(setHoursWithdrawnOrangeByMemberId);
+    };
+
+    window.addEventListener("bank-hours-updated", handler);
+    return () => window.removeEventListener("bank-hours-updated", handler);
+  }, [router, schedule.year, schedule.month]);
 
   const memberById = useMemo(
     () => new Map(members.map((m) => [m.id, m] as const)),
@@ -460,7 +479,8 @@ export function SchedulePageClient({
           sections={sections}
           calendarDays={calendarDays}
           stateMap={stateMap}
-              shiftSwapPurpleByMemberId={shiftSwapPurpleByMemberId}
+          shiftSwapPurpleByMemberId={shiftSwapPurpleByMemberId}
+          hoursWithdrawnOrangeByMemberId={hoursWithdrawnOrangeByMemberId}
           onCellToggle={handleCellToggle}
           onMemberClick={handleMemberClick}
           selectedMemberId={selectedMemberId}

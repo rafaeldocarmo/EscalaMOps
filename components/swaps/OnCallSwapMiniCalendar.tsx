@@ -5,6 +5,8 @@ import { getOnCallScheduleForMember, type OnCallPeriod } from "@/server/sobreavi
 import { getScheduleCalendarDays, periodsToDateSet } from "@/lib/scheduleUtils";
 import { WEEKDAY_LABELS } from "@/lib/constants";
 
+const onCallScheduleCache = new Map<string, Promise<OnCallPeriod[]>>();
+
 export function OnCallSwapMiniCalendar({
   currentMemberId,
   newMemberId,
@@ -22,8 +24,35 @@ export function OnCallSwapMiniCalendar({
   const [newPeriods, setNewPeriods] = useState<OnCallPeriod[]>([]);
 
   useEffect(() => {
-    getOnCallScheduleForMember(currentMemberId, year, month).then(setCurrentPeriods);
-    getOnCallScheduleForMember(newMemberId, year, month).then(setNewPeriods);
+    let cancelled = false;
+
+    const currentKey = `${currentMemberId}-${year}-${month}`;
+    const newKey = `${newMemberId}-${year}-${month}`;
+
+    let pCurrent = onCallScheduleCache.get(currentKey);
+    if (!pCurrent) {
+      pCurrent = getOnCallScheduleForMember(currentMemberId, year, month);
+      onCallScheduleCache.set(currentKey, pCurrent);
+    }
+
+    let pNew = onCallScheduleCache.get(newKey);
+    if (!pNew) {
+      pNew = getOnCallScheduleForMember(newMemberId, year, month);
+      onCallScheduleCache.set(newKey, pNew);
+    }
+
+    pCurrent.then((res) => {
+      if (cancelled) return;
+      setCurrentPeriods(res);
+    });
+    pNew.then((res) => {
+      if (cancelled) return;
+      setNewPeriods(res);
+    });
+
+    return () => {
+      cancelled = true;
+    };
   }, [currentMemberId, newMemberId, year, month]);
 
   const currentDates = periodsToDateSet(currentPeriods);
