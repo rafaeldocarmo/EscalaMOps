@@ -3,6 +3,34 @@
 import "dotenv/config";
 import { defineConfig } from "prisma/config";
 
+/**
+ * `prisma migrate deploy` precisa de conexão direta ao Postgres. URLs com pooler Neon
+ * (`-pooler` no hostname → PgBouncer) costumam falhar no advisory lock (P1002).
+ *
+ * Ordem: `DATABASE_URL_UNPOOLED` (explícito) → derivação Neon (remove `-pooler.` do host)
+ * → `DATABASE_URL`.
+ */
+function resolveMigrateDatasourceUrl(): string {
+  const explicit = process.env["DATABASE_URL_UNPOOLED"];
+  if (explicit?.trim()) return explicit.trim();
+
+  const pooled = process.env["DATABASE_URL"];
+  if (!pooled?.trim()) return "";
+
+  try {
+    const u = new URL(pooled);
+    // Neon: host típico `ep-xxx-pooler.region.aws.neon.tech` → direto `ep-xxx.region.aws.neon.tech`
+    if (u.hostname.includes("-pooler.")) {
+      u.hostname = u.hostname.replace("-pooler.", ".");
+      return u.toString();
+    }
+  } catch {
+    /* ignore parse errors, fall through */
+  }
+
+  return pooled;
+}
+
 export default defineConfig({
   schema: "prisma/schema.prisma",
   migrations: {
@@ -10,9 +38,6 @@ export default defineConfig({
     seed: "tsx prisma/seed.ts",
   },
   datasource: {
-    // Migrações precisam de conexão direta ao Postgres. URLs com pooler Neon (-pooler)
-    // (PgBouncer) costumam falhar no advisory lock do Prisma (P1002 no deploy).
-    // Na Vercel: defina DATABASE_URL_UNPOOLED com a connection string "direct" do Neon.
-    url: process.env["DATABASE_URL_UNPOOLED"] ?? process.env["DATABASE_URL"],
+    url: resolveMigrateDatasourceUrl(),
   },
 });
