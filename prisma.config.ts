@@ -10,6 +10,9 @@ export default defineConfig({
     seed: "tsx prisma/seed.ts",
   },
   datasource: {
-    url: process.env["DATABASE_URL"],
+    // Migrações precisam de conexão direta ao Postgres. URLs com pooler Neon (-pooler)
+    // (PgBouncer) costumam falhar no advisory lock do Prisma (P1002 no deploy).
+    // Na Vercel: defina DATABASE_URL_UNPOOLED com a connection string "direct" do Neon.
+    url: process.env["DATABASE_URL_UNPOOLED"] ?? process.env["DATABASE_URL"],
   },
 });
