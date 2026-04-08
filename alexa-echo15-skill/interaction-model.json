@@ -1,0 +1,25 @@
+{
+  "interactionModel": {
+    "languageModel": {
+      "invocationName": "escala mops",
+      "intents": [
+        {
+          "name": "GetTodaySummaryIntent",
+          "samples": [
+            "resumo de hoje",
+            "quem está escalado hoje",
+            "quem está de folga hoje",
+            "quem é o sobreaviso de hoje",
+            "mostrar escala de hoje"
+          ]
+        },
+        { "name": "AMAZON.CancelIntent", "samples": [] },
+        { "name": "AMAZON.StopIntent", "samples": [] },
+        { "name": "AMAZON.HelpIntent", "samples": [] },
+        { "name": "AMAZON.FallbackIntent", "samples": [] }
+      ],
+      "types": []
+    }
+  }
+}
+
