@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { MonthNavigator } from "./month-navigator";
 import { getNextMonth, getPreviousMonth } from "@/lib/monthNavigation";
+import { FileDown } from "lucide-react";
 
 interface ScheduleToolbarProps {
   year: number;
@@ -11,6 +12,7 @@ interface ScheduleToolbarProps {
   onGenerate: () => void;
   onSave: () => void;
   onClear: () => void;
+  onExportExcel?: () => void;
   generateDisabled?: boolean;
   saveLoading?: boolean;
   generateLoading?: boolean;
@@ -24,6 +26,7 @@ export function ScheduleToolbar({
   onGenerate,
   onSave,
   onClear,
+  onExportExcel,
   generateDisabled = false,
   saveLoading = false,
   generateLoading = false,
@@ -68,6 +71,17 @@ export function ScheduleToolbar({
         >
           {saveLoading ? "Salvando…" : "Salvar Alterações"}
         </Button>
+        {onExportExcel && (
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={onExportExcel}
+            disabled={saveLoading || generateLoading}
+          >
+            <FileDown className="mr-1.5 h-4 w-4" />
+            Exportar Excel
+          </Button>
+        )}
       </div>
       <div className="flex flex-wrap items-center justify-end gap-2">
         {rightContent}

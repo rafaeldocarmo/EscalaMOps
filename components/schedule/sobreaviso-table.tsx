@@ -176,11 +176,12 @@ export function SobreavisoTable({
                       {currentMonthDays.map((day) => {
                         const isActive = member.activeDates.has(day.dateKey);
                         const isTransition = member.transitionDates.has(day.dateKey);
+                        const hoverLabel = `${day.weekdayLabel}, ${day.dayLabel}/${day.dateKey.slice(5, 7)}/${day.dateKey.slice(0, 4)}`;
                         return (
                           <td
                             key={day.dateKey}
                             className={cn(
-                              "h-8 min-w-[2.25rem] border-b border-r border-border p-0 text-xs last:border-r-0",
+                              "group relative h-8 min-w-[2.25rem] border-b border-r border-border p-0 text-xs last:border-r-0",
                               isActive
                                 ? "bg-blue-500"
                                 : isTransition
@@ -188,7 +189,18 @@ export function SobreavisoTable({
                                   : "bg-background"
                             )}
                             aria-label={`${day.dateKey}: ${isActive ? "SOBREAVISO" : isTransition ? "TRANSIÇÃO" : ""}`}
-                          />
+                          >
+                            <span
+                              className={cn(
+                                "pointer-events-none absolute left-1/2 top-0 z-50 -translate-x-1/2 -translate-y-[calc(100%+8px)]",
+                                "whitespace-nowrap rounded-md border border-rose-200 bg-rose-50 px-2 py-1 text-[11px] font-medium text-rose-900 shadow-sm",
+                                "dark:border-rose-900/60 dark:bg-rose-950/70 dark:text-rose-100",
+                                "opacity-0 transition-opacity duration-150 group-hover:opacity-100"
+                              )}
+                            >
+                              {hoverLabel}
+                            </span>
+                          </td>
                         );
                       })}
                     </tr>

@@ -59,6 +59,7 @@ function ScheduleRowComponent({
           status={stateSlice[day.dateKey] ?? "WORK"}
           locked={locked}
           isCurrentMonth={day.isCurrentMonth}
+          hoverLabel={`${day.weekdayLabel}, ${day.dayLabel}/${day.dateKey.slice(5, 7)}/${day.dateKey.slice(0, 4)}`}
           shiftSwapPurple={day.isCurrentMonth && shiftSwapPurpleSet.has(day.dateKey)}
           hoursWithdrawnOrange={day.isCurrentMonth && hoursWithdrawnOrangeSet.has(day.dateKey)}
           onToggle={handleToggle}

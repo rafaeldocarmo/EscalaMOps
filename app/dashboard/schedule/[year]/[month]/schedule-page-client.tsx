@@ -40,6 +40,7 @@ import type { ScheduleStateMap } from "@/types/schedule";
 import { Button } from "@/components/ui/button";
 import { getShiftSwapRequestsForMonth } from "@/server/swaps/getShiftSwapRequestsForMonth";
 import { getApprovedOffHoursWithdrawnDatesForMonth } from "@/server/bank-hours/getApprovedOffHoursWithdrawnDatesForMonth";
+import { exportScheduleToExcel } from "@/lib/exportScheduleToExcel";
 
 interface SchedulePageClientProps {
   schedule: ScheduleRow;
@@ -361,6 +362,11 @@ export function SchedulePageClient({
     schedule.id,
   ]);
 
+  const handleExportExcel = useCallback(async () => {
+    await exportScheduleToExcel(schedule.year, schedule.month, members, stateMap);
+    toast.success("Planilha exportada.");
+  }, [schedule.year, schedule.month, members, stateMap]);
+
   return (
     <div className="space-y-6">
       <AlertDialog open={clearOpen} onOpenChange={setClearOpen}>
@@ -423,6 +429,7 @@ export function SchedulePageClient({
           onGenerate={handleGenerate}
           onSave={handleSave}
           onClear={handleClearRequest}
+          onExportExcel={handleExportExcel}
           generateDisabled={hasGenerated}
           saveLoading={saveLoading}
           generateLoading={generateLoading}
