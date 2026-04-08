@@ -30,7 +30,7 @@ const FILL_SECTION_HEADER: ExcelJS.Fill = {
   fgColor: { argb: "FFE4E4E7" },
 };
 
-const THIN_BORDER: ExcelJS.Border = {
+const THIN_BORDER = {
   top: { style: "thin", color: { argb: "FF000000" } },
   left: { style: "thin", color: { argb: "FF000000" } },
   bottom: { style: "thin", color: { argb: "FF000000" } },
@@ -38,7 +38,8 @@ const THIN_BORDER: ExcelJS.Border = {
 };
 
 function setCellBorder(cell: ExcelJS.Cell): void {
-  cell.border = THIN_BORDER;
+  // ExcelJS typings vary by version; cast keeps compatibility.
+  (cell as unknown as { border: unknown }).border = THIN_BORDER;
 }
 
 export async function exportScheduleToExcel(
