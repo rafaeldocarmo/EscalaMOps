@@ -17,7 +17,15 @@ export async function getBankHourRequestsForAdmin(): Promise<BankHourRequestRow[
 
   const list = await prisma.bankHourRequest.findMany({
     orderBy: { createdAt: "desc" },
-    include: { requester: { select: { id: true, name: true } } },
+    include: {
+      requester: {
+        select: {
+          id: true,
+          name: true,
+          bankHourBalance: { select: { balanceHours: true } },
+        },
+      },
+    },
   });
 
   return list.map((r) => ({
@@ -29,6 +37,7 @@ export async function getBankHourRequestsForAdmin(): Promise<BankHourRequestRow[
     hours: r.hours.toNumber(),
     justification: r.justification,
     status: r.status as BankHourRequestStatus,
+    requesterBalanceHours: r.requester.bankHourBalance?.balanceHours.toNumber() ?? 0,
     adminApprovedAt: r.adminApprovedAt ? r.adminApprovedAt.toISOString() : null,
     adminRejectedAt: r.adminRejectedAt ? r.adminRejectedAt.toISOString() : null,
     createdAt: r.createdAt.toISOString(),

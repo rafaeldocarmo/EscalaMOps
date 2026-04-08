@@ -18,6 +18,14 @@ import { getMySchedule } from "@/server/schedule/getMySchedule";
 import { useMonthNavigation } from "@/hooks/useMonthNavigation";
 
 type Mode = "extra" | "off";
+type OffUsageMode = "full" | "partial";
+
+function timeToMinutes(value: string): number | null {
+  const [h, m] = value.split(":").map(Number);
+  if (!Number.isFinite(h) || !Number.isFinite(m)) return null;
+  if (h < 0 || h > 23 || m < 0 || m > 59) return null;
+  return h * 60 + m;
+}
 
 export function BankHoursForm({
   memberId,
@@ -44,12 +52,14 @@ export function BankHoursForm({
   const [offYear, setOffYear] = useState<number>(new Date().getFullYear());
   const [offMonth, setOffMonth] = useState<number>(new Date().getMonth() + 1);
   const [offScheduleDays, setOffScheduleDays] = useState<MyScheduleDay[] | null>(null);
-  const [offHours, setOffHours] = useState<string>("");
+  const [offUsageMode, setOffUsageMode] = useState<OffUsageMode>("full");
+  const [offStartTime, setOffStartTime] = useState<string>("08:00");
+  const [offEndTime, setOffEndTime] = useState<string>("16:00");
   const [offJustification, setOffJustification] = useState<string>("");
   const [offSubmitting, setOffSubmitting] = useState(false);
 
   const modeTitle = useMemo(() => {
-    return mode === "extra" ? "Cadastrar horas extras" : "Solicitar folga (banco de horas)";
+    return mode === "extra" ? "Criar saldo (horas extras)" : "Utilizar saldo (folga por banco de horas)";
   }, [mode]);
 
   useEffect(() => {
@@ -115,6 +125,24 @@ export function BankHoursForm({
     return Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 12, 0, 0, 0);
   }, []);
 
+  const partialOffHours = useMemo(() => {
+    const start = timeToMinutes(offStartTime);
+    const end = timeToMinutes(offEndTime);
+    if (start === null || end === null || end <= start) return 0;
+    const diffMinutes = end - start;
+    return Number((diffMinutes / 60).toFixed(2));
+  }, [offStartTime, offEndTime]);
+
+  const offHoursToSpend = useMemo(
+    () => (offUsageMode === "full" ? 8 : partialOffHours),
+    [offUsageMode, partialOffHours]
+  );
+
+  const balanceAfterRequest = useMemo(
+    () => Number((balance - offHoursToSpend).toFixed(2)),
+    [balance, offHoursToSpend]
+  );
+
   async function handleSubmitExtra(e: React.FormEvent) {
     e.preventDefault();
     if (extraSubmitting) return;
@@ -153,21 +181,26 @@ export function BankHoursForm({
       toast.error("Selecione um dia de folga.");
       return;
     }
-    if (!offHours) {
-      toast.error("Informe a quantidade de horas.");
-      return;
-    }
     if (!offJustification || offJustification.trim().length < 2) {
       toast.error("Informe a justificativa.");
       return;
     }
-    const offHoursNumber = Number(offHours);
+    const offHoursNumber = offHoursToSpend;
     if (!Number.isFinite(offHoursNumber) || offHoursNumber <= 0 || offHoursNumber > 8) {
-      toast.error("Horas inválidas.");
+      toast.error("Período/horas inválidos.");
       return;
     }
+    if (offHoursNumber > balance) {
+      toast.error("Saldo insuficiente de banco de horas para essa seleção.");
+      return;
+    }
+    const periodLabel =
+      offUsageMode === "full"
+        ? "Dia inteiro"
+        : `Parcial (${offStartTime} às ${offEndTime})`;
+    const fullJustification = `${offJustification.trim()}\nPeríodo solicitado: ${periodLabel}`;
     setOffSubmitting(true);
-    const res = await createOffHoursRequest(offDateKey, offHoursNumber, offJustification);
+    const res = await createOffHoursRequest(offDateKey, offHoursNumber, fullJustification);
     setOffSubmitting(false);
     if (!res.success) {
       toast.error(res.error);
@@ -175,7 +208,9 @@ export function BankHoursForm({
     }
     toast.success("Solicitação de folga enviada. Aguarde aprovação do administrador.");
     setOffDateKey("");
-    setOffHours("");
+    setOffUsageMode("full");
+    setOffStartTime("08:00");
+    setOffEndTime("16:00");
     setOffJustification("");
     window.dispatchEvent(new CustomEvent("bank-hours-updated"));
   }
@@ -194,13 +229,13 @@ export function BankHoursForm({
               value="extra"
               className="flex-1 text-muted-foreground hover:text-foreground transition-colors px-3 py-1.5"
             >
-              Horas extras
+              Criar saldo
             </TabsTrigger>
             <TabsTrigger
               value="off"
               className="flex-1 text-muted-foreground hover:text-foreground transition-colors px-3 py-1.5"
             >
-              Folga
+              Utilizar saldo
             </TabsTrigger>
           </TabsList>
           <TabsContent value="extra">
@@ -357,19 +392,72 @@ export function BankHoursForm({
                     })}
                   </div>
                 </div>
-                <div className="space-y-1">
-                  <Label htmlFor="off-hours">Horas a usar</Label>
-                  <Input
-                    id="off-hours"
-                    type="number"
-                    inputMode="decimal"
-                    step={0.25}
-                    value={offHours}
-                    onChange={(e) => setOffHours(e.target.value)}
-                    min={0}
-                    max={8}
-                    required
-                  />
+                <div className="space-y-2">
+                  <Label>Tipo de folga</Label>
+                  <div className="inline-flex rounded-lg border border-border bg-muted/20 p-1">
+                    <button
+                      type="button"
+                      className={`rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
+                        offUsageMode === "full"
+                          ? "bg-background text-foreground shadow-sm"
+                          : "text-muted-foreground hover:text-foreground"
+                      }`}
+                      onClick={() => setOffUsageMode("full")}
+                    >
+                      Dia inteiro (8h)
+                    </button>
+                    <button
+                      type="button"
+                      className={`rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
+                        offUsageMode === "partial"
+                          ? "bg-background text-foreground shadow-sm"
+                          : "text-muted-foreground hover:text-foreground"
+                      }`}
+                      onClick={() => setOffUsageMode("partial")}
+                    >
+                      Parcial (período)
+                    </button>
+                  </div>
+                </div>
+
+                {offUsageMode === "partial" ? (
+                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                    <div className="space-y-1">
+                      <Label htmlFor="off-start-time">Início do período</Label>
+                      <Input
+                        id="off-start-time"
+                        type="time"
+                        value={offStartTime}
+                        onChange={(e) => setOffStartTime(e.target.value)}
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <Label htmlFor="off-end-time">Fim do período</Label>
+                      <Input
+                        id="off-end-time"
+                        type="time"
+                        value={offEndTime}
+                        onChange={(e) => setOffEndTime(e.target.value)}
+                      />
+                    </div>
+                  </div>
+                ) : null}
+
+                <div className="rounded-md border border-border/60 bg-muted/20 px-3 py-2 text-sm">
+                  <div className="flex items-center justify-between">
+                    <span className="text-muted-foreground">Você tem</span>
+                    <span className="font-semibold text-foreground">{balance.toFixed(2)}h</span>
+                  </div>
+                  <div className="mt-1 flex items-center justify-between">
+                    <span className="text-muted-foreground">Vai gastar</span>
+                    <span className="font-semibold text-foreground">{offHoursToSpend.toFixed(2)}h</span>
+                  </div>
+                  <div className="mt-1 flex items-center justify-between">
+                    <span className="text-muted-foreground">Saldo após solicitação</span>
+                    <span className={`font-semibold ${balanceAfterRequest < 0 ? "text-red-600" : "text-foreground"}`}>
+                      {balanceAfterRequest.toFixed(2)}h
+                    </span>
+                  </div>
                 </div>
 
                 <div className="space-y-1">
@@ -385,7 +473,7 @@ export function BankHoursForm({
                   />
                 </div>
                 <div className="text-xs text-muted-foreground">
-                  Será validado seu saldo disponível antes da solicitação.
+                  O sistema valida saldo e regras da escala antes da solicitação.
                 </div>
                 <div className="flex gap-2 pt-2">
                   <Button type="submit" disabled={offSubmitting}>

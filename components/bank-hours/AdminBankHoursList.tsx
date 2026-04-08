@@ -104,6 +104,7 @@ export function AdminBankHoursList({
     const month = Number(mStr);
 
     const showActions = r.status === "PENDING";
+    const balanceAfterUse = r.requesterBalanceHours - r.hours;
 
     return (
       <li key={r.id} className="rounded-xl border border-border/50 p-4 space-y-3">
@@ -119,11 +120,26 @@ export function AdminBankHoursList({
           </div>
         </div>
 
-        <div className="flex items-center justify-between gap-3">
-          <p className="text-sm text-foreground">
-            <span className="font-semibold">Horas:</span> {r.hours.toFixed(2)}
-          </p>
-        </div>
+        {r.type === "OFF_HOURS" ? (
+          <div className="grid grid-cols-1 gap-1 rounded-md border border-border/50 bg-muted/20 px-3 py-2 text-sm sm:grid-cols-3">
+            <p className="text-foreground">
+              <span className="font-semibold">Total de horas colaborador:</span>{" "}
+              {r.requesterBalanceHours.toFixed(2)}
+            </p>
+            <p className="text-foreground">
+              <span className="font-semibold">Total que irá usar:</span> {r.hours.toFixed(2)}
+            </p>
+            <p className={balanceAfterUse < 0 ? "text-red-600 dark:text-red-400" : "text-foreground"}>
+              <span className="font-semibold">Quanto ficou:</span> {balanceAfterUse.toFixed(2)}
+            </p>
+          </div>
+        ) : (
+          <div className="flex items-center justify-between gap-3">
+            <p className="text-sm text-foreground">
+              <span className="font-semibold">Horas:</span> {r.hours.toFixed(2)}
+            </p>
+          </div>
+        )}
 
         {r.justification && r.justification.trim().length > 0 ? (
           <div className="text-sm text-muted-foreground whitespace-pre-wrap">

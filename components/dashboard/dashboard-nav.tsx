@@ -39,6 +39,9 @@ export function DashboardNav({ hasMemberView }: { hasMemberView: boolean }) {
       <NavLink href="/dashboard/swaps" active={pathname.startsWith("/dashboard/swaps")}>
         Aprovações
       </NavLink>
+      <NavLink href="/dashboard/bank-hours" active={pathname.startsWith("/dashboard/bank-hours")}>
+        Banco de Horas
+      </NavLink>
       <ViewAsMemberLink hasMemberView={hasMemberView} />
     </nav>
   );

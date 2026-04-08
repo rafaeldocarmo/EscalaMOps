@@ -13,9 +13,20 @@ export interface BankHourRequestRow {
   hours: number; // decimal with 2 digits
   justification: string | null;
   status: BankHourRequestStatus;
+  requesterBalanceHours: number;
   adminApprovedAt: string | null; // ISO
   adminRejectedAt: string | null; // ISO
   createdAt: string; // ISO
+}
+
+export interface BankHourMemberBalanceRow {
+  memberId: string;
+  memberName: string;
+  level: string;
+  shift: string;
+  participatesInSchedule: boolean;
+  balanceHours: number;
+  pendingRequests: number;
 }
 
 export type BankHoursActionResult = { success: true } | { success: false; error: string };
