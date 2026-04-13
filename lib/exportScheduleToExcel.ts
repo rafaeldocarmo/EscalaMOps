@@ -1,6 +1,7 @@
 import ExcelJS from "exceljs";
 import type { ScheduleStateMap } from "@/types/schedule";
-import type { TeamMemberRow } from "@/types/team";
+import type { Level, Shift, TeamMemberRow } from "@/types/team";
+import type { SobreavisoWeek } from "@/server/sobreaviso/getSobreavisoScheduleForMonth";
 import { getDaysInMonth, dateKey, buildScheduleSections } from "./scheduleUtils";
 
 const DAY_COLUMN_WIDTH = 6.3;
@@ -30,6 +31,22 @@ const FILL_SECTION_HEADER: ExcelJS.Fill = {
   fgColor: { argb: "FFE4E4E7" },
 };
 
+/** Sobreaviso ativo (equiv. `bg-blue-500` na UI) */
+const FILL_ONCALL_ACTIVE: ExcelJS.Fill = {
+  type: "pattern",
+  pattern: "solid",
+  fgColor: { argb: "FF3B82F6" },
+};
+
+/** Dia de transição (equiv. `bg-blue-200`) */
+const FILL_ONCALL_TRANSITION: ExcelJS.Fill = {
+  type: "pattern",
+  pattern: "solid",
+  fgColor: { argb: "FFBFDBFE" },
+};
+
+const ON_CALL_LEVELS: Level[] = ["N2", "ESPC", "PRODUCAO"];
+
 const THIN_BORDER = {
   top: { style: "thin", color: { argb: "FF000000" } },
   left: { style: "thin", color: { argb: "FF000000" } },
@@ -42,11 +59,102 @@ function setCellBorder(cell: ExcelJS.Cell): void {
   (cell as unknown as { border: unknown }).border = THIN_BORDER;
 }
 
+function toUtcDateKey(d: Date): string {
+  const y = d.getUTCFullYear();
+  const m = String(d.getUTCMonth() + 1).padStart(2, "0");
+  const day = String(d.getUTCDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
+interface SobreavisoGridMember {
+  memberId: string;
+  memberName: string;
+  level: string;
+  shift: Shift;
+  activeDates: Set<string>;
+  transitionDates: Set<string>;
+}
+
+/** Mesma lógica de `buildSobreavisoMembers` em `sobreaviso-table.tsx`. */
+function buildSobreavisoGridMembers(
+  weeks: SobreavisoWeek[],
+  eligibleMembers: TeamMemberRow[],
+): SobreavisoGridMember[] {
+  const map = new Map<string, SobreavisoGridMember>();
+
+  for (const m of eligibleMembers) {
+    if (!ON_CALL_LEVELS.includes(m.level)) continue;
+    map.set(m.id, {
+      memberId: m.id,
+      memberName: m.name,
+      level: m.level,
+      shift: m.shift,
+      activeDates: new Set(),
+      transitionDates: new Set(),
+    });
+  }
+
+  for (const w of weeks) {
+    if (!map.has(w.memberId)) {
+      const fromTeam = eligibleMembers.find((x) => x.id === w.memberId);
+      map.set(w.memberId, {
+        memberId: w.memberId,
+        memberName: w.memberName,
+        level: w.level,
+        shift: fromTeam?.shift ?? "T1",
+        activeDates: new Set(),
+        transitionDates: new Set(),
+      });
+    }
+    const member = map.get(w.memberId)!;
+
+    const start = new Date(`${w.startDate}T12:00:00.000Z`);
+    const end = new Date(`${w.endDate}T12:00:00.000Z`);
+
+    let d = new Date(start);
+    while (d < end) {
+      member.activeDates.add(toUtcDateKey(d));
+      d = new Date(d.getTime() + 86400000);
+    }
+
+    member.transitionDates.add(toUtcDateKey(end));
+  }
+
+  for (const member of map.values()) {
+    for (const dt of member.transitionDates) {
+      member.activeDates.delete(dt);
+    }
+  }
+
+  const result = Array.from(map.values());
+  result.sort((a, b) => {
+    if (a.level !== b.level) return a.level.localeCompare(b.level);
+    return a.memberName.localeCompare(b.memberName, "pt-BR");
+  });
+  return result;
+}
+
+function groupSobreavisoByLevel(
+  members: SobreavisoGridMember[],
+): { level: string; members: SobreavisoGridMember[] }[] {
+  const groups: { level: string; members: SobreavisoGridMember[] }[] = [];
+  let current: { level: string; members: SobreavisoGridMember[] } | null = null;
+  for (const m of members) {
+    if (!current || current.level !== m.level) {
+      current = { level: m.level, members: [] };
+      groups.push(current);
+    }
+    current.members.push(m);
+  }
+  return groups;
+}
+
 export async function exportScheduleToExcel(
   year: number,
   month: number,
   members: TeamMemberRow[],
-  stateMap: ScheduleStateMap
+  stateMap: ScheduleStateMap,
+  sobreavisoWeeks: SobreavisoWeek[],
 ): Promise<void> {
   const wb = new ExcelJS.Workbook();
   const sheetName = `Escala ${month.toString().padStart(2, "0")}-${year}`;
@@ -114,6 +222,92 @@ export async function exportScheduleToExcel(
         }
       }
       currentRow++;
+    }
+  }
+
+  const lastCol = 3 + daysInMonth;
+  currentRow += 1;
+
+  ws.mergeCells(currentRow, 1, currentRow, lastCol);
+  const sobreTitle = ws.getCell(currentRow, 1);
+  sobreTitle.value = "Sobreaviso";
+  sobreTitle.font = { bold: true };
+  sobreTitle.fill = FILL_SECTION_HEADER;
+  sobreTitle.alignment = { vertical: "middle" };
+  setCellBorder(sobreTitle);
+  for (let col = 2; col <= lastCol; col++) {
+    const c = ws.getCell(currentRow, col);
+    c.fill = FILL_SECTION_HEADER;
+    setCellBorder(c);
+  }
+  currentRow += 1;
+
+  const sobreEligible = members.filter(
+    (m) => m.sobreaviso && ON_CALL_LEVELS.includes(m.level),
+  );
+  const sobreGridMembers = buildSobreavisoGridMembers(sobreavisoWeeks, sobreEligible);
+  const sobreSections = groupSobreavisoByLevel(sobreGridMembers);
+
+  if (sobreEligible.length === 0) {
+    ws.mergeCells(currentRow, 1, currentRow, lastCol);
+    const emptyCell = ws.getCell(currentRow, 1);
+    emptyCell.value = "Nenhum participante de sobreaviso na equipe.";
+    emptyCell.alignment = { vertical: "middle" };
+    setCellBorder(emptyCell);
+    for (let col = 2; col <= lastCol; col++) {
+      const c = ws.getCell(currentRow, col);
+      setCellBorder(c);
+    }
+  } else {
+    headerRow.forEach((text, col) => {
+      const cell = ws.getCell(currentRow, col + 1);
+      cell.value = text;
+      cell.font = { bold: true };
+      setCellBorder(cell);
+      if (col >= 3) {
+        cell.alignment = { textRotation: 90, horizontal: "center", vertical: "middle" };
+      }
+    });
+    ws.getRow(currentRow).height = HEADER_ROW_HEIGHT_PT;
+    currentRow += 1;
+
+    for (const section of sobreSections) {
+      ws.mergeCells(currentRow, 1, currentRow, 3);
+      const sectionCell = ws.getCell(currentRow, 1);
+      sectionCell.value = section.level;
+      sectionCell.font = { bold: true };
+      sectionCell.fill = FILL_SECTION_HEADER;
+      sectionCell.alignment = { vertical: "middle" };
+      setCellBorder(sectionCell);
+      for (let col = 4; col <= lastCol; col++) {
+        const c = ws.getCell(currentRow, col);
+        c.fill = FILL_SECTION_HEADER;
+        setCellBorder(c);
+      }
+      currentRow += 1;
+
+      for (const member of section.members) {
+        ws.getCell(currentRow, 1).value = member.memberName;
+        setCellBorder(ws.getCell(currentRow, 1));
+        ws.getCell(currentRow, 2).value = member.level;
+        setCellBorder(ws.getCell(currentRow, 2));
+        ws.getCell(currentRow, 3).value = member.shift;
+        setCellBorder(ws.getCell(currentRow, 3));
+
+        for (let day = 1; day <= daysInMonth; day++) {
+          const dk = dateKey(year, month, day);
+          const col = 3 + day;
+          const cell = ws.getCell(currentRow, col);
+          cell.value = "";
+          setCellBorder(cell);
+          if (member.activeDates.has(dk)) {
+            cell.fill = FILL_ONCALL_ACTIVE;
+          } else if (member.transitionDates.has(dk)) {
+            cell.fill = FILL_ONCALL_TRANSITION;
+          }
+        }
+        currentRow += 1;
+      }
     }
   }
 
