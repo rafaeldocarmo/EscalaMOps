@@ -363,9 +363,9 @@ export function SchedulePageClient({
   ]);
 
   const handleExportExcel = useCallback(async () => {
-    await exportScheduleToExcel(schedule.year, schedule.month, members, stateMap);
+    await exportScheduleToExcel(schedule.year, schedule.month, members, stateMap, sobreavisoWeeks);
     toast.success("Planilha exportada.");
-  }, [schedule.year, schedule.month, members, stateMap]);
+  }, [schedule.year, schedule.month, members, stateMap, sobreavisoWeeks]);
 
   return (
     <div className="space-y-6">

@@ -2,6 +2,7 @@
 
 # dependencies
 /node_modules
+alexa-echo15-skill/node_modules
 /.pnp
 .pnp.*
 .yarn/*

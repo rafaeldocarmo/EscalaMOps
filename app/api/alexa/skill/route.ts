@@ -28,8 +28,9 @@ export async function POST(request: Request) {
       request,
       "SignatureCertChainUrl",
       "signaturecertchainurl",
+      "x-signature-cert-chain-url",
     );
-    const signature = getHeader(request, "Signature", "signature");
+    const signature = getHeader(request, "Signature", "signature", "x-signature");
     try {
       const alexaVerifier = (await import("alexa-verifier")).default;
       await alexaVerifier(certUrl, signature, rawBody);
