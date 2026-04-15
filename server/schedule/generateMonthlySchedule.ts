@@ -59,6 +59,8 @@ export async function generateMonthlySchedule(
     orderBy: [{ shift: "asc" }, { level: "asc" }, { name: "asc" }],
   });
 
+  const scheduleTeamId = allMembers[0]?.teamId ?? null;
+
   const rotationMembers = allMembers.filter((m) => m.level === "N1" || m.level === "N2");
   const alwaysOffWeekendMembers = allMembers.filter((m) => m.level === "ESPC" || m.level === "PRODUCAO");
 
@@ -107,10 +109,15 @@ export async function generateMonthlySchedule(
     const firstDayKey = toDateKey(firstDayOfMonth);
     const prevMonth = month === 1 ? 12 : month - 1;
     const prevYear = month === 1 ? year - 1 : year;
-    const prevSchedule = await prisma.schedule.findUnique({
-      where: { year_month: { year: prevYear, month: prevMonth } },
-      include: { assignments: true },
-    });
+    const prevSchedule = scheduleTeamId
+      ? await prisma.schedule.findUnique({
+          where: { teamId_year_month: { teamId: scheduleTeamId, year: prevYear, month: prevMonth } },
+          include: { assignments: true },
+        })
+      : await prisma.schedule.findFirst({
+          where: { year: prevYear, month: prevMonth },
+          include: { assignments: true },
+        });
     const firstDayAssignments = prevSchedule?.assignments.filter(
       (a) => format(a.date, "yyyy-MM-dd") === firstDayKey
     ) ?? [];

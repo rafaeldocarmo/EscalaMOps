@@ -2,6 +2,7 @@
 
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
+import { resolveTeamIdForRead } from "@/lib/multiTeam";
 import type { SwapActionResult } from "@/types/swaps";
 import type { Shift } from "@/lib/generated/prisma/enums";
 import { sendWhatsappMessage } from "@/server/whatsapp/sendWhatsappMessage";
@@ -36,10 +37,16 @@ export async function createShiftSwapRequest(
   const month = originalDate.getUTCMonth() + 1;
 
   // Valida: deve ser um dia de WORK para o solicitante (ou seja, não pode ser OFF).
-  const schedule = await prisma.schedule.findUnique({
-    where: { year_month: { year, month } },
-    select: { id: true },
-  });
+  const resolvedTeamId = await resolveTeamIdForRead();
+  const schedule = resolvedTeamId
+    ? await prisma.schedule.findUnique({
+        where: { teamId_year_month: { teamId: resolvedTeamId, year, month } },
+        select: { id: true },
+      })
+    : await prisma.schedule.findFirst({
+        where: { year, month },
+        select: { id: true },
+      });
 
   if (schedule) {
     const assignment = await prisma.scheduleAssignment.findFirst({

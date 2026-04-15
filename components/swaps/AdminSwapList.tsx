@@ -11,6 +11,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { formatDateKeyToDDMMYYYY } from "@/lib/formatDate";
 import { MemberScheduleMiniCalendar } from "@/components/swaps/MemberScheduleMiniCalendar";
 import { OnCallSwapMiniCalendar } from "@/components/swaps/OnCallSwapMiniCalendar";
+import { SELECTED_TEAM_CHANGED_EVENT } from "@/lib/teamSelectionEvents";
 
 const STATUS_LABELS: Record<SwapRequestRow["status"], string> = {
   PENDING: "Aguardando aprovação",
@@ -78,15 +79,19 @@ export function AdminSwapList({
   const [actionId, setActionId] = useState<string | null>(null);
   const [internalFilter, setInternalFilter] = useState<FilterTab>("pending");
 
-  const load = () => {
-    getSwapRequestsForAdmin().then((data) => {
-      setList(data);
-      setLoading(false);
-    });
+  const load = (opts?: { showFullLoading?: boolean }) => {
+    const showSpinner = opts?.showFullLoading !== false;
+    if (showSpinner) setLoading(true);
+    getSwapRequestsForAdmin()
+      .then((data) => setList(data))
+      .finally(() => setLoading(false));
   };
 
   useEffect(() => {
-    load();
+    load({ showFullLoading: true });
+    const onTeamChanged = () => load({ showFullLoading: false });
+    window.addEventListener(SELECTED_TEAM_CHANGED_EVENT, onTeamChanged);
+    return () => window.removeEventListener(SELECTED_TEAM_CHANGED_EVENT, onTeamChanged);
   }, []);
 
   const filter = filterProp ?? internalFilter;
@@ -122,7 +127,7 @@ export function AdminSwapList({
     setActionId(id);
     const result = await approveSwap(id);
     setActionId(null);
-    if (result.success) load();
+    if (result.success) load({ showFullLoading: false });
     else alert(result.error);
   };
 
@@ -130,7 +135,7 @@ export function AdminSwapList({
     setActionId(id);
     const result = await rejectSwap(id);
     setActionId(null);
-    if (result.success) load();
+    if (result.success) load({ showFullLoading: false });
     else alert(result.error);
   };
 
@@ -138,7 +143,7 @@ export function AdminSwapList({
     setActionId(id);
     const result = await acceptQueueSwap(id);
     setActionId(null);
-    if (result.success) load();
+    if (result.success) load({ showFullLoading: false });
     else alert(result.error);
   };
 

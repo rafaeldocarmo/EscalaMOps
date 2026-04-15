@@ -1,14 +1,21 @@
 "use server";
 
 import { auth } from "@/auth";
+import { isStaffAdmin } from "@/lib/authz";
 import { prisma } from "@/lib/prisma";
+import { resolveTeamIdForReadForSession } from "@/lib/multiTeam";
 import type { BankHourMemberBalanceRow } from "@/types/bankHours";
 
 export async function getBankHourBalancesForAdmin(): Promise<BankHourMemberBalanceRow[]> {
   const session = await auth();
-  if (!session?.user || session.user.role !== "ADMIN") return [];
+  if (!session?.user || !isStaffAdmin(session)) return [];
+
+  const teamId = await resolveTeamIdForReadForSession(session);
 
   const members = await prisma.teamMember.findMany({
+    where: {
+      ...(teamId ? { teamId } : {}),
+    },
     orderBy: [{ level: "asc" }, { shift: "asc" }, { name: "asc" }],
     include: {
       bankHourBalance: { select: { balanceHours: true } },

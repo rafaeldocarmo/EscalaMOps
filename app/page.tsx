@@ -30,7 +30,7 @@ export default async function Home() {
             <div className="flex flex-wrap items-center justify-center gap-2">
               {session.user.role === "ADMIN" && (
                 <Button asChild variant="default">
-                  <Link href="/dashboard/team">Gerenciar equipe</Link>
+                  <Link href="/dashboard/team">Gerenciar membros</Link>
                 </Button>
               )}
               <SignOutButton />

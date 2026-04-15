@@ -1,7 +1,9 @@
 "use server";
 
 import { auth } from "@/auth";
+import { isStaffAdmin } from "@/lib/authz";
 import { prisma } from "@/lib/prisma";
+import { resolveTeamIdForReadForSession } from "@/lib/multiTeam";
 import type { SwapRequestRow } from "@/types/swaps";
 
 function dateToKey(d: Date): string {
@@ -54,9 +56,14 @@ export async function getMySwapRequests(): Promise<SwapRequestRow[]> {
  */
 export async function getSwapRequestsForAdmin(): Promise<SwapRequestRow[]> {
   const session = await auth();
-  if (session?.user?.role !== "ADMIN") return [];
+  if (!isStaffAdmin(session)) return [];
+
+  const teamId = await resolveTeamIdForReadForSession(session);
 
   const list = await prisma.scheduleSwapRequest.findMany({
+    where: {
+      ...(teamId ? { requester: { teamId } } : {}),
+    },
     orderBy: { createdAt: "desc" },
     include: {
       requester: { select: { id: true, name: true } },

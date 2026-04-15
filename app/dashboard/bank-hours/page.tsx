@@ -1,4 +1,5 @@
 import { auth } from "@/auth";
+import { isStaffAdmin } from "@/lib/authz";
 import { redirect } from "next/navigation";
 import { AdminBankHoursList } from "@/components/bank-hours/AdminBankHoursList";
 import { BankHoursTeamBalances } from "@/components/bank-hours/BankHoursTeamBalances";
@@ -6,7 +7,7 @@ import { BankHoursTeamBalances } from "@/components/bank-hours/BankHoursTeamBala
 export default async function BankHoursAdminPage() {
   const session = await auth();
   if (!session?.user) redirect("/login");
-  if (session.user.role !== "ADMIN") redirect("/dashboard");
+  if (!isStaffAdmin(session)) redirect("/dashboard");
 
   return (
     <div className="space-y-6">

@@ -1,7 +1,12 @@
 import { auth } from "@/auth";
 import { redirect } from "next/navigation";
-import { DashboardNav } from "@/components/dashboard/dashboard-nav";
-import Link from "next/link";
+import { getTeams } from "@/server/team/getTeams";
+import { resolveTeamIdForReadForSession } from "@/lib/multiTeam";
+import { isStaffAdmin } from "@/lib/authz";
+import { TeamTitleDropdown } from "@/components/team/team-title-dropdown";
+import { SidebarNav } from "@/components/dashboard/sidebar-nav";
+import { DashboardUserHeader } from "@/components/dashboard/dashboard-user-header";
+import { DashboardShell } from "@/components/dashboard/dashboard-shell";
 
 export default async function DashboardLayout({
   children,
@@ -12,29 +17,41 @@ export default async function DashboardLayout({
   if (!session?.user) {
     redirect("/login");
   }
-  if (!session.member && session.user.role !== "ADMIN") {
+  if (!session.member && !isStaffAdmin(session)) {
     redirect("/celular");
   }
 
+  const showStaffSidebar = isStaffAdmin(session);
+
+  const sidebar = showStaffSidebar ? (
+    <>
+      <div className="flex w-full min-w-0 items-center justify-between">
+        <TeamHeader />
+      </div>
+      <SidebarNav />
+    </>
+  ) : null;
+
   return (
     <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950">
-      {session.user.role === "ADMIN" && (
-      <header className="sticky top-0 z-40 border-b bg-background/95 backdrop-blur">
-        <div className="container flex h-14 items-center justify-between px-4 mx-auto ">
-          <Link
-            href="/dashboard"
-          >
-            <span className="text-lg text-muted-foreground font-bold text-red-500">
-              Escala MOPS
-            </span>
-          </Link>
-          <DashboardNav hasMemberView={!!session.member} />
-          </div>
-        </header>
-      )}
-      <main className="container px-4 py-6 mx-auto">
-        {children}
-      </main>
+      <div className="mx-auto flex min-h-screen w-full">
+        <DashboardShell sidebar={sidebar}>
+          <DashboardUserHeader />
+          <main className="flex-1 px-4 py-6 md:px-6 max-w-[1400px] mx-auto w-full">
+            {children}
+          </main>
+        </DashboardShell>
+      </div>
     </div>
+  );
+}
+
+async function TeamHeader() {
+  const session = await auth();
+  const teams = await getTeams();
+  const selectedTeamId = await resolveTeamIdForReadForSession(session);
+  const readOnly = session?.user?.role === "ADMIN_TEAM";
+  return (
+    <TeamTitleDropdown teams={teams} selectedTeamId={selectedTeamId} readOnly={readOnly} />
   );
 }

@@ -16,7 +16,7 @@ import type { Level } from "@/lib/generated/prisma/enums";
  * - Níveis: N2, ESPC, PRODUCAO (um por período/semana).
  * - Participam só quem tem o campo "sobreaviso" marcado.
  * - Uma fila por nível (onCallRotationIndex); sempre o próximo da fila.
- * - Ao gerar o mês seguinte, o próximo continua de onde o último parou (fila global por nível).
+ * - Ao gerar o mês seguinte, o próximo continua de onde o último parou (fila por nível; com teamId, só entre membros da mesma equipe).
  * - Independente da escala normal. Para regerar, é preciso limpar antes.
  */
 
@@ -88,12 +88,14 @@ function pickNextAndAdvance(
  */
 export async function generateSobreavisoSchedule(
   month: number,
-  year: number
+  year: number,
+  teamId?: string | null
 ): Promise<OnCallWeek[]> {
   const eligibleMembers = await prisma.teamMember.findMany({
     where: {
       sobreaviso: true,
       level: { in: ON_CALL_LEVELS },
+      ...(teamId ? { teamId } : {}),
     },
     orderBy: [{ level: "asc" }, { name: "asc" }],
   });
@@ -176,6 +178,7 @@ export async function generateSobreavisoSchedule(
     where: {
       startDate: { lt: nextMonthStartNoonUtc },
       endDate: { gt: monthStartNoonUtc },
+      ...(teamId ? { member: { teamId } } : {}),
     },
   });
 

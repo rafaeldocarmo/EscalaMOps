@@ -49,20 +49,14 @@ export async function createOffSwapWithMemberRequest(
   const yearTarg = targetDate.getUTCFullYear();
   const monthTarg = targetDate.getUTCMonth() + 1;
 
-  const [requester, targetMember, scheduleOrig, scheduleTarg] = await Promise.all([
+  const [requester, targetMember] = await Promise.all([
     prisma.teamMember.findUnique({
       where: { id: requesterId },
-      select: { level: true, shift: true },
+      select: { level: true, shift: true, teamId: true },
     }),
     prisma.teamMember.findUnique({
       where: { id: targetMemberId },
-      select: { level: true, shift: true },
-    }),
-    prisma.schedule.findUnique({
-      where: { year_month: { year: yearOrig, month: monthOrig } },
-    }),
-    prisma.schedule.findUnique({
-      where: { year_month: { year: yearTarg, month: monthTarg } },
+      select: { level: true, shift: true, teamId: true },
     }),
   ]);
 
@@ -72,6 +66,21 @@ export async function createOffSwapWithMemberRequest(
   if (requester.level !== (targetMember.level as Level) || requester.shift !== (targetMember.shift as Shift)) {
     return { success: false, error: "Só é possível trocar com alguém do mesmo nível e turno." };
   }
+
+  const teamId = requester.teamId ?? targetMember.teamId ?? null;
+  const [scheduleOrig, scheduleTarg] = await Promise.all([
+    teamId
+      ? prisma.schedule.findUnique({
+          where: { teamId_year_month: { teamId: teamId, year: yearOrig, month: monthOrig } },
+        })
+      : prisma.schedule.findFirst({ where: { year: yearOrig, month: monthOrig } }),
+    teamId
+      ? prisma.schedule.findUnique({
+          where: { teamId_year_month: { teamId: teamId, year: yearTarg, month: monthTarg } },
+        })
+      : prisma.schedule.findFirst({ where: { year: yearTarg, month: monthTarg } }),
+  ]);
+
   if (!scheduleOrig || !scheduleTarg) {
     return { success: false, error: "Escala do mês não encontrada para uma das datas." };
   }

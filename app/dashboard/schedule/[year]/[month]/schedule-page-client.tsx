@@ -47,6 +47,8 @@ interface SchedulePageClientProps {
   assignments: ScheduleAssignmentRow[];
   members: TeamMemberRow[];
   sobreavisoWeeks: SobreavisoWeek[];
+  /** Alinha gerar/limpar/trocar sobreaviso com a equipe do TeamSwitcher (?teamId=). */
+  selectedTeamId?: string | null;
 }
 
 export function SchedulePageClient({
@@ -54,6 +56,7 @@ export function SchedulePageClient({
   assignments: initialAssignments,
   members,
   sobreavisoWeeks: initialSobreavisoWeeks,
+  selectedTeamId = null,
 }: SchedulePageClientProps) {
   const router = useRouter();
   const [schedule] = useState(initialSchedule);
@@ -249,7 +252,11 @@ export function SchedulePageClient({
     }
     setSwapLoading(true);
     const result = await adminSwapOnCallPositions(
-      selectedOnCallMemberId, memberId, schedule.year, schedule.month
+      selectedOnCallMemberId,
+      memberId,
+      schedule.year,
+      schedule.month,
+      selectedTeamId ?? undefined
     );
     setSwapLoading(false);
     setSelectedOnCallMemberId(null);
@@ -263,7 +270,7 @@ export function SchedulePageClient({
     } else {
       toast.error("Erro ao trocar posições de sobreaviso.");
     }
-  }, [selectedOnCallMemberId, swapLoading, schedule.year, schedule.month]);
+  }, [selectedOnCallMemberId, swapLoading, schedule.year, schedule.month, selectedTeamId]);
 
   const handleGenerate = useCallback(async () => {
     if (hasGenerated) {
@@ -285,7 +292,11 @@ export function SchedulePageClient({
 
   const handleGenerateSobreaviso = useCallback(async () => {
     setGenerateSobreavisoLoading(true);
-    const result = await generateSobreavisoForMonth(schedule.month, schedule.year);
+    const result = await generateSobreavisoForMonth(
+      schedule.month,
+      schedule.year,
+      selectedTeamId ?? undefined
+    );
     setGenerateSobreavisoLoading(false);
     if (!result.success) {
       toast.error(result.error ?? "Erro ao gerar sobreaviso.");
@@ -293,7 +304,7 @@ export function SchedulePageClient({
     }
     setSobreavisoWeeks(result.sobreavisoWeeks);
     toast.success("Sobreaviso gerado.");
-  }, [schedule.month, schedule.year]);
+  }, [schedule.month, schedule.year, selectedTeamId]);
 
   const handleClearRequest = useCallback(() => {
     if (clearLoading || saveLoading || generateLoading) return;
@@ -325,7 +336,11 @@ export function SchedulePageClient({
 
   const handleClearSobreavisoConfirm = useCallback(async () => {
     setClearSobreavisoLoading(true);
-    const result = await clearSobreavisoForMonth(schedule.month, schedule.year);
+    const result = await clearSobreavisoForMonth(
+      schedule.month,
+      schedule.year,
+      selectedTeamId ?? undefined
+    );
     setClearSobreavisoLoading(false);
 
     if (!result.success) {
@@ -337,7 +352,7 @@ export function SchedulePageClient({
     setSelectedOnCallMemberId(null);
     setSobreavisoWeeks(result.sobreavisoWeeks);
     toast.success("Sobreaviso limpo.");
-  }, [schedule.month, schedule.year, setSelectedOnCallMemberId]);
+  }, [schedule.month, schedule.year, selectedTeamId, setSelectedOnCallMemberId]);
 
   const handleBackScale = useCallback(async () => {
     if (backCycleLoading || clearLoading || saveLoading || generateLoading) return;

@@ -21,9 +21,11 @@ import { deleteTeamMember } from "@/server/team/deleteTeamMember";
 import { Input } from "@/components/ui/input";
 import { MultiSelect, type MultiSelectOption } from "@/components/ui/multi-select";
 import { LEVEL_OPTIONS, SHIFT_OPTIONS } from "@/types/team";
+import type { TeamListItem } from "@/server/team/getTeams";
 
 interface TeamPageClientProps {
   initialMembers: TeamMemberRow[];
+  teams: TeamListItem[];
 }
 
 type SobreavisoFilter = "with" | "without";
@@ -33,7 +35,7 @@ const SOBREAVISO_OPTIONS: MultiSelectOption<SobreavisoFilter>[] = [
   { value: "without", label: "Sem sobreaviso" },
 ];
 
-export function TeamPageClient({ initialMembers }: TeamPageClientProps) {
+export function TeamPageClient({ initialMembers, teams }: TeamPageClientProps) {
   const router = useRouter();
   const [addOpen, setAddOpen] = useState(false);
   const [addLoading, setAddLoading] = useState(false);
@@ -136,11 +138,9 @@ export function TeamPageClient({ initialMembers }: TeamPageClientProps) {
     <div className="space-y-6">
       <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight text-foreground">
-            Visão do Time
-          </h1>
+          <h1 className="text-2xl font-bold tracking-tight text-foreground">Membros</h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            Gerencie os membros da equipe, níveis e turnos.
+            Gerencie os membros do time selecionado no topo, níveis e turnos.
           </p>
         </div>
         <Button

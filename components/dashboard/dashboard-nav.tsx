@@ -31,7 +31,10 @@ export function DashboardNav({ hasMemberView }: { hasMemberView: boolean }) {
   return (
     <nav className="flex items-center gap-4">
       <NavLink href="/dashboard/team" active={pathname.startsWith("/dashboard/team")}>
-        Equipe
+        Membro
+      </NavLink>
+      <NavLink href="/dashboard/equipes" active={pathname.startsWith("/dashboard/equipes")}>
+        Configurações
       </NavLink>
       <NavLink href={scheduleHref} active={pathname.startsWith("/dashboard/schedule")}>
         Escala

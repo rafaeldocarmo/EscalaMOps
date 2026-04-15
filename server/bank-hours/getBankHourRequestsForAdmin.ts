@@ -1,7 +1,9 @@
 "use server";
 
 import { auth } from "@/auth";
+import { isStaffAdmin } from "@/lib/authz";
 import { prisma } from "@/lib/prisma";
+import { resolveTeamIdForReadForSession } from "@/lib/multiTeam";
 import type { BankHourRequestRow, BankHourRequestStatus, BankHourRequestType } from "@/types/bankHours";
 
 function dateToKeyUTC(d: Date): string {
@@ -13,9 +15,14 @@ function dateToKeyUTC(d: Date): string {
 
 export async function getBankHourRequestsForAdmin(): Promise<BankHourRequestRow[]> {
   const session = await auth();
-  if (!session?.user || session.user.role !== "ADMIN") return [];
+  if (!session?.user || !isStaffAdmin(session)) return [];
+
+  const teamId = await resolveTeamIdForReadForSession(session);
 
   const list = await prisma.bankHourRequest.findMany({
+    where: {
+      ...(teamId ? { requester: { teamId } } : {}),
+    },
     orderBy: { createdAt: "desc" },
     include: {
       requester: {

@@ -2,6 +2,7 @@
 
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
+import { getDefaultTeam } from "@/lib/multiTeam";
 import { startOfWeek, endOfWeek, addDays, format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 
@@ -69,17 +70,32 @@ export async function getWeeklySchedule(): Promise<{
   const monthEnd = weekEnd.getMonth() + 1;
   const yearEnd = weekEnd.getFullYear();
 
+  const defaultTeam = await getDefaultTeam();
   const scheduleIds: string[] = [];
-  const s1 = await prisma.schedule.findUnique({
-    where: { year_month: { year: yearStart, month: monthStart } },
-    select: { id: true },
-  });
+  const s1 = defaultTeam
+    ? await prisma.schedule.findUnique({
+        where: {
+          teamId_year_month: { teamId: defaultTeam.id, year: yearStart, month: monthStart },
+        },
+        select: { id: true },
+      })
+    : await prisma.schedule.findFirst({
+        where: { year: yearStart, month: monthStart },
+        select: { id: true },
+      });
   if (s1) scheduleIds.push(s1.id);
   if (yearEnd !== yearStart || monthEnd !== monthStart) {
-    const s2 = await prisma.schedule.findUnique({
-      where: { year_month: { year: yearEnd, month: monthEnd } },
-      select: { id: true },
-    });
+    const s2 = defaultTeam
+      ? await prisma.schedule.findUnique({
+          where: {
+            teamId_year_month: { teamId: defaultTeam.id, year: yearEnd, month: monthEnd },
+          },
+          select: { id: true },
+        })
+      : await prisma.schedule.findFirst({
+          where: { year: yearEnd, month: monthEnd },
+          select: { id: true },
+        });
     if (s2) scheduleIds.push(s2.id);
   }
 

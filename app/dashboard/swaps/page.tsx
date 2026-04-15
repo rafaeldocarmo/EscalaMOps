@@ -1,11 +1,12 @@
 import { auth } from "@/auth";
+import { isStaffAdmin } from "@/lib/authz";
 import { redirect } from "next/navigation";
 import { AdminApprovalsToggle } from "@/components/dashboard/admin-approvals-toggle";
 
 export default async function AdminSwapsPage() {
   const session = await auth();
   if (!session?.user) redirect("/login");
-  if (session.user.role !== "ADMIN") redirect("/dashboard");
+  if (!isStaffAdmin(session)) redirect("/dashboard");
 
   return (
     <div className="space-y-6">

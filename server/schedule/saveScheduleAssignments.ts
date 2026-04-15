@@ -1,6 +1,7 @@
 "use server";
 
 import { auth } from "@/auth";
+import { isStaffAdmin } from "@/lib/authz";
 import { prisma } from "@/lib/prisma";
 import type { SaveAssignmentPayload } from "@/types/schedule";
 import { z } from "zod";
@@ -22,7 +23,10 @@ export async function saveScheduleAssignments(
   assignments: SaveAssignmentPayload[]
 ): Promise<SaveScheduleAssignmentsResult> {
   const session = await auth();
-  if (session?.user?.role !== "ADMIN") {
+  if (!session?.user) {
+    return { success: false, error: "Acesso negado." };
+  }
+  if (!isStaffAdmin(session)) {
     return { success: false, error: "Acesso negado." };
   }
 
@@ -43,6 +47,14 @@ export async function saveScheduleAssignments(
   });
   if (!schedule) {
     return { success: false, error: "Escala não encontrada." };
+  }
+
+  if (
+    session.user?.role === "ADMIN_TEAM" &&
+    session.user.managedTeamId &&
+    schedule.teamId !== session.user.managedTeamId
+  ) {
+    return { success: false, error: "Acesso negado." };
   }
 
   try {

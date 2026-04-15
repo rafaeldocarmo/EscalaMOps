@@ -1,9 +1,11 @@
 "use server";
 
 import { auth } from "@/auth";
+import { isStaffAdmin } from "@/lib/authz";
 import { prisma } from "@/lib/prisma";
 import { startOfMonth, endOfMonth, addDays, format } from "date-fns";
 import type { SwapActionResult } from "@/types/swaps";
+import { resolveSobreavisoTeamScope } from "@/server/sobreaviso/resolveSobreavisoTeamScope";
 import type { SobreavisoWeek } from "./getSobreavisoScheduleForMonth";
 
 /**
@@ -15,10 +17,11 @@ export async function adminSwapOnCallPositions(
   memberIdA: string,
   memberIdB: string,
   year: number,
-  month: number
+  month: number,
+  teamIdArg?: string | null
 ): Promise<SwapActionResult & { sobreavisoWeeks?: SobreavisoWeek[] }> {
   const session = await auth();
-  if (session?.user?.role !== "ADMIN") {
+  if (!isStaffAdmin(session)) {
     return { success: false, error: "Apenas administradores podem realizar esta ação." };
   }
   if (memberIdA === memberIdB) {
@@ -31,6 +34,18 @@ export async function adminSwapOnCallPositions(
   ]);
   if (!a || !b) {
     return { success: false, error: "Membro não encontrado." };
+  }
+
+  if (!a.teamId || !b.teamId || a.teamId !== b.teamId) {
+    return { success: false, error: "Os dois membros devem pertencer à mesma equipe." };
+  }
+
+  if (
+    session?.user?.role === "ADMIN_TEAM" &&
+    session.user.managedTeamId &&
+    a.teamId !== session.user.managedTeamId
+  ) {
+    return { success: false, error: "Acesso negado." };
   }
 
   await prisma.$transaction(async (tx) => {
@@ -61,8 +76,13 @@ export async function adminSwapOnCallPositions(
 
   const monthStart = startOfMonth(new Date(year, month - 1));
   const monthEnd = addDays(endOfMonth(new Date(year, month - 1)), 1);
+  const scopeTeamId = await resolveSobreavisoTeamScope(teamIdArg);
   const refreshed = await prisma.onCallAssignment.findMany({
-    where: { startDate: { lt: monthEnd }, endDate: { gt: monthStart } },
+    where: {
+      startDate: { lt: monthEnd },
+      endDate: { gt: monthStart },
+      ...(scopeTeamId ? { member: { teamId: scopeTeamId } } : {}),
+    },
     include: { member: { select: { name: true } } },
     orderBy: { startDate: "asc" },
   });

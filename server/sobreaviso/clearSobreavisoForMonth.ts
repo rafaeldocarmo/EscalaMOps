@@ -1,8 +1,10 @@
 "use server";
 
 import { auth } from "@/auth";
+import { isStaffAdmin } from "@/lib/authz";
 import { prisma } from "@/lib/prisma";
 import { startOfMonth, format } from "date-fns";
+import { resolveTeamIdForWriteForSession } from "@/lib/multiTeam";
 import {
   getSobreavisoScheduleForMonth,
   type SobreavisoWeek,
@@ -14,17 +16,25 @@ export type ClearSobreavisoForMonthResult =
 
 export async function clearSobreavisoForMonth(
   month: number,
-  year: number
+  year: number,
+  teamIdArg?: string | null
 ): Promise<ClearSobreavisoForMonthResult> {
   const session = await auth();
-  if (session?.user?.role !== "ADMIN") {
+  if (!isStaffAdmin(session)) {
     return { success: false, error: "Acesso negado." };
   }
 
-  // Ensure schedule exists so client can keep navigating the month.
+  let teamId: string;
+  try {
+    teamId = await resolveTeamIdForWriteForSession(session, teamIdArg);
+  } catch (e) {
+    const message = e instanceof Error ? e.message : "Equipe não encontrada.";
+    return { success: false, error: message };
+  }
+
   await prisma.schedule.upsert({
-    where: { year_month: { year, month } },
-    create: { year, month, status: "OPEN" },
+    where: { teamId_year_month: { teamId, year, month } },
+    create: { teamId, year, month, status: "OPEN" },
     update: {},
     select: { id: true },
   });
@@ -46,10 +56,11 @@ export async function clearSobreavisoForMonth(
       where: {
         startDate: { lt: nextMonthStartNoonUtc },
         endDate: { gt: monthStartNoonUtc },
+        ...(teamId ? { member: { teamId } } : {}),
       },
     });
 
-    const sobreavisoWeeks = await getSobreavisoScheduleForMonth(month, year);
+    const sobreavisoWeeks = await getSobreavisoScheduleForMonth(month, year, teamIdArg);
     return { success: true, sobreavisoWeeks };
   } catch (e) {
     const message = e instanceof Error ? e.message : "Erro ao limpar sobreaviso.";

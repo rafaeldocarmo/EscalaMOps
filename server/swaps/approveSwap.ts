@@ -1,7 +1,10 @@
 "use server";
 
 import { auth } from "@/auth";
+import { isStaffAdmin } from "@/lib/authz";
 import { prisma } from "@/lib/prisma";
+import { getDefaultTeam } from "@/lib/multiTeam";
+import { findScheduleByYearMonth } from "@/lib/scheduleQueries";
 import type { SwapActionResult } from "@/types/swaps";
 // import { sendWhatsappMessage, phoneToWhatsApp } from "@/server/whatsapp/sendWhatsappMessage";
 
@@ -68,7 +71,7 @@ async function swapAssignmentsInSchedule(
  */
 export async function approveSwap(swapRequestId: string): Promise<SwapActionResult> {
   const session = await auth();
-  if (session?.user?.role !== "ADMIN") {
+  if (!isStaffAdmin(session)) {
     return { success: false, error: "Apenas administradores podem aprovar." };
   }
 
@@ -79,6 +82,14 @@ export async function approveSwap(swapRequestId: string): Promise<SwapActionResu
 
   if (!swap) {
     return { success: false, error: "Solicitação não encontrada." };
+  }
+
+  if (
+    session?.user?.role === "ADMIN_TEAM" &&
+    session.user.managedTeamId &&
+    swap.requester.teamId !== session.user.managedTeamId
+  ) {
+    return { success: false, error: "Acesso negado." };
   }
   if (swap.status === "APPROVED") {
     return { success: false, error: "Esta solicitação já foi aprovada." };
@@ -106,6 +117,8 @@ export async function approveSwap(swapRequestId: string): Promise<SwapActionResu
     return { success: false, error: "Status inválido para aprovação." };
   }
 
+  const swapTeamId = swap.requester.teamId ?? (await getDefaultTeam())?.id ?? null;
+
   await prisma.$transaction(async (tx) => {
     if (swap.type === "OFF_SWAP" && swap.originalDate && swap.targetDate) {
       const orig = swap.originalDate;
@@ -116,8 +129,8 @@ export async function approveSwap(swapRequestId: string): Promise<SwapActionResu
       const monthTarg = targ.getUTCMonth() + 1;
 
       const [schedOrig, schedTarg] = await Promise.all([
-        tx.schedule.findUnique({ where: { year_month: { year: yearOrig, month: monthOrig } } }),
-        tx.schedule.findUnique({ where: { year_month: { year: yearTarg, month: monthTarg } } }),
+        findScheduleByYearMonth(tx, yearOrig, monthOrig, swapTeamId),
+        findScheduleByYearMonth(tx, yearTarg, monthTarg, swapTeamId),
       ]);
 
       if (schedOrig && schedTarg) {
@@ -214,8 +227,8 @@ export async function approveSwap(swapRequestId: string): Promise<SwapActionResu
       const nextMonth = currentMonth === 12 ? 1 : currentMonth + 1;
 
       const [schedCurr, schedNext] = await Promise.all([
-        tx.schedule.findUnique({ where: { year_month: { year: currentYear, month: currentMonth } } }),
-        tx.schedule.findUnique({ where: { year_month: { year: nextYear, month: nextMonth } } }),
+        findScheduleByYearMonth(tx, currentYear, currentMonth, swapTeamId),
+        findScheduleByYearMonth(tx, nextYear, nextMonth, swapTeamId),
       ]);
       if (schedCurr) {
         await swapAssignmentsInSchedule(tx, schedCurr.id, swap.requesterId, swap.targetMemberId);

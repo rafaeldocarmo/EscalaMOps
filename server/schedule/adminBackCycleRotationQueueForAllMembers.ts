@@ -2,6 +2,8 @@
 
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/auth";
+import { isStaffAdmin } from "@/lib/authz";
+import { assertStaffCanMutateSchedule } from "@/server/schedule/assertStaffScheduleAccess";
 import type { ScheduleAssignmentRow } from "@/types/schedule";
 import type { SobreavisoWeek } from "@/server/sobreaviso/getSobreavisoScheduleForMonth";
 import { generateMonthlySchedule } from "./generateMonthlySchedule";
@@ -32,13 +34,19 @@ export async function adminBackCycleRotationQueueForAllMembers(
   scheduleId: string
 ): Promise<AdminBackCycleRotationQueueForAllMembersResult> {
   const session = await auth();
-  if (session?.user?.role !== "ADMIN") {
+  if (!isStaffAdmin(session)) {
     return { success: false, error: "Acesso negado." };
+  }
+
+  try {
+    await assertStaffCanMutateSchedule(session, scheduleId);
+  } catch (e) {
+    return { success: false, error: e instanceof Error ? e.message : "Acesso negado." };
   }
 
   const schedule = await prisma.schedule.findUnique({
     where: { id: scheduleId },
-    select: { id: true, month: true, year: true },
+    select: { id: true, month: true, year: true, teamId: true },
   });
   if (!schedule) {
     return { success: false, error: "Escala não encontrada." };
@@ -95,7 +103,11 @@ export async function adminBackCycleRotationQueueForAllMembers(
     return { success: false, error: saveResult.error };
   }
 
-  const sobreavisoWeeks = await getSobreavisoScheduleForMonth(schedule.month, schedule.year);
+  const sobreavisoWeeks = await getSobreavisoScheduleForMonth(
+    schedule.month,
+    schedule.year,
+    schedule.teamId
+  );
 
   const assignmentsForClient: ScheduleAssignmentRow[] = assignments.map((a) => ({
     id: "",

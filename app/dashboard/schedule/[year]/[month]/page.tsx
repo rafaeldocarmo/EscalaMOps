@@ -6,6 +6,8 @@ import { getSobreavisoScheduleForMonth } from "@/server/sobreaviso/getSobreaviso
 import { SchedulePageClient } from "./schedule-page-client";
 import type { ScheduleAssignmentRow, ScheduleRow } from "@/types/schedule";
 import type { TeamMemberRow } from "@/types/team";
+import { isStaffAdmin } from "@/lib/authz";
+import { resolveTeamIdForReadForSession } from "@/lib/multiTeam";
 
 interface PageProps {
   params: Promise<{ year: string; month: string }>;
@@ -23,10 +25,12 @@ export default async function SchedulePage({ params }: PageProps) {
     redirect("/dashboard/schedule/2026/4");
   }
 
+  const teamId = (await resolveTeamIdForReadForSession(session)) ?? undefined;
+
   const [scheduleData, members, sobreavisoWeeks] = await Promise.all([
-    getSchedule(month, year),
-    getTeamMembers(), // todos os membros (sobreaviso usa elegíveis; escala normal filtra por participatesInSchedule no client)
-    getSobreavisoScheduleForMonth(month, year),
+    getSchedule(month, year, teamId),
+    getTeamMembers({ teamId }), // todos os membros da equipe
+    getSobreavisoScheduleForMonth(month, year, teamId),
   ]);
 
   const schedule: ScheduleRow = scheduleData.schedule;
@@ -44,11 +48,15 @@ export default async function SchedulePage({ params }: PageProps) {
   }));
 
   return (
-    <SchedulePageClient
-      schedule={schedule}
-      assignments={assignments}
-      members={teamMembers}
-      sobreavisoWeeks={sobreavisoWeeks}
-    />
+    <div className="space-y-4">
+      <SchedulePageClient
+        key={`${schedule.id}:${teamId ?? ""}`}
+        schedule={schedule}
+        assignments={assignments}
+        members={teamMembers}
+        sobreavisoWeeks={sobreavisoWeeks}
+        selectedTeamId={teamId ?? null}
+      />
+    </div>
   );
 }

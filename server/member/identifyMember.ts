@@ -5,7 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { normalizePhone } from "@/lib/phone";
 
 export type IdentifyMemberResult =
-  | { success: true; member: { id: string; name: string; level: string; shift: string } }
+  | { success: true; member: { id: string; name: string; phone: string; level: string; shift: string } }
   | { success: false; error: string };
 
 /**
@@ -27,7 +27,7 @@ export async function identifyMemberByPhone(
 
   const member = await prisma.teamMember.findFirst({
     where: { normalizedPhone: normalized },
-    select: { id: true, name: true, level: true, shift: true },
+    select: { id: true, name: true, phone: true, level: true, shift: true },
   });
 
   if (!member) {
@@ -39,6 +39,7 @@ export async function identifyMemberByPhone(
     member: {
       id: member.id,
       name: member.name,
+      phone: member.phone,
       level: member.level,
       shift: member.shift,
     },

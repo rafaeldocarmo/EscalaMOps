@@ -1,5 +1,7 @@
 import { prisma } from "@/lib/prisma";
+import { getDefaultTeam } from "@/lib/multiTeam";
 import { startOfDay, endOfDay } from "date-fns";
+import { log } from "@/lib/log";
 import { pinWhatsappMessage, sendWhatsappMessage } from "./sendWhatsappMessage";
 
 type Level = "N1" | "N2";
@@ -17,13 +19,29 @@ export async function sendDailyScheduleSummary(targetDate?: Date): Promise<void>
   const year = dayStart.getFullYear();
   const month = dayStart.getMonth() + 1;
 
-  const schedule = await prisma.schedule.findUnique({
-    where: { year_month: { year, month } },
-    select: { id: true },
+  log({
+    level: "info",
+    event: "whatsapp.daily_summary.start",
+    data: { year, month, targetDate: dayStart.toISOString() },
   });
 
+  const defaultTeam = await getDefaultTeam();
+  const schedule = defaultTeam
+    ? await prisma.schedule.findUnique({
+        where: { teamId_year_month: { teamId: defaultTeam.id, year, month } },
+        select: { id: true },
+      })
+    : await prisma.schedule.findFirst({
+        where: { year, month },
+        select: { id: true },
+      });
+
   if (!schedule) {
-    console.error("sendDailyScheduleSummary: schedule not found for", { year, month });
+    log({
+      level: "warn",
+      event: "whatsapp.daily_summary.schedule_not_found",
+      data: { year, month },
+    });
     return;
   }
 
@@ -134,5 +152,11 @@ export async function sendDailyScheduleSummary(targetDate?: Date): Promise<void>
     // Fixamos/pinamos a mensagem do dia para ficar sempre visível.
     await pinWhatsappMessage(messageId).catch(() => {});
   }
+
+  log({
+    level: "info",
+    event: "whatsapp.daily_summary.sent",
+    data: { year, month, messageId: messageId ?? null },
+  });
 }
 

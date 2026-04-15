@@ -13,6 +13,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { formatMemberName } from "@/lib/formatMemberName";
+import { SELECTED_TEAM_CHANGED_EVENT } from "@/lib/teamSelectionEvents";
 
 function formatHours(value: number): string {
   return `${value.toFixed(2)}h`;
@@ -22,18 +23,24 @@ export function BankHoursTeamBalances() {
   const [rows, setRows] = useState<BankHourMemberBalanceRow[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const load = () => {
-    setLoading(true);
+  const load = (opts?: { showFullLoading?: boolean }) => {
+    const showSpinner = opts?.showFullLoading !== false;
+    if (showSpinner) setLoading(true);
     getBankHourBalancesForAdmin()
       .then(setRows)
       .finally(() => setLoading(false));
   };
 
   useEffect(() => {
-    setTimeout(() => load(), 0);
-    const handler = () => load();
-    window.addEventListener("bank-hours-updated", handler);
-    return () => window.removeEventListener("bank-hours-updated", handler);
+    setTimeout(() => load({ showFullLoading: true }), 0);
+    const onBankHours = () => load({ showFullLoading: false });
+    const onTeamChanged = () => load({ showFullLoading: false });
+    window.addEventListener("bank-hours-updated", onBankHours);
+    window.addEventListener(SELECTED_TEAM_CHANGED_EVENT, onTeamChanged);
+    return () => {
+      window.removeEventListener("bank-hours-updated", onBankHours);
+      window.removeEventListener(SELECTED_TEAM_CHANGED_EVENT, onTeamChanged);
+    };
   }, []);
 
   const totals = useMemo(() => {

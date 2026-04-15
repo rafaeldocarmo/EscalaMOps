@@ -1,14 +1,30 @@
 "use server";
 
 import { auth } from "@/auth";
+import { isStaffAdmin } from "@/lib/authz";
 import { prisma } from "@/lib/prisma";
 import type { BankHoursActionResult } from "@/types/bankHours";
 import type { BankHourRequestStatus, BankHourRequestType } from "@/types/bankHours";
 
 export async function approveBankHourRequest(requestId: string): Promise<BankHoursActionResult> {
   const session = await auth();
-  if (!session?.user || session.user.role !== "ADMIN") {
+  if (!session?.user || !isStaffAdmin(session)) {
     return { success: false, error: "Apenas administradores podem aprovar." };
+  }
+
+  const scopeCheck = await prisma.bankHourRequest.findUnique({
+    where: { id: requestId },
+    include: { requester: { select: { teamId: true } } },
+  });
+  if (!scopeCheck) {
+    return { success: false, error: "Solicitação não encontrada." };
+  }
+  if (
+    session.user.role === "ADMIN_TEAM" &&
+    session.user.managedTeamId &&
+    scopeCheck.requester.teamId !== session.user.managedTeamId
+  ) {
+    return { success: false, error: "Acesso negado." };
   }
 
   try {
@@ -25,28 +41,6 @@ export async function approveBankHourRequest(requestId: string): Promise<BankHou
       const type = req.type as BankHourRequestType;
       const hours = req.hours.toNumber();
       const requestDate = req.date;
-
-      // #region agent log
-      fetch("http://127.0.0.1:7478/ingest/7f30235a-5aca-4c83-a9a0-a050c1b4b509", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "af02be" },
-        body: JSON.stringify({
-          sessionId: "af02be",
-          runId: "bank_hours_approve_debug_2",
-          hypothesisId: "Happrove",
-          location: "server/bank-hours/approveBankHourRequest.ts:approveInputs",
-          message: "approve inputs loaded",
-          data: {
-            requestId,
-            memberId,
-            type,
-            hours,
-            requestDateIso: requestDate?.toISOString?.() ?? String(requestDate),
-          },
-          timestamp: Date.now(),
-        }),
-      }).catch(() => {});
-      // #endregion
 
       // Garante existência da linha de saldo
       await tx.bankHourBalance.upsert({
@@ -120,33 +114,26 @@ export async function approveBankHourRequest(requestId: string): Promise<BankHou
         const approvedHoursTotal =
           existingApproved.reduce((acc, r) => acc + r.hours.toNumber(), 0) + hours;
 
-        // #region agent log
-        fetch("http://127.0.0.1:7478/ingest/7f30235a-5aca-4c83-a9a0-a050c1b4b509", {
-          method: "POST",
-          headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "af02be" },
-          body: JSON.stringify({
-            sessionId: "af02be",
-            runId: "bank_hours_approve_debug_2",
-            hypothesisId: "Happrove",
-            location: "server/bank-hours/approveBankHourRequest.ts:offHoursDecision",
-            message: "off-hours decision totals",
-            data: {
-              scheduleYear,
-              scheduleMonth,
-              existingApprovedCount: existingApproved.length,
-              approvedHoursExisting: existingApproved.reduce((acc, r) => acc + r.hours.toNumber(), 0),
-              approvedHoursTotal,
-            },
-            timestamp: Date.now(),
-          }),
-        }).catch(() => {});
-        // #endregion
-
         if (approvedHoursTotal >= 8 - 1e-9) {
-          const schedule = await tx.schedule.findUnique({
-            where: { year_month: { year: scheduleYear, month: scheduleMonth } },
-            select: { id: true },
+          const memberTeam = await tx.teamMember.findUnique({
+            where: { id: memberId },
+            select: { teamId: true },
           });
+          const schedule = memberTeam?.teamId
+            ? await tx.schedule.findUnique({
+                where: {
+                  teamId_year_month: {
+                    teamId: memberTeam.teamId,
+                    year: scheduleYear,
+                    month: scheduleMonth,
+                  },
+                },
+                select: { id: true },
+              })
+            : await tx.schedule.findFirst({
+                where: { year: scheduleYear, month: scheduleMonth },
+                select: { id: true },
+              });
 
           if (schedule) {
             const beforeAssignment = await tx.scheduleAssignment.findFirst({
@@ -174,26 +161,6 @@ export async function approveBankHourRequest(requestId: string): Promise<BankHou
                 },
               });
             }
-
-            // #region agent log
-            fetch("http://127.0.0.1:7478/ingest/7f30235a-5aca-4c83-a9a0-a050c1b4b509", {
-              method: "POST",
-              headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "af02be" },
-              body: JSON.stringify({
-                sessionId: "af02be",
-                runId: "bank_hours_approve_debug_2",
-                hypothesisId: "Happrove",
-                location: "server/bank-hours/approveBankHourRequest.ts:offHoursScheduleUpdate",
-                message: "scheduleAssignment updateMany executed",
-                data: {
-                  scheduleId: schedule.id,
-                  beforeStatus: beforeAssignment?.status ?? null,
-                  action: beforeAssignment ? "updated" : "created",
-                },
-                timestamp: Date.now(),
-              }),
-            }).catch(() => {});
-            // #endregion
           }
         }
       }

@@ -1,7 +1,9 @@
 "use server";
 
 import { auth } from "@/auth";
+import { isStaffAdmin } from "@/lib/authz";
 import { prisma } from "@/lib/prisma";
+import { assertStaffCanEditMember } from "@/server/team/assertStaffMemberAccess";
 import { normalizePhone } from "@/lib/phone";
 import type { UpdateTeamMemberInput } from "@/lib/validations/team";
 import { updateTeamMemberSchema } from "@/lib/validations/team";
@@ -15,8 +17,14 @@ export async function updateTeamMember(
   input: UpdateTeamMemberInput
 ): Promise<UpdateTeamMemberResult> {
   const session = await auth();
-  if (session?.user?.role !== "ADMIN") {
+  if (!isStaffAdmin(session)) {
     return { success: false, error: "Acesso negado. Apenas administradores podem editar membros." };
+  }
+
+  try {
+    await assertStaffCanEditMember(session, id);
+  } catch (e) {
+    return { success: false, error: e instanceof Error ? e.message : "Acesso negado." };
   }
 
   const parsed = updateTeamMemberSchema.safeParse(input);

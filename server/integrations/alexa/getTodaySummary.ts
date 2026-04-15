@@ -1,4 +1,6 @@
 import { prisma } from "@/lib/prisma";
+import { getDefaultTeam } from "@/lib/multiTeam";
+import { log } from "@/lib/log";
 
 function utcDateKey(date: Date): string {
   const y = date.getUTCFullYear();
@@ -25,16 +27,28 @@ export async function getTodaySummary(): Promise<AlexaTodaySummary> {
   const year = todayNoonUtc.getUTCFullYear();
   const month = todayNoonUtc.getUTCMonth() + 1;
 
+  log({
+    level: "info",
+    event: "alexa.today_summary.start",
+    data: { year, month, dateKey },
+  });
+
+  const defaultTeam = await getDefaultTeam();
   const [members, schedule, onCall] = await Promise.all([
     prisma.teamMember.findMany({
       where: { participatesInSchedule: true },
       select: { id: true, name: true },
       orderBy: { name: "asc" },
     }),
-    prisma.schedule.findUnique({
-      where: { year_month: { year, month } },
-      select: { id: true },
-    }),
+    defaultTeam
+      ? prisma.schedule.findUnique({
+          where: { teamId_year_month: { teamId: defaultTeam.id, year, month } },
+          select: { id: true },
+        })
+      : prisma.schedule.findFirst({
+          where: { year, month },
+          select: { id: true },
+        }),
     prisma.onCallAssignment.findMany({
       where: {
         startDate: { lte: todayNoonUtc },
@@ -56,6 +70,12 @@ export async function getTodaySummary(): Promise<AlexaTodaySummary> {
       select: { memberId: true },
     });
     for (const row of offAssignments) offMemberIds.add(row.memberId);
+  } else {
+    log({
+      level: "warn",
+      event: "alexa.today_summary.schedule_not_found",
+      data: { year, month, dateKey },
+    });
   }
 
   const work: string[] = [];
@@ -66,6 +86,21 @@ export async function getTodaySummary(): Promise<AlexaTodaySummary> {
   }
 
   const onCallList = onCall.map((r) => `${r.member.name} (${r.level})`);
+
+  log({
+    level: "info",
+    event: "alexa.today_summary.success",
+    data: {
+      year,
+      month,
+      dateKey,
+      membersCount: members.length,
+      offCount: off.length,
+      workCount: work.length,
+      onCallCount: onCallList.length,
+      hasSchedule: Boolean(schedule),
+    },
+  });
 
   return {
     dateKey,

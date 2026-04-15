@@ -1,7 +1,9 @@
 "use server";
 
 import { auth } from "@/auth";
+import { isStaffAdmin } from "@/lib/authz";
 import { prisma } from "@/lib/prisma";
+import { assertStaffCanMutateSchedule } from "@/server/schedule/assertStaffScheduleAccess";
 import type { ScheduleAssignmentRow } from "@/types/schedule";
 import {
   WEEKEND_COVERAGE,
@@ -56,8 +58,14 @@ export async function adminShiftRotationQueueForAllMembers(
   direction: Direction
 ): Promise<AdminShiftRotationQueueForAllMembersResult> {
   const session = await auth();
-  if (session?.user?.role !== "ADMIN") {
+  if (!isStaffAdmin(session)) {
     return { success: false, error: "Acesso negado." };
+  }
+
+  try {
+    await assertStaffCanMutateSchedule(session, scheduleId);
+  } catch (e) {
+    return { success: false, error: e instanceof Error ? e.message : "Acesso negado." };
   }
 
   if (direction !== 1 && direction !== -1) {

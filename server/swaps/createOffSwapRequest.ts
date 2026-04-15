@@ -2,6 +2,7 @@
 
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
+import { resolveTeamIdForRead } from "@/lib/multiTeam";
 import type { SwapActionResult } from "@/types/swaps";
 import { sendWhatsappMessage } from "@/server/whatsapp/sendWhatsappMessage";
 
@@ -45,9 +46,19 @@ export async function createOffSwapRequest(
   const yearTarg = targetDate.getFullYear();
   const monthTarg = targetDate.getMonth() + 1;
 
+  const resolvedTeamId = await resolveTeamIdForRead();
+
   const [scheduleOrig, scheduleTarg] = await Promise.all([
-    prisma.schedule.findUnique({ where: { year_month: { year: yearOrig, month: monthOrig } } }),
-    prisma.schedule.findUnique({ where: { year_month: { year: yearTarg, month: monthTarg } } }),
+    resolvedTeamId
+      ? prisma.schedule.findUnique({
+          where: { teamId_year_month: { teamId: resolvedTeamId, year: yearOrig, month: monthOrig } },
+        })
+      : prisma.schedule.findFirst({ where: { year: yearOrig, month: monthOrig } }),
+    resolvedTeamId
+      ? prisma.schedule.findUnique({
+          where: { teamId_year_month: { teamId: resolvedTeamId, year: yearTarg, month: monthTarg } },
+        })
+      : prisma.schedule.findFirst({ where: { year: yearTarg, month: monthTarg } }),
   ]);
 
   if (!scheduleOrig || !scheduleTarg) {

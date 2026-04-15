@@ -1,7 +1,10 @@
 "use server";
 
 import { auth } from "@/auth";
+import { isStaffAdmin } from "@/lib/authz";
 import { prisma } from "@/lib/prisma";
+import { log } from "@/lib/log";
+import { resolveTeamIdForWriteForSession } from "@/lib/multiTeam";
 import type { ScheduleRow, ScheduleAssignmentRow } from "@/types/schedule";
 
 function dateToKey(d: Date): string {
@@ -20,16 +23,37 @@ export async function getMemberScheduleForAdmin(
   month: number
 ): Promise<{ days: MemberScheduleDay[]; year: number; month: number } | null> {
   const session = await auth();
-  if (session?.user?.role !== "ADMIN") return null;
+  if (!isStaffAdmin(session)) return null;
 
-  const schedule = await prisma.schedule.findUnique({
-    where: { year_month: { year, month } },
-    include: {
-      assignments: {
-        where: { memberId },
-      },
-    },
+  const memberRow = await prisma.teamMember.findUnique({
+    where: { id: memberId },
+    select: { teamId: true },
   });
+
+  if (
+    session?.user?.role === "ADMIN_TEAM" &&
+    session.user.managedTeamId &&
+    memberRow?.teamId !== session.user.managedTeamId
+  ) {
+    return null;
+  }
+  const schedule = memberRow?.teamId
+    ? await prisma.schedule.findUnique({
+        where: { teamId_year_month: { teamId: memberRow.teamId, year, month } },
+        include: {
+          assignments: {
+            where: { memberId },
+          },
+        },
+      })
+    : await prisma.schedule.findFirst({
+        where: { year, month },
+        include: {
+          assignments: {
+            where: { memberId },
+          },
+        },
+      });
 
   if (!schedule) {
     const daysInMonth = new Date(year, month, 0).getDate();
@@ -83,14 +107,27 @@ export async function getMemberScheduleForSwapPreview(
   if (!myMember || !otherMember) return null;
   if (myMember.level !== otherMember.level || myMember.shift !== otherMember.shift) return null;
 
-  const schedule = await prisma.schedule.findUnique({
-    where: { year_month: { year, month } },
-    include: {
-      assignments: {
-        where: { memberId: otherMemberId },
-      },
-    },
+  const otherRow = await prisma.teamMember.findUnique({
+    where: { id: otherMemberId },
+    select: { teamId: true },
   });
+  const schedule = otherRow?.teamId
+    ? await prisma.schedule.findUnique({
+        where: { teamId_year_month: { teamId: otherRow.teamId, year, month } },
+        include: {
+          assignments: {
+            where: { memberId: otherMemberId },
+          },
+        },
+      })
+    : await prisma.schedule.findFirst({
+        where: { year, month },
+        include: {
+          assignments: {
+            where: { memberId: otherMemberId },
+          },
+        },
+      });
 
   if (!schedule) {
     const daysInMonth = new Date(year, month, 0).getDate();
@@ -123,24 +160,54 @@ export async function getMemberScheduleForSwapPreview(
 
 export async function getSchedule(
   month: number,
-  year: number
+  year: number,
+  teamId?: string
 ): Promise<{ schedule: ScheduleRow; assignments: ScheduleAssignmentRow[] }> {
   const session = await auth();
-  if (session?.user?.role !== "ADMIN") {
+  if (!isStaffAdmin(session) || !session?.user) {
     throw new Error("Acesso negado. Apenas administradores podem acessar a escala.");
   }
 
-  let schedule = await prisma.schedule.findUnique({
-    where: { year_month: { year, month } },
-    include: { assignments: true },
+  let resolvedTeamId: string;
+  try {
+    resolvedTeamId = await resolveTeamIdForWriteForSession(session, teamId);
+  } catch {
+    log({
+      level: "warn",
+      event: "schedule.get.no_default_team",
+      data: { year, month },
+    });
+    throw new Error(
+      "Não foi possível criar a escala: cadastre uma equipe e defina uma como padrão (is_default)."
+    );
+  }
+
+  log({
+    level: "info",
+    event: "schedule.get",
+    data: { year, month, actorRole: session.user.role, teamId: resolvedTeamId },
   });
 
-  if (!schedule) {
-    schedule = await prisma.schedule.create({
-      data: { month, year, status: "OPEN" },
-      include: { assignments: true },
-    });
-  }
+  // upsert evita P2002 em (team_id, year, month) quando duas requisições
+  // passam pelo find quase ao mesmo tempo e ambas tentam create.
+  const schedule = await prisma.schedule.upsert({
+    where: {
+      teamId_year_month: { teamId: resolvedTeamId, year, month },
+    },
+    create: {
+      teamId: resolvedTeamId,
+      month,
+      year,
+      status: "OPEN",
+    },
+    update: {},
+    include: { assignments: true },
+  });
+  log({
+    level: "info",
+    event: "schedule.get.ensure",
+    data: { year, month, scheduleId: schedule.id, teamId: resolvedTeamId },
+  });
 
   return {
     schedule: {

@@ -1,8 +1,10 @@
 "use server";
 
 import { auth } from "@/auth";
+import { isStaffAdmin } from "@/lib/authz";
 import { prisma } from "@/lib/prisma";
 import { normalizePhone } from "@/lib/phone";
+import { resolveTeamIdForWriteForSession } from "@/lib/multiTeam";
 import type { CreateTeamMemberInput } from "@/lib/validations/team";
 import { createTeamMemberSchema } from "@/lib/validations/team";
 
@@ -11,10 +13,11 @@ export type CreateTeamMemberResult =
   | { success: false; error: string; fieldErrors?: Record<string, string[]> };
 
 export async function createTeamMember(
-  input: CreateTeamMemberInput
+  input: CreateTeamMemberInput,
+  opts?: { teamId?: string }
 ): Promise<CreateTeamMemberResult> {
   const session = await auth();
-  if (session?.user?.role !== "ADMIN") {
+  if (!isStaffAdmin(session)) {
     return { success: false, error: "Acesso negado. Apenas administradores podem adicionar membros." };
   }
 
@@ -35,8 +38,24 @@ export async function createTeamMember(
 
   try {
     const normalizedPhone = normalizePhone(parsed.data.phone).trim();
+    let teamId: string;
+    try {
+      teamId = await resolveTeamIdForWriteForSession(session, opts?.teamId);
+    } catch (e) {
+      return {
+        success: false,
+        error: e instanceof Error ? e.message : "Não foi possível determinar a equipe.",
+      };
+    }
+
+    const exists = await prisma.team.findUnique({ where: { id: teamId }, select: { id: true } });
+    if (!exists) {
+      return { success: false, error: "Equipe não encontrada." };
+    }
+
     const member = await prisma.teamMember.create({
       data: {
+        teamId,
         name: parsed.data.name.trim(),
         phone: parsed.data.phone.trim(),
         normalizedPhone,
@@ -50,7 +69,7 @@ export async function createTeamMember(
   } catch (e) {
     return {
       success: false,
-      error: "Erro ao criar membro. Tente novamente.",
+      error: e instanceof Error ? e.message : "Erro ao criar membro. Tente novamente.",
     };
   }
 }

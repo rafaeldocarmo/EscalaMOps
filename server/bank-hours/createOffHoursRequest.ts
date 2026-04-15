@@ -2,6 +2,7 @@
 
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
+import { resolveTeamIdForRead } from "@/lib/multiTeam";
 import type { BankHoursActionResult } from "@/types/bankHours";
 import { offHoursSchema } from "@/lib/validations/bankHours";
 import { sendWhatsappMessage } from "@/server/whatsapp/sendWhatsappMessage";
@@ -51,10 +52,16 @@ export async function createOffHoursRequest(
   const requestedHours = parsed.data.hours;
 
   // Valida: data deve ser um dia de trabalho (normalmente WORK) para o usuário
-  const schedule = await prisma.schedule.findUnique({
-    where: { year_month: { year, month } },
-    select: { id: true },
-  });
+  const resolvedTeamId = await resolveTeamIdForRead();
+  const schedule = resolvedTeamId
+    ? await prisma.schedule.findUnique({
+        where: { teamId_year_month: { teamId: resolvedTeamId, year, month } },
+        select: { id: true },
+      })
+    : await prisma.schedule.findFirst({
+        where: { year, month },
+        select: { id: true },
+      });
   if (!schedule) {
     return { success: false, error: "Escala do mês não encontrada. Gere/salve a escala antes." };
   }
@@ -96,34 +103,6 @@ export async function createOffHoursRequest(
   });
 
   const existingHoursTotal = existingRequests.reduce((acc, r) => acc + r.hours.toNumber(), 0);
-
-  // #region agent log
-  fetch("http://127.0.0.1:7478/ingest/7f30235a-5aca-4c83-a9a0-a050c1b4b509", {
-    method: "POST",
-    headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "af02be" },
-    body: JSON.stringify({
-      sessionId: "af02be",
-      runId: "bank_hours_off_8h_debug_1",
-      hypothesisId: "HsumCheck",
-      location: "server/bank-hours/createOffHoursRequest.ts:8hValidation",
-      message: "8h/day validation inputs",
-      data: {
-        memberId,
-        dateKey,
-        requestedDateIso: requestedDate.toISOString(),
-        requestedHours,
-        existingCount: existingRequests.length,
-        existingHoursTotal,
-        existing: existingRequests.map((r) => ({
-          id: r.id,
-          status: r.status,
-          hours: r.hours.toNumber(),
-        })),
-      },
-      timestamp: Date.now(),
-    }),
-  }).catch(() => {});
-  // #endregion
 
   if (existingHoursTotal + requestedHours > 8 + 1e-9) {
     const remaining = Math.max(0, 8 - existingHoursTotal);

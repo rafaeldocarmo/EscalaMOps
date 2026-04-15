@@ -1,4 +1,5 @@
 import { auth } from "@/auth";
+import { isStaffAdmin } from "@/lib/authz";
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
@@ -9,11 +10,11 @@ export default async function DashboardPage() {
   if (!session?.user) {
     redirect("/login");
   }
-  if (session.user.role === "ADMIN" && !session.member) {
+  if (isStaffAdmin(session) && !session.member) {
     redirect("/dashboard/team");
   }
   if (!session.member) {
-    if (session.user.role !== "ADMIN") {
+    if (!isStaffAdmin(session)) {
       redirect("/celular");
     }
     return (
@@ -24,7 +25,7 @@ export default async function DashboardPage() {
         </p>
         <div className="flex flex-wrap gap-3">
           <Button asChild>
-            <Link href="/dashboard/team">Equipe</Link>
+            <Link href="/dashboard/team">Membros</Link>
           </Button>
           <Button asChild variant="outline">
             <Link

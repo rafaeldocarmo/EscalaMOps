@@ -22,14 +22,27 @@ export async function getMySchedule(
   if (!session?.user || !session.member) return null;
   if (session.member.id !== memberId) return null;
 
-  const schedule = await prisma.schedule.findUnique({
-    where: { year_month: { year, month } },
-    include: {
-      assignments: {
-        where: { memberId },
-      },
-    },
+  const memberRow = await prisma.teamMember.findUnique({
+    where: { id: memberId },
+    select: { teamId: true },
   });
+  const schedule = memberRow?.teamId
+    ? await prisma.schedule.findUnique({
+        where: { teamId_year_month: { teamId: memberRow.teamId, year, month } },
+        include: {
+          assignments: {
+            where: { memberId },
+          },
+        },
+      })
+    : await prisma.schedule.findFirst({
+        where: { year, month },
+        include: {
+          assignments: {
+            where: { memberId },
+          },
+        },
+      });
 
   if (!schedule) {
     const daysInMonth = new Date(year, month, 0).getDate();

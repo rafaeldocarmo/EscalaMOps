@@ -1,8 +1,10 @@
 "use server";
 
 import { auth } from "@/auth";
+import { isStaffAdmin } from "@/lib/authz";
 import { prisma } from "@/lib/prisma";
-import { startOfMonth } from "date-fns";
+import { format, startOfMonth } from "date-fns";
+import { resolveTeamIdForWriteForSession } from "@/lib/multiTeam";
 import { generateSobreavisoSchedule } from "@/server/sobreaviso/generateSobreavisoSchedule";
 import {
   getSobreavisoScheduleForMonth,
@@ -19,19 +21,32 @@ export type GenerateSobreavisoForMonthResult =
  */
 export async function generateSobreavisoForMonth(
   month: number,
-  year: number
+  year: number,
+  teamIdArg?: string | null
 ): Promise<GenerateSobreavisoForMonthResult> {
   const session = await auth();
-  if (session?.user?.role !== "ADMIN") {
+  if (!isStaffAdmin(session)) {
     return { success: false, error: "Acesso negado." };
+  }
+
+  let teamId: string;
+  try {
+    teamId = await resolveTeamIdForWriteForSession(session, teamIdArg);
+  } catch (e) {
+    const message = e instanceof Error ? e.message : "Equipe não encontrada.";
+    return { success: false, error: message };
   }
 
   const monthStart = startOfMonth(new Date(year, month - 1));
   const nextMonthStart = startOfMonth(new Date(year, month));
+  const monthStartNoonUtc = new Date(format(monthStart, "yyyy-MM-dd") + "T12:00:00.000Z");
+  const nextMonthStartNoonUtc = new Date(format(nextMonthStart, "yyyy-MM-dd") + "T12:00:00.000Z");
 
   const existingCount = await prisma.onCallAssignment.count({
     where: {
-      startDate: { gte: monthStart, lt: nextMonthStart },
+      startDate: { lt: nextMonthStartNoonUtc },
+      endDate: { gt: monthStartNoonUtc },
+      ...(teamId ? { member: { teamId } } : {}),
     },
   });
   if (existingCount > 0) {
@@ -42,15 +57,15 @@ export async function generateSobreavisoForMonth(
   }
 
   await prisma.schedule.upsert({
-    where: { year_month: { year, month } },
-    create: { year, month, status: "OPEN" },
+    where: { teamId_year_month: { teamId, year, month } },
+    create: { teamId, year, month, status: "OPEN" },
     update: {},
     select: { id: true },
   });
 
   try {
-    await generateSobreavisoSchedule(month, year);
-    const sobreavisoWeeks = await getSobreavisoScheduleForMonth(month, year);
+    await generateSobreavisoSchedule(month, year, teamId);
+    const sobreavisoWeeks = await getSobreavisoScheduleForMonth(month, year, teamIdArg);
     return { success: true, sobreavisoWeeks };
   } catch (e) {
     const message = e instanceof Error ? e.message : "Erro ao gerar sobreaviso.";

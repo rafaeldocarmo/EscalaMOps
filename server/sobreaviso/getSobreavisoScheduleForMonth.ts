@@ -3,6 +3,7 @@
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { startOfMonth, format } from "date-fns";
+import { resolveSobreavisoTeamScope } from "@/server/sobreaviso/resolveSobreavisoTeamScope";
 
 export interface SobreavisoWeek {
   id: string;
@@ -15,10 +16,13 @@ export interface SobreavisoWeek {
 
 export async function getSobreavisoScheduleForMonth(
   month: number,
-  year: number
+  year: number,
+  teamIdParam?: string | null
 ): Promise<SobreavisoWeek[]> {
   const session = await auth();
   if (!session?.user) return [];
+
+  const scopeTeamId = await resolveSobreavisoTeamScope(teamIdParam);
 
   const monthStart = startOfMonth(new Date(year, month - 1));
   const nextMonthStart = startOfMonth(new Date(year, month));
@@ -34,6 +38,7 @@ export async function getSobreavisoScheduleForMonth(
     where: {
       startDate: { lt: nextMonthStartNoonUtc },
       endDate: { gt: monthStartNoonUtc },
+      ...(scopeTeamId ? { member: { teamId: scopeTeamId } } : {}),
     },
     include: {
       member: { select: { name: true } },

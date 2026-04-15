@@ -1,7 +1,9 @@
 "use server";
 
 import { auth } from "@/auth";
+import { isStaffAdmin } from "@/lib/authz";
 import { prisma } from "@/lib/prisma";
+import { assertStaffCanMutateSchedule } from "@/server/schedule/assertStaffScheduleAccess";
 import type { SwapActionResult } from "@/types/swaps";
 
 /**
@@ -14,8 +16,13 @@ export async function adminSwapQueuePositions(
   scheduleId: string
 ): Promise<SwapActionResult> {
   const session = await auth();
-  if (session?.user?.role !== "ADMIN") {
+  if (!isStaffAdmin(session)) {
     return { success: false, error: "Apenas administradores podem realizar esta ação." };
+  }
+  try {
+    await assertStaffCanMutateSchedule(session, scheduleId);
+  } catch (e) {
+    return { success: false, error: e instanceof Error ? e.message : "Acesso negado." };
   }
   if (memberIdA === memberIdB) {
     return { success: false, error: "Selecione dois membros diferentes." };
@@ -27,6 +34,14 @@ export async function adminSwapQueuePositions(
   ]);
   if (!a || !b) {
     return { success: false, error: "Membro não encontrado." };
+  }
+
+  const sched = await prisma.schedule.findUnique({
+    where: { id: scheduleId },
+    select: { teamId: true },
+  });
+  if (!sched?.teamId || a.teamId !== sched.teamId || b.teamId !== sched.teamId) {
+    return { success: false, error: "Membros devem pertencer à equipe desta escala." };
   }
 
   await prisma.$transaction(async (tx) => {

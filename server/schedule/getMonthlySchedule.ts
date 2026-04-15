@@ -2,6 +2,7 @@
 
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
+import { getDefaultTeam, resolveTeamIdForRead } from "@/lib/multiTeam";
 import type { ScheduleRow, ScheduleAssignmentRow } from "@/types/schedule";
 import type { TeamMemberRow } from "@/types/team";
 
@@ -14,7 +15,8 @@ function dateToKey(d: Date): string {
 
 export async function getMonthlySchedule(
   year: number,
-  month: number
+  month: number,
+  teamId?: string
 ): Promise<{
   schedule: ScheduleRow | null;
   assignments: ScheduleAssignmentRow[];
@@ -23,14 +25,25 @@ export async function getMonthlySchedule(
   const session = await auth();
   if (!session?.user || !session.member) return null;
 
-  const schedule = await prisma.schedule.findUnique({
-    where: { year_month: { year, month } },
-    include: { assignments: true },
-  });
+  const explicitTeamId = await resolveTeamIdForRead(teamId);
+  const scheduleTeamId = explicitTeamId ?? (await getDefaultTeam())?.id ?? null;
+
+  const schedule = scheduleTeamId
+    ? await prisma.schedule.findUnique({
+        where: { teamId_year_month: { teamId: scheduleTeamId, year, month } },
+        include: { assignments: true },
+      })
+    : await prisma.schedule.findFirst({
+        where: { year, month },
+        include: { assignments: true },
+      });
 
   if (!schedule) {
     const members = await prisma.teamMember.findMany({
-      where: { participatesInSchedule: true },
+      where: {
+        ...(scheduleTeamId ? { teamId: scheduleTeamId } : {}),
+        participatesInSchedule: true,
+      },
       orderBy: [{ level: "asc" }, { shift: "asc" }, { name: "asc" }],
     });
     const daysInMonth = new Date(year, month, 0).getDate();
@@ -65,7 +78,10 @@ export async function getMonthlySchedule(
   }
 
   const members = await prisma.teamMember.findMany({
-    where: { participatesInSchedule: true },
+    where: {
+      ...(scheduleTeamId ? { teamId: scheduleTeamId } : {}),
+      participatesInSchedule: true,
+    },
     orderBy: [{ level: "asc" }, { shift: "asc" }, { name: "asc" }],
   });
 

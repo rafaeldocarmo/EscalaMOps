@@ -51,6 +51,7 @@ export const authOptions: NextAuthOptions = {
           image: user.image ?? null,
           phone: user.phone ?? null,
           role: user.role ?? undefined,
+          managedTeamId: user.managedTeamId ?? null,
         };
       },
     }),
@@ -74,18 +75,23 @@ export const authOptions: NextAuthOptions = {
         token.picture = user.image ?? undefined;
         token.phone = (user as { phone?: string | null }).phone ?? undefined;
         let role = (user as { role?: string | null }).role ?? undefined;
-        if (role === undefined && user.id) {
+        let managedTeamId =
+          (user as { managedTeamId?: string | null }).managedTeamId ?? undefined;
+        if ((role === undefined || managedTeamId === undefined) && user.id) {
           const dbUser = await prisma.user.findUnique({
             where: { id: user.id },
-            select: { role: true },
+            select: { role: true, managedTeamId: true },
           });
-          role = dbUser?.role ?? undefined;
+          if (role === undefined) role = dbUser?.role ?? undefined;
+          if (managedTeamId === undefined) managedTeamId = dbUser?.managedTeamId ?? undefined;
         }
         token.role = role;
+        token.managedTeamId = managedTeamId ?? null;
       }
       if (trigger === "update" && session) {
         if (session.phone !== undefined) token.phone = session.phone;
         if (session.role !== undefined) token.role = session.role;
+        if (session.managedTeamId !== undefined) token.managedTeamId = session.managedTeamId;
         if (session.member !== undefined) token.member = session.member;
       }
       return token;
@@ -97,7 +103,8 @@ export const authOptions: NextAuthOptions = {
         const email = (token.email as string | null | undefined) ?? null;
         const phone = (token.phone as string | null | undefined) ?? null;
         const role = (token.role as string | null | undefined) ?? null;
-        Object.assign(session.user, { email, phone, role });
+        const managedTeamId = (token.managedTeamId as string | null | undefined) ?? null;
+        Object.assign(session.user, { email, phone, role, managedTeamId });
       }
       session.member = (token.member as typeof session.member) ?? null;
       return session;

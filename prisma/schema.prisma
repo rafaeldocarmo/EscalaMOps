@@ -45,6 +45,7 @@ model Session {
 enum UserRole {
   USER
   ADMIN
+  ADMIN_TEAM
 }
 
 model User {
@@ -56,9 +57,18 @@ model User {
   password      String?   // hash para login com email/senha
   phone         String?   // celular obrigatório após login
   role          UserRole  @default(USER)
+  /** When role is ADMIN_TEAM, the only team this user may see and manage. */
+  managedTeamId String?   @map("managed_team_id")
+  /**
+   * Definido apenas no banco (seed/SQL). No máximo um usuário com true.
+   * Não pode ser alterado pela tela de permissões nem por updateUserRole.
+   */
+  isGlobalAdmin Boolean @default(false) @map("is_global_admin")
 
   accounts Account[]
   sessions Session[]
+
+  managedTeam Team? @relation("UserManagedTeam", fields: [managedTeamId], references: [id], onDelete: SetNull)
 
   @@map("users")
 }
@@ -77,8 +87,24 @@ enum Shift {
   TC
 }
 
+model Team {
+  id        String   @id @default(cuid())
+  name      String
+  isDefault Boolean  @default(false) @map("is_default")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  members           TeamMember[]
+  schedules         Schedule[]
+  usersManagingTeam User[]       @relation("UserManagedTeam")
+
+  @@unique([name])
+  @@map("teams")
+}
+
 model TeamMember {
   id                    String   @id @default(cuid())
+  teamId                String?  @map("team_id")
   name                  String
   phone                 String
   normalizedPhone       String   @map("normalized_phone")
@@ -100,6 +126,9 @@ model TeamMember {
   bankHourRequests      BankHourRequest[] @relation("BankHourRequests")
   bankHourTransactions   BankHourTransaction[] @relation("BankHourTransactions")
 
+  team Team? @relation(fields: [teamId], references: [id], onDelete: Restrict)
+
+  @@index([teamId])
   @@index([normalizedPhone])
   @@map("team_members")
 }
@@ -117,6 +146,7 @@ enum AssignmentStatus {
 
 model Schedule {
   id        String   @id @default(cuid())
+  teamId    String   @map("team_id")
   month     Int
   year      Int
   status    ScheduleStatus
@@ -125,7 +155,9 @@ model Schedule {
 
   assignments ScheduleAssignment[]
 
-  @@unique([year, month])
+  team Team @relation(fields: [teamId], references: [id], onDelete: Restrict)
+
+  @@unique([teamId, year, month], map: "schedules_team_id_year_month_key")
   @@map("schedules")
 }
 

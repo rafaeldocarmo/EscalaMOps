@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { formatDateKeyToDDMMYYYY } from "@/lib/formatDate";
 import { MemberScheduleMiniCalendar } from "@/components/swaps/MemberScheduleMiniCalendar";
+import { SELECTED_TEAM_CHANGED_EVENT } from "@/lib/teamSelectionEvents";
 
 type FilterTab = "pending" | "approved" | "rejected";
 
@@ -33,18 +34,27 @@ export function AdminBankHoursList({
 
   const PAGE_SIZE = 5;
 
-  const load = () => {
-    setLoading(true);
+  const load = (opts?: { showFullLoading?: boolean }) => {
+    const showSpinner = opts?.showFullLoading !== false;
+    if (showSpinner) setLoading(true);
     getBankHourRequestsForAdmin()
       .then(setList)
       .finally(() => setLoading(false));
   };
 
   useEffect(() => {
-    setTimeout(() => load(), 0);
-    const handler = () => load();
-    window.addEventListener("bank-hours-updated", handler);
-    return () => window.removeEventListener("bank-hours-updated", handler);
+    setTimeout(() => load({ showFullLoading: true }), 0);
+    const onBankHours = () => load({ showFullLoading: false });
+    const onTeamChanged = () => {
+      setPage(1);
+      load({ showFullLoading: false });
+    };
+    window.addEventListener("bank-hours-updated", onBankHours);
+    window.addEventListener(SELECTED_TEAM_CHANGED_EVENT, onTeamChanged);
+    return () => {
+      window.removeEventListener("bank-hours-updated", onBankHours);
+      window.removeEventListener(SELECTED_TEAM_CHANGED_EVENT, onTeamChanged);
+    };
   }, []);
 
   const filter = filterProp ?? internalFilter;
@@ -165,7 +175,7 @@ export function AdminBankHoursList({
                 const res = await approveBankHourRequest(r.id);
                 if (!res.success) return toast.error(res.error);
                 toast.success("Solicitação aprovada.");
-                load();
+                load({ showFullLoading: false });
                 window.dispatchEvent(new CustomEvent("bank-hours-updated"));
               }}
             >
@@ -178,7 +188,7 @@ export function AdminBankHoursList({
                 const res = await rejectBankHourRequest(r.id);
                 if (!res.success) return toast.error(res.error);
                 toast.success("Solicitação rejeitada.");
-                load();
+                load({ showFullLoading: false });
                 window.dispatchEvent(new CustomEvent("bank-hours-updated"));
               }}
             >
