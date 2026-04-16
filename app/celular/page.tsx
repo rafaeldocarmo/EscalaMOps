@@ -10,6 +10,7 @@ import {
 } from "@/components/ui/card";
 import { PhoneForm } from "./phone-form";
 import { Button } from "@/components/ui/button";
+import { isStaffAdmin } from "@/lib/authz";
 
 export default async function CelularPage() {
   const session = await auth();
@@ -32,7 +33,7 @@ export default async function CelularPage() {
         <CardContent>
           <PhoneForm />
 
-          {session.user.role === "ADMIN" && (
+          {isStaffAdmin(session) && (
             <div className="flex flex-col gap-2 mt-4">
               <Button variant="outline" className="w-fit mx-auto cursor-pointer" asChild>
                 <Link href="/dashboard/team">Ver como administrador</Link>

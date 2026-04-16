@@ -55,6 +55,7 @@ export function TeamTitleDropdown({
         className={cn(
           "h-auto min-h-10 w-full gap-2 rounded-lg border border-border/60 bg-muted/70 px-3 py-2.5",
           "text-left text-sm font-bold text-foreground shadow-sm",
+          "cursor-pointer disabled:cursor-not-allowed",
           "hover:bg-muted/90 focus-visible:border-border focus-visible:ring-2 focus-visible:ring-ring/25",
           "data-[state=open]:border-border data-[state=open]:bg-muted/80",
           "[&>svg:last-child]:size-4 [&>svg:last-child]:shrink-0 [&>svg:last-child]:text-muted-foreground",

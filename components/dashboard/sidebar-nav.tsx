@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { cn } from "@/lib/utils";
 import {
+  Home,
   Users,
   Building2,
   CalendarDays,
@@ -60,14 +61,45 @@ export function SidebarNav() {
   // Layout already protects routes, but keep client-side safe defaults.
   const isFullAdmin = session?.user?.role === "ADMIN";
   const hasMemberView = !!session?.member;
+  const showAdminHome = isFullAdmin && hasMemberView;
   const settingsMode = isFullAdmin && isSettingsSidebarPath(pathname);
 
   const mainItems = [
-        { href: "/dashboard/team", label: "Membros", icon: Users, active: pathname.startsWith("/dashboard/team") },
-        { href: scheduleHref, label: "Escala", icon: CalendarDays, active: pathname.startsWith("/dashboard/schedule") },
-        { href: "/dashboard/swaps", label: "Trocas", icon: ArrowLeftRight, active: pathname.startsWith("/dashboard/swaps") },
-        { href: "/dashboard/bank-hours", label: "Banco de Horas", icon: Clock, active: pathname.startsWith("/dashboard/bank-hours") },
-      ]
+    ...(showAdminHome
+      ? [
+          {
+            href: "/dashboard",
+            label: "Home",
+            icon: Home,
+            active: pathname === "/dashboard",
+          },
+        ]
+      : []),
+    {
+      href: "/dashboard/team",
+      label: "Membros",
+      icon: Users,
+      active: pathname.startsWith("/dashboard/team"),
+    },
+    {
+      href: scheduleHref,
+      label: "Escala",
+      icon: CalendarDays,
+      active: pathname.startsWith("/dashboard/schedule"),
+    },
+    {
+      href: "/dashboard/swaps",
+      label: "Trocas",
+      icon: ArrowLeftRight,
+      active: pathname.startsWith("/dashboard/swaps"),
+    },
+    {
+      href: "/dashboard/bank-hours",
+      label: "Banco de Horas",
+      icon: Clock,
+      active: pathname.startsWith("/dashboard/bank-hours"),
+    },
+  ];
 
   return (
     <div className="flex h-full min-h-0 flex-1 flex-col gap-4">

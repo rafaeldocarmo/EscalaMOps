@@ -16,7 +16,7 @@ interface PageProps {
 export default async function SchedulePage({ params }: PageProps) {
   const session = await auth();
   if (!session?.user) redirect("/login");
-  if (session.user.role !== "ADMIN") redirect("/");
+  if (!isStaffAdmin(session)) redirect("/");
 
   const { year: yearParam, month: monthParam } = await params;
   const year = parseInt(yearParam, 10);
