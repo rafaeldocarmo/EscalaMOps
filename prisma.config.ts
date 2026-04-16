@@ -2,6 +2,7 @@
 // npm install --save-dev prisma dotenv
 import "dotenv/config";
 import { defineConfig } from "prisma/config";
+import { normalizePgConnectionString } from "./lib/normalizePgConnectionString";
 
 /**
  * `prisma migrate deploy` precisa de conexão direta ao Postgres. URLs com pooler Neon
@@ -12,7 +13,7 @@ import { defineConfig } from "prisma/config";
  */
 function resolveMigrateDatasourceUrl(): string {
   const explicit = process.env["DATABASE_URL_UNPOOLED"];
-  if (explicit?.trim()) return explicit.trim();
+  if (explicit?.trim()) return normalizePgConnectionString(explicit.trim());
 
   const pooled = process.env["DATABASE_URL"];
   if (!pooled?.trim()) return "";
@@ -22,13 +23,13 @@ function resolveMigrateDatasourceUrl(): string {
     // Neon: host típico `ep-xxx-pooler.region.aws.neon.tech` → direto `ep-xxx.region.aws.neon.tech`
     if (u.hostname.includes("-pooler.")) {
       u.hostname = u.hostname.replace("-pooler.", ".");
-      return u.toString();
+      return normalizePgConnectionString(u.toString());
     }
   } catch {
     /* ignore parse errors, fall through */
   }
 
-  return pooled;
+  return normalizePgConnectionString(pooled);
 }
 
 export default defineConfig({

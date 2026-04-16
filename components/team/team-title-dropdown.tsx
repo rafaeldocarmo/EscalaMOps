@@ -1,7 +1,7 @@
 "use client";
 
 import { useTransition } from "react";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { Building2 } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import type { TeamListItem } from "@/server/team/getTeams";
@@ -21,7 +21,6 @@ export function TeamTitleDropdown({
 }) {
   const router = useRouter();
   const pathname = usePathname();
-  const searchParams = useSearchParams();
   const [pending, startTransition] = useTransition();
 
   function handleChange(nextId: string) {
@@ -30,7 +29,10 @@ export function TeamTitleDropdown({
       await setSelectedTeam(nextId);
 
       // Remove any legacy per-page ?teamId= param while keeping other params.
-      const params = new URLSearchParams(searchParams?.toString());
+      // Avoid `useSearchParams()` here — it opts into client-only subtrees and breaks SSR hydration.
+      const params = new URLSearchParams(
+        typeof window !== "undefined" ? window.location.search.replace(/^\?/, "") : ""
+      );
       params.delete("teamId");
       const qs = params.toString();
       router.push(qs ? `${pathname}?${qs}` : pathname);
