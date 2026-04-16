@@ -2,7 +2,7 @@
 
 import { useTransition } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { Users } from "lucide-react";
+import { Building2 } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import type { TeamListItem } from "@/server/team/getTeams";
 import { setSelectedTeam } from "@/server/team/setSelectedTeam";
@@ -63,7 +63,7 @@ export function TeamTitleDropdown({
         )}
         aria-label="Selecionar equipe"
       >
-        <Users className="size-4 shrink-0 text-foreground/85" aria-hidden />
+        <Building2 className="size-4 shrink-0 text-foreground/85" aria-hidden />
         <SelectValue className="min-w-0 flex-1 truncate text-left" placeholder="Equipe" />
       </SelectTrigger>
       <SelectContent
