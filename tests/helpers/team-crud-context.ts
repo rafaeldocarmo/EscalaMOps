@@ -34,42 +34,56 @@ export async function ensureLegacyCatalogForTeam(teamId: string) {
     { kind: Shift.TC, label: "TC", sortOrder: 3 },
   ];
 
+  // Fase 1: cria tudo em paralelo via createMany (skipDuplicates garante idempotência).
+  await Promise.all([
+    prisma.teamLevel.createMany({
+      data: levelSpecs.map((s) => ({
+        teamId,
+        label: s.label,
+        legacyKind: s.kind,
+        sortOrder: s.sortOrder,
+      })),
+      skipDuplicates: true,
+    }),
+    prisma.teamShift.createMany({
+      data: shiftSpecs.map((s) => ({
+        teamId,
+        label: s.label,
+        legacyKind: s.kind,
+        sortOrder: s.sortOrder,
+      })),
+      skipDuplicates: true,
+    }),
+  ]);
+
+  // Fase 2: lê os IDs (em paralelo).
+  const [levels, shifts] = await Promise.all([
+    prisma.teamLevel.findMany({
+      where: { teamId, legacyKind: { in: levelSpecs.map((s) => s.kind) } },
+      select: { id: true, legacyKind: true },
+    }),
+    prisma.teamShift.findMany({
+      where: { teamId, legacyKind: { in: shiftSpecs.map((s) => s.kind) } },
+      select: { id: true, legacyKind: true },
+    }),
+  ]);
+
   const levelIds = {} as Record<Level, string>;
-  for (const spec of levelSpecs) {
-    const row = await prisma.teamLevel.upsert({
-      where: { teamId_legacyKind: { teamId, legacyKind: spec.kind } },
-      create: { teamId, label: spec.label, legacyKind: spec.kind, sortOrder: spec.sortOrder },
-      update: {},
-      select: { id: true },
-    });
-    levelIds[spec.kind] = row.id;
-  }
-
+  for (const l of levels) if (l.legacyKind) levelIds[l.legacyKind] = l.id;
   const shiftIds = {} as Record<Shift, string>;
-  for (const spec of shiftSpecs) {
-    const row = await prisma.teamShift.upsert({
-      where: { teamId_legacyKind: { teamId, legacyKind: spec.kind } },
-      create: { teamId, label: spec.label, legacyKind: spec.kind, sortOrder: spec.sortOrder },
-      update: {},
-      select: { id: true },
-    });
-    shiftIds[spec.kind] = row.id;
-  }
+  for (const s of shifts) if (s.legacyKind) shiftIds[s.legacyKind] = s.id;
 
+  // Fase 3: matriz 4x4 em um único createMany.
+  const pairs: { teamLevelId: string; teamShiftId: string }[] = [];
   for (const lv of levelSpecs) {
     for (const sh of shiftSpecs) {
-      await prisma.teamLevelAllowedShift.upsert({
-        where: {
-          teamLevelId_teamShiftId: {
-            teamLevelId: levelIds[lv.kind],
-            teamShiftId: shiftIds[sh.kind],
-          },
-        },
-        create: { teamLevelId: levelIds[lv.kind], teamShiftId: shiftIds[sh.kind] },
-        update: {},
-      });
+      pairs.push({ teamLevelId: levelIds[lv.kind], teamShiftId: shiftIds[sh.kind] });
     }
   }
+  await prisma.teamLevelAllowedShift.createMany({
+    data: pairs,
+    skipDuplicates: true,
+  });
 
   return { levelIds, shiftIds };
 }
@@ -116,12 +130,32 @@ export async function buildValidMemberInput(
     participatesInSchedule: boolean;
   }>,
 ) {
-  const { levelIds, shiftIds } = await ensureLegacyCatalogForTeam(teamId);
+  // Lookup puro (SELECT) para não reexecutar os 24 upserts de
+  // `ensureLegacyCatalogForTeam` a cada chamada. Assume que o catálogo
+  // legado já foi criado (ex.: via `createTeamWithLegacyCatalog`).
+  const wantedLevel = overrides?.level ?? Level.N1;
+  const wantedShift = overrides?.shift ?? Shift.T1;
+  const [level, shift] = await Promise.all([
+    prisma.teamLevel.findFirst({
+      where: { teamId, legacyKind: wantedLevel },
+      select: { id: true },
+    }),
+    prisma.teamShift.findFirst({
+      where: { teamId, legacyKind: wantedShift },
+      select: { id: true },
+    }),
+  ]);
+  if (!level || !shift) {
+    throw new Error(
+      `buildValidMemberInput: catálogo legado não encontrado para teamId=${teamId}. ` +
+        "Chame createTeamWithLegacyCatalog/ensureLegacyCatalogForTeam antes.",
+    );
+  }
   return {
     name: overrides?.name ?? "Membro Integração",
     phone: overrides?.phone ?? "11987654321",
-    teamLevelId: levelIds[overrides?.level ?? Level.N1],
-    teamShiftId: shiftIds[overrides?.shift ?? Shift.T1],
+    teamLevelId: level.id,
+    teamShiftId: shift.id,
     sobreaviso: overrides?.sobreaviso ?? false,
     participatesInSchedule: overrides?.participatesInSchedule ?? true,
   };
