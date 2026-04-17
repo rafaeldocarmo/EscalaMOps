@@ -1,16 +1,17 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { MyScheduleView } from "@/components/schedule/my-schedule-view";
 import { WeeklyScheduleView } from "@/components/schedule/weekly-schedule-view";
 import { MonthlyScheduleView } from "@/components/schedule/monthly-schedule-view";
 import { DashboardSummaryCards } from "@/components/dashboard/dashboard-summary-cards";
 import { DashboardSwapBadge } from "@/components/dashboard/dashboard-swap-badge";
-import { getMyDashboardData, type MyDashboardData } from "@/server/dashboard/getMyDashboardData";
+import {
+  getMyDashboardBootstrap,
+  type MyDashboardBootstrap,
+} from "@/server/dashboard/getMyDashboardBootstrap";
 import type { SwapRequestStatus } from "@/types/swaps";
-import { getMyBankHourBalance } from "@/server/bank-hours/getMyBankHourBalance";
-import { getMyBankHourPendingCount } from "@/server/bank-hours/getMyBankHourPendingCount";
 
 interface DashboardTabsProps {
   memberId: string;
@@ -22,50 +23,43 @@ export function DashboardTabs({ memberId, memberName }: DashboardTabsProps) {
   const now = new Date();
   const [year, setYear] = useState(now.getFullYear());
   const [month, setMonth] = useState(now.getMonth() + 1);
-  const [myData, setMyData] = useState<MyDashboardData | null>(null);
-  const [bankHoursBalance, setBankHoursBalance] = useState<number | null>(null);
-  const [bankHoursPendingCount, setBankHoursPendingCount] = useState<number | null>(null);
+  const [bootstrap, setBootstrap] = useState<MyDashboardBootstrap | null>(null);
+
+  const loadBootstrap = useCallback(async () => {
+    const data = await getMyDashboardBootstrap(year, month);
+    setBootstrap(data);
+  }, [year, month]);
 
   useEffect(() => {
     if (value !== "my") return;
-    getMyDashboardData(memberId, year, month).then(setMyData);
+    let cancelled = false;
+    getMyDashboardBootstrap(year, month).then((data) => {
+      if (cancelled) return;
+      setBootstrap(data);
+    });
+    return () => {
+      cancelled = true;
+    };
   }, [memberId, month, value, year]);
 
   useEffect(() => {
-    let cancelled = false;
-    const load = async () => {
-      const b = await getMyBankHourBalance();
-      if (cancelled) return;
-      setBankHoursBalance(b);
+    if (value !== "my") return;
+    const handler = () => {
+      loadBootstrap();
     };
-    if (value === "my") load();
-    return () => {
-      cancelled = true;
-    };
-  }, [memberId, value]);
-
-  useEffect(() => {
-    let cancelled = false;
-    const load = async () => {
-      const c = await getMyBankHourPendingCount();
-      if (cancelled) return;
-      setBankHoursPendingCount(c);
-    };
-    if (value === "my") load();
-    return () => {
-      cancelled = true;
-    };
-  }, [memberId, value]);
+    window.addEventListener("bank-hours-updated", handler);
+    return () => window.removeEventListener("bank-hours-updated", handler);
+  }, [loadBootstrap, value]);
 
   const pendingCount = useMemo(() => {
-    if (!myData) return null;
+    if (!bootstrap) return null;
     const pendingStatuses = new Set<SwapRequestStatus>([
       "PENDING",
       "WAITING_SECOND_USER",
       "SECOND_USER_ACCEPTED",
     ]);
-    return myData.swaps.filter((s) => pendingStatuses.has(s.status)).length;
-  }, [myData]);
+    return bootstrap.swaps.filter((s) => pendingStatuses.has(s.status)).length;
+  }, [bootstrap]);
 
   return (
     <Tabs value={value} onValueChange={setValue} className="w-full space-y-6">
@@ -102,9 +96,7 @@ export function DashboardTabs({ memberId, memberName }: DashboardTabsProps) {
         <DashboardSummaryCards
           year={year}
           month={month}
-          data={myData}
-          bankHoursBalance={bankHoursBalance}
-          bankHoursPendingCount={bankHoursPendingCount}
+          data={bootstrap}
         />
       )}
 
@@ -115,7 +107,7 @@ export function DashboardTabs({ memberId, memberName }: DashboardTabsProps) {
           month={month}
           onYearChange={setYear}
           onMonthChange={setMonth}
-          dashboardData={myData}
+          dashboardData={bootstrap}
         />
       </TabsContent>
       <TabsContent value="weekly" className="mt-0">

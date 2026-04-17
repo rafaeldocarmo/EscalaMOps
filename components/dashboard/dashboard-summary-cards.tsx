@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo } from "react";
-import type { MyDashboardData } from "@/server/dashboard/getMyDashboardData";
+import type { MyDashboardBootstrap } from "@/server/dashboard/getMyDashboardBootstrap";
 import { Card, CardContent } from "@/components/ui/card";
 import { Calendar, CalendarOff, CalendarClock, ArrowLeftRight, ShieldCheck, Clock3 } from "lucide-react";
 
@@ -10,18 +10,16 @@ const PENDING_STATUSES = ["PENDING", "WAITING_SECOND_USER", "SECOND_USER_ACCEPTE
 interface DashboardSummaryCardsProps {
   year: number;
   month: number;
-  data: MyDashboardData | null;
-  bankHoursBalance?: number | null;
-  bankHoursPendingCount?: number | null;
+  data: MyDashboardBootstrap | null;
 }
 
 export function DashboardSummaryCards({
   year,
   month,
   data,
-  bankHoursBalance,
-  bankHoursPendingCount,
 }: DashboardSummaryCardsProps) {
+  const bankHoursBalance = data?.bankHours.balance ?? null;
+  const bankHoursPendingCount = data?.bankHours.pendingCount ?? null;
   const { workDays, offDays, nextOffDate, pendingSwaps, onCallDays } = useMemo(() => {
     const now = new Date();
     const schedule = data?.schedule ?? null;

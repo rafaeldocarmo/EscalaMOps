@@ -1,12 +1,11 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
-import { getWeeklySchedule } from "@/server/schedule/getWeeklySchedule";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
-  getSobreavisoSummaryForWeek,
-  type OnCallSummaryByWeekPart,
-} from "@/server/sobreaviso/getSobreavisoSummaryForWeek";
+  getWeeklyDashboardBootstrap,
+  type WeeklyDashboardBootstrap,
+} from "@/server/dashboard/getWeeklyDashboardBootstrap";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 function displayNameFromFull(name: string): string {
   const trimmed = name.trim();
@@ -19,22 +18,22 @@ interface WeeklyScheduleViewProps {
 }
 
 export function WeeklyScheduleView({ memberName }: WeeklyScheduleViewProps) {
-  const [data, setData] = useState<Awaited<ReturnType<typeof getWeeklySchedule>>>(null);
-  const [onCallSummary, setOnCallSummary] = useState<OnCallSummaryByWeekPart | null>(
-    null
-  );
+  const [bootstrap, setBootstrap] = useState<WeeklyDashboardBootstrap | null>(null);
 
   useEffect(() => {
-    getWeeklySchedule().then(setData);
-  }, []);
-
-  useEffect(() => {
-    getSobreavisoSummaryForWeek().then(setOnCallSummary);
+    let cancelled = false;
+    getWeeklyDashboardBootstrap().then((data) => {
+      if (cancelled) return;
+      setBootstrap(data);
+    });
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const myDisplayName = displayNameFromFull(memberName ?? "");
 
-  if (!data) {
+  if (!bootstrap) {
     return (
       <Card>
         <CardContent className="py-8 text-center text-muted-foreground">
@@ -44,7 +43,7 @@ export function WeeklyScheduleView({ memberName }: WeeklyScheduleViewProps) {
     );
   }
 
-  const { weekDays, rows } = data;
+  const { weekDays, rows, onCall: onCallSummary } = bootstrap;
   const levelRowCount: Record<string, number> = {};
   for (const row of rows) {
     levelRowCount[row.level] = (levelRowCount[row.level] ?? 0) + 1;

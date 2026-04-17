@@ -2,11 +2,10 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { getMySchedule } from "@/server/schedule/getMySchedule";
 import { getMySwapRequests } from "@/server/swaps/getSwaps";
-import { type MyOnCallPeriod } from "@/server/sobreaviso/getMyOnCallSchedule";
+import type { MyDashboardBootstrap } from "@/server/dashboard/getMyDashboardBootstrap";
+import type { SwapRequestRow } from "@/types/swaps";
 import { getScheduleCalendarDays } from "@/lib/scheduleUtils";
-import { getApprovedOffHoursWithdrawnDatesForMonth } from "@/server/bank-hours/getApprovedOffHoursWithdrawnDatesForMonth";
 import { MonthNavigator } from "./month-navigator";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { WEEKDAY_LABELS, MONTH_NAMES } from "@/lib/constants";
@@ -31,11 +30,7 @@ interface MyScheduleViewProps {
   month: number;
   onYearChange: (year: number) => void;
   onMonthChange: (month: number) => void;
-  dashboardData?: {
-    schedule: Awaited<ReturnType<typeof getMySchedule>>;
-    swaps: Awaited<ReturnType<typeof getMySwapRequests>>;
-    onCallPeriods: MyOnCallPeriod[];
-  } | null;
+  dashboardData?: MyDashboardBootstrap | null;
 }
 
 export function MyScheduleView({
@@ -47,12 +42,6 @@ export function MyScheduleView({
   dashboardData,
 }: MyScheduleViewProps) {
   const now = new Date();
-  const [data, setData] = useState<Awaited<ReturnType<typeof getMySchedule>>>(dashboardData?.schedule ?? null);
-  const [swapHighlightDateKeys, setSwapHighlightDateKeys] = useState<string[]>([]);
-  const [turnSwapPendingDateKeys, setTurnSwapPendingDateKeys] = useState<string[]>([]);
-  const [turnSwapApprovedDateKeys, setTurnSwapApprovedDateKeys] = useState<string[]>([]);
-  const [bankHourWithdrawnDateKeys, setBankHourWithdrawnDateKeys] = useState<string[]>([]);
-  const [onCallPeriods, setOnCallPeriods] = useState<MyOnCallPeriod[]>(dashboardData?.onCallPeriods ?? []);
   const [swapOffModalOpen, setSwapOffModalOpen] = useState(false);
   const [swapQueueModalOpen, setSwapQueueModalOpen] = useState(false);
   const [swapOnCallModalOpen, setSwapOnCallModalOpen] = useState(false);
@@ -61,9 +50,22 @@ export function MyScheduleView({
   const [swapHistoryModalOpen, setSwapHistoryModalOpen] = useState(false);
   const searchParams = useSearchParams();
 
-  const initialSwapHighlightKeys = useMemo(() => {
-    const list = dashboardData?.swaps ?? [];
-    const pending = list.filter((s) => PENDING_STATUSES.includes(s.status));
+  // Local override for swaps updated via "swaps-updated" event. Reset when the
+  // parent bootstrap refreshes so we stay consistent with the source of truth.
+  const [swapsOverride, setSwapsOverride] = useState<SwapRequestRow[] | null>(null);
+  const parentSwaps = dashboardData?.swaps;
+  useEffect(() => {
+    setSwapsOverride(null);
+  }, [parentSwaps]);
+
+  const effectiveSwaps = swapsOverride ?? parentSwaps ?? [];
+
+  const data = dashboardData?.schedule ?? null;
+  const onCallPeriods = dashboardData?.onCallPeriods ?? [];
+  const bankHourWithdrawnDateKeys = dashboardData?.withdrawnDateKeys ?? [];
+
+  const swapHighlightDateKeys = useMemo(() => {
+    const pending = effectiveSwaps.filter((s) => PENDING_STATUSES.includes(s.status));
     const keys: string[] = [];
     for (const s of pending) {
       if (s.type === "OFF_SWAP" && s.originalDate) keys.push(s.originalDate);
@@ -72,29 +74,25 @@ export function MyScheduleView({
       }
     }
     return keys;
-  }, [dashboardData?.swaps]);
+  }, [effectiveSwaps]);
 
-  const initialTurnSwapPendingDateKeys = useMemo(() => {
-    const list = dashboardData?.swaps ?? [];
+  const turnSwapPendingDateKeys = useMemo(() => {
     const keys: string[] = [];
-    for (const s of list) {
+    for (const s of effectiveSwaps) {
       if (s.type !== "SHIFT_SWAP" || s.originalDate == null) continue;
       if (s.status === "PENDING") keys.push(s.originalDate);
     }
     return keys;
-  }, [dashboardData?.swaps]);
+  }, [effectiveSwaps]);
 
-  const initialTurnSwapApprovedDateKeys = useMemo(() => {
-    const list = dashboardData?.swaps ?? [];
+  const turnSwapApprovedDateKeys = useMemo(() => {
     const keys: string[] = [];
-    for (const s of list) {
+    for (const s of effectiveSwaps) {
       if (s.type !== "SHIFT_SWAP" || s.originalDate == null) continue;
       if (s.status === "APPROVED") keys.push(s.originalDate);
     }
     return keys;
-  }, [dashboardData?.swaps]);
-
-  const initialSwaps = dashboardData?.swaps;
+  }, [effectiveSwaps]);
 
   useEffect(() => {
     if (searchParams.get("openSwaps") === "1") {
@@ -105,78 +103,12 @@ export function MyScheduleView({
   }, [searchParams]);
 
   useEffect(() => {
-    // Keep local state in sync with the consolidated dashboard fetch.
-    if (dashboardData) {
-      const id = setTimeout(() => {
-        setData(dashboardData.schedule ?? null);
-        setOnCallPeriods(dashboardData.onCallPeriods ?? []);
-        setSwapHighlightDateKeys(initialSwapHighlightKeys);
-        setTurnSwapPendingDateKeys(initialTurnSwapPendingDateKeys);
-        setTurnSwapApprovedDateKeys(initialTurnSwapApprovedDateKeys);
-      }, 0);
-      return () => clearTimeout(id);
-    }
-  }, [
-    dashboardData,
-    initialSwapHighlightKeys,
-    initialTurnSwapPendingDateKeys,
-    initialTurnSwapApprovedDateKeys,
-  ]);
-
-  useEffect(() => {
     const handler = () => {
-      getMySwapRequests().then((list) => {
-        const pending = list.filter((s) => PENDING_STATUSES.includes(s.status));
-        const keys: string[] = [];
-        const turnPendingKeys: string[] = [];
-        const turnApprovedKeys: string[] = [];
-        for (const s of pending) {
-          if (s.type === "OFF_SWAP" && s.originalDate) keys.push(s.originalDate);
-          if (s.type === "OFF_SWAP" && s.targetDate && s.targetDate !== s.originalDate) {
-            keys.push(s.targetDate);
-          }
-        }
-        for (const s of list) {
-          if (s.type !== "SHIFT_SWAP" || !s.originalDate) continue;
-          if (s.status === "PENDING") turnPendingKeys.push(s.originalDate);
-          if (s.status === "APPROVED") turnApprovedKeys.push(s.originalDate);
-        }
-        setSwapHighlightDateKeys(keys);
-        setTurnSwapPendingDateKeys(turnPendingKeys);
-        setTurnSwapApprovedDateKeys(turnApprovedKeys);
-      });
+      getMySwapRequests().then((list) => setSwapsOverride(list));
     };
     window.addEventListener("swaps-updated", handler);
     return () => window.removeEventListener("swaps-updated", handler);
   }, []);
-
-  useEffect(() => {
-    let cancelled = false;
-
-    const load = async () => {
-      const [scheduleRes, withdrawnMap] = await Promise.all([
-        getMySchedule(memberId, year, month),
-        getApprovedOffHoursWithdrawnDatesForMonth(year, month),
-      ]);
-      if (cancelled) return;
-
-      setData(scheduleRes);
-      setBankHourWithdrawnDateKeys(withdrawnMap[memberId] ?? []);
-    };
-
-    // Carrega no mount (e quando year/month mudarem) e também ao receber o evento.
-    load();
-
-    const handler = () => {
-      load();
-    };
-
-    window.addEventListener("bank-hours-updated", handler);
-    return () => {
-      cancelled = true;
-      window.removeEventListener("bank-hours-updated", handler);
-    };
-  }, [memberId, year, month]);
 
   const calendarDays = useMemo(
     () => getScheduleCalendarDays(year, month),
@@ -445,7 +377,7 @@ export function MyScheduleView({
             </span>
           </CardHeader>
           <CardContent>
-            <SwapHistoryList memberId={memberId} compact initialList={initialSwaps} />
+            <SwapHistoryList memberId={memberId} compact initialList={effectiveSwaps} />
           </CardContent>
         </Card>
       </div>
@@ -497,7 +429,7 @@ export function MyScheduleView({
             <DialogHeader>
               <DialogTitle>Solicitações de troca</DialogTitle>
             </DialogHeader>
-            <SwapHistoryList memberId={memberId} initialList={initialSwaps} />
+            <SwapHistoryList memberId={memberId} initialList={effectiveSwaps} />
           </DialogContent>
         )}
       </Dialog>

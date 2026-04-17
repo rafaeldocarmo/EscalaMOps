@@ -1,13 +1,12 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   initialScheduleLevelFilter,
   initialScheduleShiftFilter,
   levelOptionsForScheduleFilters,
   shiftOptionsForScheduleFilters,
 } from "@/lib/scheduleMemberFilterOptions";
-import { getMonthlySchedule } from "@/server/schedule/getMonthlySchedule";
 import {
   assignmentsToStateMap,
   buildScheduleSections,
@@ -20,60 +19,48 @@ import type { Level, Shift } from "@/types/team";
 import { MultiSelect } from "@/components/ui/multi-select";
 import { useMonthNavigation } from "@/hooks/useMonthNavigation";
 import { SobreavisoTable } from "./sobreaviso-table";
-import { getSobreavisoScheduleForMonth } from "@/server/sobreaviso/getSobreavisoScheduleForMonth";
-import type { SobreavisoWeek } from "@/server/sobreaviso/getSobreavisoScheduleForMonth";
-import { getShiftSwapRequestsForMonth } from "@/server/swaps/getShiftSwapRequestsForMonth";
-import { getApprovedOffHoursWithdrawnDatesForMonth } from "@/server/bank-hours/getApprovedOffHoursWithdrawnDatesForMonth";
+import {
+  getMonthlyDashboardBootstrap,
+  type MonthlyDashboardBootstrap,
+} from "@/server/dashboard/getMonthlyDashboardBootstrap";
 
 export function MonthlyScheduleView() {
   const now = new Date();
   const [year, setYear] = useState(now.getFullYear());
   const [month, setMonth] = useState(now.getMonth() + 1);
-  const [data, setData] = useState<Awaited<ReturnType<typeof getMonthlySchedule>>>(null);
-  const [sobreavisoWeeks, setSobreavisoWeeks] = useState<SobreavisoWeek[]>([]);
-  const [shiftSwapPurpleByMemberId, setShiftSwapPurpleByMemberId] = useState<Record<string, string[]>>({});
-  const [hoursWithdrawnOrangeByMemberId, setHoursWithdrawnOrangeByMemberId] = useState<Record<string, string[]>>({});
+  const [bootstrap, setBootstrap] = useState<MonthlyDashboardBootstrap | null>(null);
   const [levelFilter, setLevelFilter] = useState<Level[]>(["N1", "N2"]);
   const [shiftFilter, setShiftFilter] = useState<Shift[]>([]);
 
-  useEffect(() => {
-    getMonthlySchedule(year, month).then(setData);
+  const loadBootstrap = useCallback(() => {
+    return getMonthlyDashboardBootstrap(year, month).then(setBootstrap);
   }, [year, month]);
 
   useEffect(() => {
-    if (!data) return;
-    setLevelFilter(initialScheduleLevelFilter(data.memberFormCatalog));
-    setShiftFilter(initialScheduleShiftFilter(data.memberFormCatalog));
-  }, [data]);
-
-  useEffect(() => {
-    getSobreavisoScheduleForMonth(month, year).then(setSobreavisoWeeks);
-  }, [year, month]);
-
-  useEffect(() => {
-    getShiftSwapRequestsForMonth(year, month).then((list) => {
-      const map: Record<string, string[]> = {};
-      for (const r of list) {
-        if (!map[r.requesterId]) map[r.requesterId] = [];
-        map[r.requesterId].push(r.originalDate);
-      }
-      setShiftSwapPurpleByMemberId(map);
+    let cancelled = false;
+    getMonthlyDashboardBootstrap(year, month).then((data) => {
+      if (cancelled) return;
+      setBootstrap(data);
     });
+    return () => {
+      cancelled = true;
+    };
   }, [year, month]);
 
+  const memberFormCatalog = bootstrap?.memberFormCatalog ?? null;
   useEffect(() => {
-    getApprovedOffHoursWithdrawnDatesForMonth(year, month).then((map) => setHoursWithdrawnOrangeByMemberId(map));
-  }, [year, month]);
+    if (!bootstrap) return;
+    setLevelFilter(initialScheduleLevelFilter(memberFormCatalog));
+    setShiftFilter(initialScheduleShiftFilter(memberFormCatalog));
+  }, [bootstrap, memberFormCatalog]);
 
   useEffect(() => {
     const handler = () => {
-      // Recarrega a escala (8h) e também o destaque laranja (<8).
-      getMonthlySchedule(year, month).then(setData);
-      getApprovedOffHoursWithdrawnDatesForMonth(year, month).then(setHoursWithdrawnOrangeByMemberId);
+      loadBootstrap();
     };
     window.addEventListener("bank-hours-updated", handler);
     return () => window.removeEventListener("bank-hours-updated", handler);
-  }, [year, month]);
+  }, [loadBootstrap]);
 
   const { goPrev, goNext } = useMonthNavigation({
     year,
@@ -82,7 +69,6 @@ export function MonthlyScheduleView() {
     onMonthChange: setMonth,
   });
 
-  const memberFormCatalog = data?.memberFormCatalog ?? null;
   const levelFilterSelectOptions = useMemo(
     () => levelOptionsForScheduleFilters(memberFormCatalog),
     [memberFormCatalog],
@@ -92,7 +78,7 @@ export function MonthlyScheduleView() {
     [memberFormCatalog],
   );
 
-  if (!data) {
+  if (!bootstrap) {
     return (
       <Card>
         <CardContent className="py-8 text-center text-muted-foreground">
@@ -102,7 +88,13 @@ export function MonthlyScheduleView() {
     );
   }
 
-  const { assignments, members } = data;
+  const {
+    assignments,
+    members,
+    sobreavisoWeeks,
+    shiftSwapPurpleByMemberId,
+    hoursWithdrawnOrangeByMemberId,
+  } = bootstrap;
 
   const stateMap = assignmentsToStateMap(assignments);
   let visibleMembers = members;
@@ -123,7 +115,7 @@ export function MonthlyScheduleView() {
           <CardTitle className="text-lg">Escala Mensal</CardTitle>
           <div className="flex flex-wrap items-center justify-end gap-2">
             <MonthNavigator year={year} month={month} onPrevious={goPrev} onNext={goNext} />
-            {!data.memberFormCatalog ? (
+            {!memberFormCatalog ? (
               <p className="max-w-[220px] text-xs text-amber-700 dark:text-amber-500">
                 Configure níveis e turnos da equipe para filtrar por catálogo.
               </p>
