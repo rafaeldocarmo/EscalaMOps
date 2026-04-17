@@ -7,6 +7,7 @@ import { cn } from "@/lib/utils";
 import {
   Home,
   Users,
+  Layers,
   Building2,
   CalendarDays,
   ArrowLeftRight,
@@ -19,7 +20,7 @@ import { ViewAsMemberLink } from "@/components/dashboard/view-as-member-link";
 
 const scheduleHref = `/dashboard/schedule/${new Date().getFullYear()}/${new Date().getMonth() + 1}`;
 
-/** Rotas que exibem o painel secundário de configurações no sidebar. */
+/** Rotas que usam o painel secundário de configurações (equipes / permissões / catálogo de níveis). */
 function isSettingsSidebarPath(pathname: string) {
   return (
     pathname.startsWith("/dashboard/equipes") ||
@@ -60,9 +61,12 @@ export function SidebarNav() {
 
   // Layout already protects routes, but keep client-side safe defaults.
   const isFullAdmin = session?.user?.role === "ADMIN";
+  const isAdminTeam = session?.user?.role === "ADMIN_TEAM";
   const hasMemberView = !!session?.member;
   const showAdminHome = isFullAdmin && hasMemberView;
-  const settingsMode = isFullAdmin && isSettingsSidebarPath(pathname);
+  const settingsMode =
+    (isFullAdmin && isSettingsSidebarPath(pathname)) ||
+    (isAdminTeam && pathname.startsWith("/dashboard/equipes/catalog"));
 
   const mainItems = [
     ...(showAdminHome
@@ -79,7 +83,7 @@ export function SidebarNav() {
       href: "/dashboard/team",
       label: "Membros",
       icon: Users,
-      active: pathname.startsWith("/dashboard/team"),
+      active: pathname === "/dashboard/team" || pathname === "/dashboard/team/",
     },
     {
       href: scheduleHref,
@@ -120,21 +124,28 @@ export function SidebarNav() {
               Configurações
             </p>
             <nav className="flex flex-col gap-1">
+              {isFullAdmin ? (
+                <Item
+                  href="/dashboard/equipes"
+                  label="Equipes"
+                  icon={Building2}
+                  active={pathname === "/dashboard/equipes" || pathname === "/dashboard/equipes/"}
+                />
+              ) : null}
               <Item
-                href="/dashboard/equipes"
-                label="Equipes"
-                icon={Building2}
-                active={
-                  pathname.startsWith("/dashboard/equipes") &&
-                  !pathname.startsWith("/dashboard/equipes/permissions")
-                }
+                href="/dashboard/equipes/catalog"
+                label="Níveis e turnos"
+                icon={Layers}
+                active={pathname.startsWith("/dashboard/equipes/catalog")}
               />
-              <Item
-                href="/dashboard/permissions"
-                label="Permissões"
-                icon={Shield}
-                active={pathname.startsWith("/dashboard/permissions")}
-              />
+              {isFullAdmin ? (
+                <Item
+                  href="/dashboard/permissions"
+                  label="Permissões"
+                  icon={Shield}
+                  active={pathname.startsWith("/dashboard/permissions")}
+                />
+              ) : null}
             </nav>
           </div>
           {status !== "loading" ? (
@@ -151,9 +162,9 @@ export function SidebarNav() {
             ))}
           </nav>
           <div className="mt-auto flex flex-col gap-3 border-t border-border/60 pt-3">
-            {isFullAdmin ? (
+            {isFullAdmin || isAdminTeam ? (
               <Link
-                href="/dashboard/equipes"
+                href={isFullAdmin ? "/dashboard/equipes" : "/dashboard/equipes/catalog"}
                 className={cn(
                   "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
                   pathname.startsWith("/dashboard/equipes") ||

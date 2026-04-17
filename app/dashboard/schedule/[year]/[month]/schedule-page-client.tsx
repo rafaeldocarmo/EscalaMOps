@@ -17,8 +17,14 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import type { ScheduleRow, ScheduleAssignmentRow, SaveAssignmentPayload } from "@/types/schedule";
+import type { MemberFormCatalog } from "@/lib/memberFormCatalog";
+import {
+  initialScheduleLevelFilter,
+  initialScheduleShiftFilter,
+  levelOptionsForScheduleFilters,
+  shiftOptionsForScheduleFilters,
+} from "@/lib/scheduleMemberFilterOptions";
 import type { TeamMemberRow, Level, Shift } from "@/types/team";
-import { SHIFT_OPTIONS } from "@/types/team";
 import { MultiSelect } from "@/components/ui/multi-select";
 import type { SobreavisoWeek } from "@/server/sobreaviso/getSobreavisoScheduleForMonth";
 import {
@@ -49,6 +55,8 @@ interface SchedulePageClientProps {
   sobreavisoWeeks: SobreavisoWeek[];
   /** Alinha gerar/limpar/trocar sobreaviso com a equipe do TeamSwitcher (?teamId=). */
   selectedTeamId?: string | null;
+  /** Filtros de nível/turno alinhados ao catálogo em Configurações → Níveis e turnos. */
+  memberFormCatalog: MemberFormCatalog | null;
 }
 
 export function SchedulePageClient({
@@ -57,6 +65,7 @@ export function SchedulePageClient({
   members,
   sobreavisoWeeks: initialSobreavisoWeeks,
   selectedTeamId = null,
+  memberFormCatalog,
 }: SchedulePageClientProps) {
   const router = useRouter();
   const [schedule] = useState(initialSchedule);
@@ -78,8 +87,26 @@ export function SchedulePageClient({
   const [backCycleLoading, setBackCycleLoading] = useState(false);
   const [shiftSwapPurpleByMemberId, setShiftSwapPurpleByMemberId] = useState<Record<string, string[]>>({});
   const [hoursWithdrawnOrangeByMemberId, setHoursWithdrawnOrangeByMemberId] = useState<Record<string, string[]>>({});
-  const [levelFilter, setLevelFilter] = useState<Level[]>(["N1", "N2"]);
-  const [shiftFilter, setShiftFilter] = useState<Shift[]>(SHIFT_OPTIONS.map((s) => s.value));
+  const [levelFilter, setLevelFilter] = useState<Level[]>(() =>
+    initialScheduleLevelFilter(memberFormCatalog),
+  );
+  const [shiftFilter, setShiftFilter] = useState<Shift[]>(() =>
+    initialScheduleShiftFilter(memberFormCatalog),
+  );
+
+  useEffect(() => {
+    setLevelFilter(initialScheduleLevelFilter(memberFormCatalog));
+    setShiftFilter(initialScheduleShiftFilter(memberFormCatalog));
+  }, [memberFormCatalog]);
+
+  const levelFilterSelectOptions = useMemo(
+    () => levelOptionsForScheduleFilters(memberFormCatalog),
+    [memberFormCatalog],
+  );
+  const shiftFilterSelectOptions = useMemo(
+    () => shiftOptionsForScheduleFilters(memberFormCatalog),
+    [memberFormCatalog],
+  );
 
   const dateKeys = useMemo(() => {
     const days = getDaysInMonth(schedule.year, schedule.month);
@@ -453,19 +480,14 @@ export function SchedulePageClient({
             <>
               <MultiSelect
                 label="Níveis"
-                options={[
-                  { value: "N1", label: "N1" },
-                  { value: "N2", label: "N2" },
-                  { value: "ESPC", label: "ESPC" },
-                  { value: "PRODUCAO", label: "Produção" },
-                ]}
+                options={levelFilterSelectOptions}
                 value={levelFilter}
                 onChange={setLevelFilter}
                 size="sm"
               />
               <MultiSelect
                 label="Turnos"
-                options={SHIFT_OPTIONS.map((o) => ({ value: o.value, label: o.label }))}
+                options={shiftFilterSelectOptions}
                 value={shiftFilter}
                 onChange={setShiftFilter}
                 size="sm"
@@ -473,6 +495,12 @@ export function SchedulePageClient({
             </>
           }
         />
+        {!memberFormCatalog ? (
+          <p className="text-xs text-amber-700 dark:text-amber-500">
+            Cadastre níveis e turnos da equipe em Configurações para habilitar filtros com os rótulos do catálogo. Sem
+            catálogo, todos os membros entram na grade.
+          </p>
+        ) : null}
       </div>
 
       <div className="flex flex-wrap items-center justify-end gap-2">

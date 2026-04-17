@@ -21,7 +21,9 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import type { MemberFormCatalog } from "@/lib/memberFormCatalog";
 import type { TeamMemberRow } from "@/types/team";
+import { displayLabelForLevel, displayLabelForShift } from "@/types/team";
 import { TeamModal } from "./team-modal";
 import type { TeamFormValues } from "./team-form";
 import { sortTeamMembers } from "@/lib/sortTeamMembers";
@@ -29,6 +31,7 @@ import { formatMemberName } from "@/lib/formatMemberName";
 
 interface TeamTableProps {
   members: TeamMemberRow[];
+  memberCatalog?: MemberFormCatalog | null;
   onEdit: (id: string, values: TeamFormValues) => Promise<{ success: boolean; error?: string; fieldErrors?: Record<string, string[]> }>;
   onDelete: (id: string) => Promise<{ success: boolean; error?: string }>;
   onSuccess?: () => void;
@@ -36,6 +39,7 @@ interface TeamTableProps {
 
 export function TeamTable({
   members,
+  memberCatalog,
   onEdit,
   onDelete,
   onSuccess,
@@ -112,12 +116,12 @@ export function TeamTable({
                   <TableCell className="px-4 text-foreground">{member.phone}</TableCell>
                   <TableCell className="px-4">
                     <span className="inline-flex items-center rounded-md border border-green-500/40 bg-green-500/15 px-2 py-0.5 text-xs font-medium text-green-700">
-                      {member.level}
+                      {memberCatalog?.levelLabels[member.level] ?? displayLabelForLevel(member.level)}
                     </span>
                   </TableCell>
                   <TableCell className="px-4">
                     <span className="inline-flex items-center rounded-md border border-amber-500/40 bg-amber-500/15 px-2 py-0.5 text-xs font-medium text-amber-700">
-                      {member.shift}
+                      {memberCatalog?.shiftLabels[member.shift] ?? displayLabelForShift(member.shift)}
                     </span>
                   </TableCell>
                   <TableCell className="px-4">
@@ -176,6 +180,7 @@ export function TeamTable({
           setFieldErrors({});
         }}
         title="Editar membro"
+        memberCatalog={memberCatalog}
         defaultValues={
           memberToEdit
             ? {

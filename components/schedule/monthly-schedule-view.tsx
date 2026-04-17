@@ -1,6 +1,12 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import {
+  initialScheduleLevelFilter,
+  initialScheduleShiftFilter,
+  levelOptionsForScheduleFilters,
+  shiftOptionsForScheduleFilters,
+} from "@/lib/scheduleMemberFilterOptions";
 import { getMonthlySchedule } from "@/server/schedule/getMonthlySchedule";
 import {
   assignmentsToStateMap,
@@ -11,7 +17,6 @@ import { ScheduleGrid } from "./schedule-grid";
 import { MonthNavigator } from "./month-navigator";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import type { Level, Shift } from "@/types/team";
-import { SHIFT_OPTIONS } from "@/types/team";
 import { MultiSelect } from "@/components/ui/multi-select";
 import { useMonthNavigation } from "@/hooks/useMonthNavigation";
 import { SobreavisoTable } from "./sobreaviso-table";
@@ -29,11 +34,17 @@ export function MonthlyScheduleView() {
   const [shiftSwapPurpleByMemberId, setShiftSwapPurpleByMemberId] = useState<Record<string, string[]>>({});
   const [hoursWithdrawnOrangeByMemberId, setHoursWithdrawnOrangeByMemberId] = useState<Record<string, string[]>>({});
   const [levelFilter, setLevelFilter] = useState<Level[]>(["N1", "N2"]);
-  const [shiftFilter, setShiftFilter] = useState<Shift[]>(SHIFT_OPTIONS.map((s) => s.value));
+  const [shiftFilter, setShiftFilter] = useState<Shift[]>([]);
 
   useEffect(() => {
     getMonthlySchedule(year, month).then(setData);
   }, [year, month]);
+
+  useEffect(() => {
+    if (!data) return;
+    setLevelFilter(initialScheduleLevelFilter(data.memberFormCatalog));
+    setShiftFilter(initialScheduleShiftFilter(data.memberFormCatalog));
+  }, [data]);
 
   useEffect(() => {
     getSobreavisoScheduleForMonth(month, year).then(setSobreavisoWeeks);
@@ -71,6 +82,16 @@ export function MonthlyScheduleView() {
     onMonthChange: setMonth,
   });
 
+  const memberFormCatalog = data?.memberFormCatalog ?? null;
+  const levelFilterSelectOptions = useMemo(
+    () => levelOptionsForScheduleFilters(memberFormCatalog),
+    [memberFormCatalog],
+  );
+  const shiftFilterSelectOptions = useMemo(
+    () => shiftOptionsForScheduleFilters(memberFormCatalog),
+    [memberFormCatalog],
+  );
+
   if (!data) {
     return (
       <Card>
@@ -82,6 +103,7 @@ export function MonthlyScheduleView() {
   }
 
   const { assignments, members } = data;
+
   const stateMap = assignmentsToStateMap(assignments);
   let visibleMembers = members;
   if (levelFilter.length > 0) {
@@ -101,21 +123,21 @@ export function MonthlyScheduleView() {
           <CardTitle className="text-lg">Escala Mensal</CardTitle>
           <div className="flex flex-wrap items-center justify-end gap-2">
             <MonthNavigator year={year} month={month} onPrevious={goPrev} onNext={goNext} />
+            {!data.memberFormCatalog ? (
+              <p className="max-w-[220px] text-xs text-amber-700 dark:text-amber-500">
+                Configure níveis e turnos da equipe para filtrar por catálogo.
+              </p>
+            ) : null}
             <MultiSelect
               label="Níveis"
-              options={[
-                { value: "N1", label: "N1" },
-                { value: "N2", label: "N2" },
-                { value: "ESPC", label: "ESPC" },
-                { value: "PRODUCAO", label: "Produção" },
-              ]}
+              options={levelFilterSelectOptions}
               value={levelFilter}
               onChange={setLevelFilter}
               size="sm"
             />
             <MultiSelect
               label="Turnos"
-              options={SHIFT_OPTIONS.map((o) => ({ value: o.value, label: o.label }))}
+              options={shiftFilterSelectOptions}
               value={shiftFilter}
               onChange={setShiftFilter}
               size="sm"

@@ -28,3 +28,12 @@ export const SHIFT_OPTIONS: { value: Shift; label: string }[] = [
   { value: "T3", label: "T3" },
   { value: "TC", label: "TC" },
 ];
+
+/** Rótulo amigável para o enum (ex.: em tabelas quando não há catálogo com label custom). */
+export function displayLabelForLevel(level: Level): string {
+  return LEVEL_OPTIONS.find((o) => o.value === level)?.label ?? level;
+}
+
+export function displayLabelForShift(shift: Shift): string {
+  return SHIFT_OPTIONS.find((o) => o.value === shift)?.label ?? shift;
+}

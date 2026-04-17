@@ -7,6 +7,7 @@ import { assertStaffCanEditMember } from "@/server/team/assertStaffMemberAccess"
 import { normalizePhone } from "@/lib/phone";
 import type { UpdateTeamMemberInput } from "@/lib/validations/team";
 import { updateTeamMemberSchema } from "@/lib/validations/team";
+import { validateMemberLevelShiftForTeam } from "@/server/team/validateMemberLevelShiftForTeam";
 
 export type UpdateTeamMemberResult =
   | { success: true }
@@ -39,6 +40,33 @@ export async function updateTeamMember(
       success: false,
       error: parsed.error.issues.map((i) => i.message).join(". "),
       fieldErrors,
+    };
+  }
+
+  const memberRow = await prisma.teamMember.findUnique({
+    where: { id },
+    select: { teamId: true, level: true, shift: true },
+  });
+  if (!memberRow) {
+    return { success: false, error: "Membro não encontrado." };
+  }
+
+  const combo = await validateMemberLevelShiftForTeam(
+    memberRow.teamId,
+    parsed.data.level,
+    parsed.data.shift,
+    {
+      skipCatalogWhenSameAs: {
+        level: memberRow.level,
+        shift: memberRow.shift,
+      },
+    },
+  );
+  if (!combo.ok) {
+    return {
+      success: false,
+      error: combo.error,
+      fieldErrors: { shift: [combo.error] },
     };
   }
 

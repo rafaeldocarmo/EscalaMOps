@@ -1,8 +1,10 @@
 "use server";
 
 import { auth } from "@/auth";
+import type { MemberFormCatalog } from "@/lib/memberFormCatalog";
 import { prisma } from "@/lib/prisma";
 import { getDefaultTeam, resolveTeamIdForRead } from "@/lib/multiTeam";
+import { loadMemberFormCatalogForTeam } from "@/server/team/loadMemberFormCatalogForTeam";
 import type { ScheduleRow, ScheduleAssignmentRow } from "@/types/schedule";
 import type { TeamMemberRow } from "@/types/team";
 
@@ -21,6 +23,8 @@ export async function getMonthlySchedule(
   schedule: ScheduleRow | null;
   assignments: ScheduleAssignmentRow[];
   members: TeamMemberRow[];
+  /** Catálogo da equipe da escala (níveis/turnos em Configurações), quando houver. */
+  memberFormCatalog: MemberFormCatalog | null;
 } | null> {
   const session = await auth();
   if (!session?.user || !session.member) return null;
@@ -60,9 +64,11 @@ export async function getMonthlySchedule(
         });
       }
     }
+    const memberFormCatalog = scheduleTeamId ? await loadMemberFormCatalogForTeam(scheduleTeamId) : null;
     return {
       schedule: null,
       assignments,
+      memberFormCatalog,
       members: members.map((m) => ({
         id: m.id,
         name: m.name,
@@ -84,6 +90,8 @@ export async function getMonthlySchedule(
     },
     orderBy: [{ level: "asc" }, { shift: "asc" }, { name: "asc" }],
   });
+
+  const memberFormCatalog = scheduleTeamId ? await loadMemberFormCatalogForTeam(scheduleTeamId) : null;
 
   return {
     schedule: {
@@ -112,5 +120,6 @@ export async function getMonthlySchedule(
       createdAt: m.createdAt,
       updatedAt: m.updatedAt,
     })),
+    memberFormCatalog,
   };
 }

@@ -97,9 +97,59 @@ model Team {
   members           TeamMember[]
   schedules         Schedule[]
   usersManagingTeam User[]       @relation("UserManagedTeam")
+  teamLevels        TeamLevel[]
+  teamShifts        TeamShift[]
 
   @@unique([name])
   @@map("teams")
+}
+
+/** Nível configurável por equipe (independente do enum legacy em team_members). */
+model TeamLevel {
+  id        String   @id @default(cuid())
+  teamId    String   @map("team_id")
+  /** Nome único por equipe; na validação de membros deve coincidir com o valor do enum (ex.: N1). */
+  label     String
+  sortOrder Int      @default(0) @map("sort_order")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  team            Team                    @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  allowedShifts   TeamLevelAllowedShift[]
+
+  @@unique([teamId, label])
+  @@index([teamId])
+  @@map("team_levels")
+}
+
+/** Turno configurável por equipe (independente do enum legacy em team_members). */
+model TeamShift {
+  id        String   @id @default(cuid())
+  teamId    String   @map("team_id")
+  label     String
+  sortOrder Int      @default(0) @map("sort_order")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  team                Team                    @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  allowedForLevels    TeamLevelAllowedShift[]
+
+  @@unique([teamId, label])
+  @@index([teamId])
+  @@map("team_shifts")
+}
+
+/** Quais níveis podem trabalhar em quais turnos (por equipe). */
+model TeamLevelAllowedShift {
+  teamLevelId String @map("team_level_id")
+  teamShiftId String @map("team_shift_id")
+
+  teamLevel TeamLevel @relation(fields: [teamLevelId], references: [id], onDelete: Cascade)
+  teamShift TeamShift @relation(fields: [teamShiftId], references: [id], onDelete: Cascade)
+
+  @@id([teamLevelId, teamShiftId])
+  @@index([teamShiftId])
+  @@map("team_level_allowed_shifts")
 }
 
 model TeamMember {

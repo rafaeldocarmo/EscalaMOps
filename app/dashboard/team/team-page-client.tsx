@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useCallback, useMemo } from "react";
+import type { MemberFormCatalog } from "@/lib/memberFormCatalog";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -26,6 +27,8 @@ import type { TeamListItem } from "@/server/team/getTeams";
 interface TeamPageClientProps {
   initialMembers: TeamMemberRow[];
   teams: TeamListItem[];
+  /** Catálogo da equipe atual para restritir nível/turno no formulário (M5). */
+  memberFormCatalog: MemberFormCatalog | null;
 }
 
 type SobreavisoFilter = "with" | "without";
@@ -35,8 +38,9 @@ const SOBREAVISO_OPTIONS: MultiSelectOption<SobreavisoFilter>[] = [
   { value: "without", label: "Sem sobreaviso" },
 ];
 
-export function TeamPageClient({ initialMembers, teams }: TeamPageClientProps) {
+export function TeamPageClient({ initialMembers, teams, memberFormCatalog }: TeamPageClientProps) {
   const router = useRouter();
+  const [addFormKey, setAddFormKey] = useState(0);
   const [addOpen, setAddOpen] = useState(false);
   const [addLoading, setAddLoading] = useState(false);
   const [addError, setAddError] = useState<string | null>(null);
@@ -49,6 +53,16 @@ export function TeamPageClient({ initialMembers, teams }: TeamPageClientProps) {
   const refresh = useCallback(() => {
     router.refresh();
   }, [router]);
+
+  const levelFilterOptions = useMemo(() => {
+    if (!memberFormCatalog) return [];
+    return LEVEL_OPTIONS.filter((o) => memberFormCatalog.levels.includes(o.value));
+  }, [memberFormCatalog]);
+
+  const shiftFilterOptions = useMemo(() => {
+    if (!memberFormCatalog) return [];
+    return SHIFT_OPTIONS.filter((o) => memberFormCatalog.orderedShifts.includes(o.value));
+  }, [memberFormCatalog]);
 
   const filteredMembers = useMemo(() => {
     const term = search.trim().toLowerCase();
@@ -140,12 +154,27 @@ export function TeamPageClient({ initialMembers, teams }: TeamPageClientProps) {
         <div>
           <h1 className="text-2xl font-bold tracking-tight text-foreground">Membros</h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            Gerencie os membros do time selecionado no topo, níveis e turnos.
+            Gerencie os membros da equipe selecionada no topo. Nível e turno seguem o catálogo e a matriz em
+            Configurações → Níveis e turnos.
+            {!memberFormCatalog ? (
+              <span className="block text-amber-700 dark:text-amber-500">
+                Cadastre níveis e turnos nesta equipe para poder adicionar membros e usar os filtros por nível/turno.
+              </span>
+            ) : null}
           </p>
         </div>
         <Button
-          onClick={() => setAddOpen(true)}
-          className="mt-4 sm:mt-0 bg-foreground text-background hover:bg-foreground/90 cursor-pointer"
+          onClick={() => {
+            setAddFormKey((k) => k + 1);
+            setAddOpen(true);
+          }}
+          disabled={!memberFormCatalog}
+          title={
+            !memberFormCatalog
+              ? "Cadastre níveis e turnos da equipe em Configurações antes de adicionar membros."
+              : undefined
+          }
+          className="mt-4 sm:mt-0 bg-foreground text-background hover:bg-foreground/90 cursor-pointer disabled:opacity-50"
         >
           Adicionar Membro
         </Button>
@@ -169,7 +198,7 @@ export function TeamPageClient({ initialMembers, teams }: TeamPageClientProps) {
             <div className="flex flex-wrap gap-2 lg:shrink-0">
               <MultiSelect
                 label="Nível"
-                options={LEVEL_OPTIONS}
+                options={levelFilterOptions}
                 value={selectedLevels}
                 onChange={setSelectedLevels}
                 size="default"
@@ -177,7 +206,7 @@ export function TeamPageClient({ initialMembers, teams }: TeamPageClientProps) {
               />
               <MultiSelect
                 label="Turno"
-                options={SHIFT_OPTIONS}
+                options={shiftFilterOptions}
                 value={selectedShifts}
                 onChange={setSelectedShifts}
                 size="default"
@@ -195,6 +224,7 @@ export function TeamPageClient({ initialMembers, teams }: TeamPageClientProps) {
           </div>
           <TeamTable
             members={filteredMembers}
+            memberCatalog={memberFormCatalog}
             onEdit={handleEdit}
             onDelete={handleDelete}
             onSuccess={refresh}
@@ -203,9 +233,11 @@ export function TeamPageClient({ initialMembers, teams }: TeamPageClientProps) {
       </Card>
 
       <TeamModal
+        key={`add-${addFormKey}`}
         open={addOpen}
         onOpenChange={setAddOpen}
         title="Adicionar membro"
+        memberCatalog={memberFormCatalog}
         onSubmit={handleCreate}
         loading={addLoading}
         submitLabel="Adicionar"

@@ -7,6 +7,7 @@ import { normalizePhone } from "@/lib/phone";
 import { resolveTeamIdForWriteForSession } from "@/lib/multiTeam";
 import type { CreateTeamMemberInput } from "@/lib/validations/team";
 import { createTeamMemberSchema } from "@/lib/validations/team";
+import { validateMemberLevelShiftForTeam } from "@/server/team/validateMemberLevelShiftForTeam";
 
 export type CreateTeamMemberResult =
   | { success: true; data: { id: string } }
@@ -51,6 +52,15 @@ export async function createTeamMember(
     const exists = await prisma.team.findUnique({ where: { id: teamId }, select: { id: true } });
     if (!exists) {
       return { success: false, error: "Equipe não encontrada." };
+    }
+
+    const combo = await validateMemberLevelShiftForTeam(teamId, parsed.data.level, parsed.data.shift);
+    if (!combo.ok) {
+      return {
+        success: false,
+        error: combo.error,
+        fieldErrors: { shift: [combo.error] },
+      };
     }
 
     const member = await prisma.teamMember.create({

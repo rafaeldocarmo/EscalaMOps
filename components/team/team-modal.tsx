@@ -6,6 +6,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import type { MemberFormCatalog } from "@/lib/memberFormCatalog";
 import { TeamForm, type TeamFormValues } from "./team-form";
 
 interface TeamModalProps {
@@ -13,6 +14,7 @@ interface TeamModalProps {
   onOpenChange: (open: boolean) => void;
   title: string;
   defaultValues?: Partial<TeamFormValues>;
+  memberCatalog?: MemberFormCatalog | null;
   onSubmit: (values: TeamFormValues) => Promise<void>;
   loading?: boolean;
   submitLabel?: string;
@@ -25,6 +27,7 @@ export function TeamModal({
   onOpenChange,
   title,
   defaultValues,
+  memberCatalog,
   onSubmit,
   loading,
   submitLabel,
@@ -44,6 +47,7 @@ export function TeamModal({
         </DialogHeader>
         <TeamForm
           defaultValues={defaultValues}
+          memberCatalog={memberCatalog}
           onSubmit={handleSubmit}
           loading={loading}
           submitLabel={submitLabel}
