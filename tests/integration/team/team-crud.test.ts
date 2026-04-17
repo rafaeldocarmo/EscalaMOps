@@ -5,7 +5,6 @@ import { createTeamMember } from "@/server/team/createTeamMember";
 import { updateTeamMember } from "@/server/team/updateTeamMember";
 import { deleteTeamMember } from "@/server/team/deleteTeamMember";
 import { prisma } from "@/lib/prisma";
-import { Level, Shift } from "@/lib/generated/prisma/enums";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { mockResolvedSession, resetAuthMock } from "@/tests/helpers/auth-mock";
 import {
@@ -15,8 +14,10 @@ import {
   sessionAsPlainUser,
 } from "@/tests/helpers/session-factory";
 import {
+  buildValidMemberInput,
   cleanupTeamCascade,
   createEmptyTeam,
+  createTeamWithLegacyCatalog,
   createTestSchedule,
   createTestTeamMember,
   uniqueTeamName,
@@ -24,11 +25,12 @@ import {
 
 const hasDatabaseUrl = Boolean(process.env.DATABASE_URL?.trim());
 
-const validMemberInput = {
+/** Input placeholder para testes que falham ANTES de tocar banco (sem team). */
+const placeholderMemberInput = {
   name: "Membro Integração",
   phone: "11987654321",
-  level: Level.N1,
-  shift: Shift.T1,
+  teamLevelId: "placeholder-level-id",
+  teamShiftId: "placeholder-shift-id",
   sobreaviso: false,
   participatesInSchedule: true,
 } as const;
@@ -207,7 +209,7 @@ describe.skipIf(!hasDatabaseUrl)("server/team — CRUD (integração)", () => {
   describe("createTeamMember", () => {
     it("rejeita usuário sem perfil de staff", async () => {
       mockResolvedSession(sessionAsPlainUser({ member: createMemberFixture({ id: "m1" }) }));
-      const result = await createTeamMember(validMemberInput, { teamId: "any" });
+      const result = await createTeamMember(placeholderMemberInput, { teamId: "any" });
       expect(result.success).toBe(false);
       if (!result.success) {
         expect(result.error).toContain("Acesso negado");
@@ -215,13 +217,11 @@ describe.skipIf(!hasDatabaseUrl)("server/team — CRUD (integração)", () => {
     });
 
     it("rejeita telefone inválido (Zod)", async () => {
-      const team = await createEmptyTeam(uniqueTeamName("mops-tel"));
+      const { team } = await createTeamWithLegacyCatalog(uniqueTeamName("mops-tel"));
       try {
         mockResolvedSession(sessionAsAdmin());
-        const result = await createTeamMember(
-          { ...validMemberInput, phone: "123" },
-          { teamId: team.id },
-        );
+        const input = await buildValidMemberInput(team.id, { phone: "123" });
+        const result = await createTeamMember(input, { teamId: team.id });
         expect(result.success).toBe(false);
       } finally {
         await cleanupTeamCascade(team.id);
@@ -229,10 +229,11 @@ describe.skipIf(!hasDatabaseUrl)("server/team — CRUD (integração)", () => {
     });
 
     it("cria membro com ADMIN e teamId explícito", async () => {
-      const team = await createEmptyTeam(uniqueTeamName("mops-cm"));
+      const { team } = await createTeamWithLegacyCatalog(uniqueTeamName("mops-cm"));
       try {
         mockResolvedSession(sessionAsAdmin());
-        const result = await createTeamMember(validMemberInput, { teamId: team.id });
+        const input = await buildValidMemberInput(team.id);
+        const result = await createTeamMember(input, { teamId: team.id });
         expect(result).toMatchObject({ success: true });
         if (result.success) {
           const m = await prisma.teamMember.findUnique({
@@ -240,7 +241,7 @@ describe.skipIf(!hasDatabaseUrl)("server/team — CRUD (integração)", () => {
             select: { teamId: true, name: true },
           });
           expect(m?.teamId).toBe(team.id);
-          expect(m?.name).toBe(validMemberInput.name);
+          expect(m?.name).toBe(input.name);
         }
       } finally {
         await cleanupTeamCascade(team.id);
@@ -248,10 +249,11 @@ describe.skipIf(!hasDatabaseUrl)("server/team — CRUD (integração)", () => {
     });
 
     it("ADMIN_TEAM: cria membro na equipe gerida", async () => {
-      const team = await createEmptyTeam(uniqueTeamName("mops-admteam"));
+      const { team } = await createTeamWithLegacyCatalog(uniqueTeamName("mops-admteam"));
       try {
         mockResolvedSession(sessionAsAdminTeam(team.id));
-        const result = await createTeamMember(validMemberInput);
+        const input = await buildValidMemberInput(team.id);
+        const result = await createTeamMember(input);
         expect(result).toMatchObject({ success: true });
         if (result.success) {
           const m = await prisma.teamMember.findUnique({
@@ -269,20 +271,18 @@ describe.skipIf(!hasDatabaseUrl)("server/team — CRUD (integração)", () => {
   describe("updateTeamMember / deleteTeamMember", () => {
     it("rejeita edição sem staff", async () => {
       mockResolvedSession(sessionAsPlainUser());
-      const r = await updateTeamMember("any", validMemberInput);
+      const r = await updateTeamMember("any", placeholderMemberInput);
       expect(r.success).toBe(false);
     });
 
     it("ADMIN_TEAM: nega edição de membro de outra equipe", async () => {
-      const teamA = await createEmptyTeam(uniqueTeamName("mops-ta"));
-      const teamB = await createEmptyTeam(uniqueTeamName("mops-tb"));
+      const { team: teamA } = await createTeamWithLegacyCatalog(uniqueTeamName("mops-ta"));
+      const { team: teamB } = await createTeamWithLegacyCatalog(uniqueTeamName("mops-tb"));
       const memberOnA = await createTestTeamMember(teamA.id);
       try {
         mockResolvedSession(sessionAsAdminTeam(teamB.id));
-        const result = await updateTeamMember(memberOnA.id, {
-          ...validMemberInput,
-          name: "Tentativa",
-        });
+        const input = await buildValidMemberInput(teamB.id, { name: "Tentativa" });
+        const result = await updateTeamMember(memberOnA.id, input);
         expect(result.success).toBe(false);
         if (!result.success) {
           expect(result.error).toContain("não pertence à sua equipe");
@@ -294,14 +294,12 @@ describe.skipIf(!hasDatabaseUrl)("server/team — CRUD (integração)", () => {
     });
 
     it("ADMIN_TEAM: permite editar membro da própria equipe", async () => {
-      const team = await createEmptyTeam(uniqueTeamName("mops-edit"));
+      const { team } = await createTeamWithLegacyCatalog(uniqueTeamName("mops-edit"));
       const member = await createTestTeamMember(team.id);
       try {
         mockResolvedSession(sessionAsAdminTeam(team.id));
-        const result = await updateTeamMember(member.id, {
-          ...validMemberInput,
-          name: "Nome Editado",
-        });
+        const input = await buildValidMemberInput(team.id, { name: "Nome Editado" });
+        const result = await updateTeamMember(member.id, input);
         expect(result).toEqual({ success: true });
         const row = await prisma.teamMember.findUnique({
           where: { id: member.id },

@@ -8,14 +8,110 @@ const adapter = new PrismaPg({
 });
 const prisma = new PrismaClient({ adapter });
 
+const DEFAULT_TEAM_NAME = process.env.DEFAULT_TEAM_NAME?.trim() || "Equipe Principal";
+
 function normalizePhone(phone: string) {
   const digitsOnly = phone.replace(/\D/g, "");
   if (digitsOnly.length === 11 && !digitsOnly.startsWith("55")) return `${digitsOnly}`;
   return digitsOnly;
 }
 
+type SeedMember = {
+  name: string;
+  phone: string;
+  level: (typeof Level)[keyof typeof Level];
+  shift: (typeof Shift)[keyof typeof Shift];
+  sobreaviso: boolean;
+};
+
+const LEGACY_LEVELS: { kind: (typeof Level)[keyof typeof Level]; label: string; sortOrder: number }[] = [
+  { kind: Level.N1, label: "N1", sortOrder: 0 },
+  { kind: Level.N2, label: "N2", sortOrder: 1 },
+  { kind: Level.ESPC, label: "ESPC", sortOrder: 2 },
+  { kind: Level.PRODUCAO, label: "Produção", sortOrder: 3 },
+];
+
+const LEGACY_SHIFTS: { kind: (typeof Shift)[keyof typeof Shift]; label: string; sortOrder: number }[] = [
+  { kind: Shift.T1, label: "T1", sortOrder: 0 },
+  { kind: Shift.T2, label: "T2", sortOrder: 1 },
+  { kind: Shift.T3, label: "T3", sortOrder: 2 },
+  { kind: Shift.TC, label: "TC", sortOrder: 3 },
+];
+
+/**
+ * Garante que existam os `TeamLevel`/`TeamShift` legados para a equipe e
+ * devolve dicionários `kind -> id` para uso ao criar membros.
+ *
+ * Também garante que toda combinação (level, shift) esteja em
+ * `TeamLevelAllowedShift`, replicando a matriz cheia (4×4). Isso preserva o
+ * comportamento anterior ao refator — as restrições específicas (ex.: N2/T3
+ * escondido) continuam vivendo nas regras de código, não no catálogo.
+ */
+async function ensureLegacyCatalogForTeam(teamId: string) {
+  const levelIds: Record<string, string> = {};
+  for (const lv of LEGACY_LEVELS) {
+    const row = await prisma.teamLevel.upsert({
+      where: { teamId_legacyKind: { teamId, legacyKind: lv.kind } },
+      create: {
+        teamId,
+        label: lv.label,
+        legacyKind: lv.kind,
+        sortOrder: lv.sortOrder,
+      },
+      update: { sortOrder: lv.sortOrder },
+      select: { id: true },
+    });
+    levelIds[lv.kind] = row.id;
+  }
+
+  const shiftIds: Record<string, string> = {};
+  for (const sh of LEGACY_SHIFTS) {
+    const row = await prisma.teamShift.upsert({
+      where: { teamId_legacyKind: { teamId, legacyKind: sh.kind } },
+      create: {
+        teamId,
+        label: sh.label,
+        legacyKind: sh.kind,
+        sortOrder: sh.sortOrder,
+      },
+      update: { sortOrder: sh.sortOrder },
+      select: { id: true },
+    });
+    shiftIds[sh.kind] = row.id;
+  }
+
+  for (const lv of LEGACY_LEVELS) {
+    for (const sh of LEGACY_SHIFTS) {
+      await prisma.teamLevelAllowedShift.upsert({
+        where: {
+          teamLevelId_teamShiftId: {
+            teamLevelId: levelIds[lv.kind],
+            teamShiftId: shiftIds[sh.kind],
+          },
+        },
+        create: {
+          teamLevelId: levelIds[lv.kind],
+          teamShiftId: shiftIds[sh.kind],
+        },
+        update: {},
+      });
+    }
+  }
+
+  return { levelIds, shiftIds };
+}
+
 async function main() {
-  const teamMembers = [
+  const team = await prisma.team.upsert({
+    where: { name: DEFAULT_TEAM_NAME },
+    create: { name: DEFAULT_TEAM_NAME, isDefault: true },
+    update: { isDefault: true },
+    select: { id: true },
+  });
+
+  const { levelIds, shiftIds } = await ensureLegacyCatalogForTeam(team.id);
+
+  const teamMembers: SeedMember[] = [
     // ESPECIALISTAS (ESPC) - TC
     { name: "CAUE OLIVEIRA LONGHI", phone: "(11)94333-3360", level: Level.ESPC, shift: Shift.TC, sobreaviso: true },
     { name: "HAROLDO JOSE RIOS DA SILVA", phone: "(11)98341-9398", level: Level.ESPC, shift: Shift.TC, sobreaviso: false },
@@ -79,8 +175,15 @@ async function main() {
 
   await prisma.teamMember.createMany({
     data: teamMembers.map((member) => ({
-      ...member,
+      teamId: team.id,
+      teamLevelId: levelIds[member.level],
+      teamShiftId: shiftIds[member.shift],
+      name: member.name,
+      phone: member.phone,
       normalizedPhone: normalizePhone(member.phone),
+      level: member.level,
+      shift: member.shift,
+      sobreaviso: member.sobreaviso,
     })),
   });
 }

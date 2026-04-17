@@ -1,11 +1,12 @@
 import { z } from "zod";
-import { Level, Shift } from "@/lib/generated/prisma/enums";
+
+const catalogId = z.string().min(1, "Selecione um valor do catálogo").max(64);
 
 export const createTeamMemberSchema = z.object({
   name: z.string().min(1, "Nome é obrigatório").max(120),
   phone: z.string().min(10, "Telefone inválido").max(20),
-  level: z.enum([Level.N1, Level.N2, Level.ESPC, Level.PRODUCAO]),
-  shift: z.enum([Shift.T1, Shift.T2, Shift.T3, Shift.TC]),
+  teamLevelId: catalogId,
+  teamShiftId: catalogId,
   sobreaviso: z.boolean().default(false),
   participatesInSchedule: z.boolean().default(true),
 });

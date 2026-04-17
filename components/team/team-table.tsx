@@ -23,7 +23,6 @@ import {
 } from "@/components/ui/alert-dialog";
 import type { MemberFormCatalog } from "@/lib/memberFormCatalog";
 import type { TeamMemberRow } from "@/types/team";
-import { displayLabelForLevel, displayLabelForShift } from "@/types/team";
 import { TeamModal } from "./team-modal";
 import type { TeamFormValues } from "./team-form";
 import { sortTeamMembers } from "@/lib/sortTeamMembers";
@@ -115,13 +114,29 @@ export function TeamTable({
                   </TableCell>
                   <TableCell className="px-4 text-foreground">{member.phone}</TableCell>
                   <TableCell className="px-4">
-                    <span className="inline-flex items-center rounded-md border border-green-500/40 bg-green-500/15 px-2 py-0.5 text-xs font-medium text-green-700">
-                      {memberCatalog?.levelLabels[member.level] ?? displayLabelForLevel(member.level)}
+                    <span
+                      className={
+                        "inline-flex items-center rounded-md border px-2 py-0.5 text-xs font-medium " +
+                        (member.levelLegacyKind == null
+                          ? "border-purple-500/40 bg-purple-500/15 text-purple-700"
+                          : "border-green-500/40 bg-green-500/15 text-green-700")
+                      }
+                      title={member.levelLegacyKind == null ? "Personalizado (fora das regras legadas)" : undefined}
+                    >
+                      {member.levelLabel}
                     </span>
                   </TableCell>
                   <TableCell className="px-4">
-                    <span className="inline-flex items-center rounded-md border border-amber-500/40 bg-amber-500/15 px-2 py-0.5 text-xs font-medium text-amber-700">
-                      {memberCatalog?.shiftLabels[member.shift] ?? displayLabelForShift(member.shift)}
+                    <span
+                      className={
+                        "inline-flex items-center rounded-md border px-2 py-0.5 text-xs font-medium " +
+                        (member.shiftLegacyKind == null
+                          ? "border-purple-500/40 bg-purple-500/15 text-purple-700"
+                          : "border-amber-500/40 bg-amber-500/15 text-amber-700")
+                      }
+                      title={member.shiftLegacyKind == null ? "Personalizado (fora das regras legadas)" : undefined}
+                    >
+                      {member.shiftLabel}
                     </span>
                   </TableCell>
                   <TableCell className="px-4">
@@ -186,8 +201,8 @@ export function TeamTable({
             ? {
                 name: memberToEdit.name,
                 phone: memberToEdit.phone,
-                level: memberToEdit.level,
-                shift: memberToEdit.shift,
+                teamLevelId: memberToEdit.teamLevelId,
+                teamShiftId: memberToEdit.teamShiftId,
                 sobreaviso: memberToEdit.sobreaviso,
                 participatesInSchedule: memberToEdit.participatesInSchedule,
               }

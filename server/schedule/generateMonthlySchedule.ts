@@ -54,8 +54,14 @@ export async function generateMonthlySchedule(
   month: number,
   year: number
 ): Promise<ScheduleAssignmentOutput[]> {
+  // Escala legada: apenas membros com level/shift enum (catálogo legado).
+  // Membros com catálogo personalizado (legacyKind=NULL) ficam fora da geração.
   const allMembers = await prisma.teamMember.findMany({
-    where: { participatesInSchedule: true },
+    where: {
+      participatesInSchedule: true,
+      level: { not: null },
+      shift: { not: null },
+    },
     orderBy: [{ shift: "asc" }, { level: "asc" }, { name: "asc" }],
   });
 
@@ -67,8 +73,8 @@ export async function generateMonthlySchedule(
   const queueMembers: QueueMember[] = rotationMembers.map((m) => ({
     id: m.id,
     name: m.name,
-    shift: m.shift,
-    level: m.level,
+    shift: m.shift!,
+    level: m.level!,
     rotationIndex: m.rotationIndex,
   }));
 
@@ -192,8 +198,8 @@ export async function generateMonthlySchedule(
 
   const membersForAllocation: MemberForAllocation[] = rotationMembers.map((m) => ({
     id: m.id,
-    shift: m.shift,
-    level: m.level,
+    shift: m.shift!,
+    level: m.level!,
   }));
 
   // Include next month's first day when it's the Sunday of the last weekend (Saturday = last day of month)

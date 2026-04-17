@@ -4,8 +4,10 @@ export interface SessionMember {
   id: string;
   name: string;
   phone: string;
-  level: string;
-  shift: string;
+  /** Enum legado derivado de TeamLevel.legacyKind. NULL quando é catálogo personalizado. */
+  level: string | null;
+  /** Enum legado derivado de TeamShift.legacyKind. NULL quando é catálogo personalizado. */
+  shift: string | null;
 }
 
 declare module "next-auth" {

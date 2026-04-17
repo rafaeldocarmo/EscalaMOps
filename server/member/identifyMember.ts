@@ -5,7 +5,18 @@ import { prisma } from "@/lib/prisma";
 import { normalizePhone } from "@/lib/phone";
 
 export type IdentifyMemberResult =
-  | { success: true; member: { id: string; name: string; phone: string; level: string; shift: string } }
+  | {
+      success: true;
+      member: {
+        id: string;
+        name: string;
+        phone: string;
+        /** NULL quando o membro usa catálogo personalizado (fora das regras legadas). */
+        level: string | null;
+        /** NULL quando o membro usa catálogo personalizado. */
+        shift: string | null;
+      };
+    }
   | { success: false; error: string };
 
 /**

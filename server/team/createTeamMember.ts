@@ -54,25 +54,37 @@ export async function createTeamMember(
       return { success: false, error: "Equipe não encontrada." };
     }
 
-    const combo = await validateMemberLevelShiftForTeam(teamId, parsed.data.level, parsed.data.shift);
+    const combo = await validateMemberLevelShiftForTeam(
+      teamId,
+      parsed.data.teamLevelId,
+      parsed.data.teamShiftId,
+    );
     if (!combo.ok) {
       return {
         success: false,
         error: combo.error,
-        fieldErrors: { shift: [combo.error] },
+        fieldErrors: { teamShiftId: [combo.error] },
       };
     }
+
+    // Níveis/turnos personalizados ficam fora das regras legadas (escala, sobreaviso, on-call).
+    const sobreaviso = combo.isCustom ? false : parsed.data.sobreaviso ?? false;
+    const participatesInSchedule = combo.isCustom
+      ? false
+      : parsed.data.participatesInSchedule ?? true;
 
     const member = await prisma.teamMember.create({
       data: {
         teamId,
+        teamLevelId: parsed.data.teamLevelId,
+        teamShiftId: parsed.data.teamShiftId,
         name: parsed.data.name.trim(),
         phone: parsed.data.phone.trim(),
         normalizedPhone,
-        level: parsed.data.level,
-        shift: parsed.data.shift,
-        sobreaviso: parsed.data.sobreaviso ?? false,
-        participatesInSchedule: parsed.data.participatesInSchedule ?? true,
+        level: combo.legacyLevel,
+        shift: combo.legacyShift,
+        sobreaviso,
+        participatesInSchedule,
       },
     });
     return { success: true, data: { id: member.id } };

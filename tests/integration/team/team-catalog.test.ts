@@ -1,5 +1,4 @@
 import { prisma } from "@/lib/prisma";
-import { Level, Shift } from "@/lib/generated/prisma/enums";
 import { createTeamMember } from "@/server/team/createTeamMember";
 import { createTeamLevel } from "@/server/team/createTeamLevel";
 import { createTeamShift } from "@/server/team/createTeamShift";
@@ -134,13 +133,18 @@ describe.skipIf(!hasDatabaseUrl)("server/team — catálogo nível/turno (integr
           data: { teamLevelId: l.id, teamShiftId: s1.id },
         });
 
+        const s2 = await prisma.teamShift.findFirst({
+          where: { teamId: team.id, label: "T2" },
+          select: { id: true },
+        });
+
         mockResolvedSession(sessionAsAdmin());
         const bad = await createTeamMember(
           {
             name: "Teste Matriz",
             phone: "11988776655",
-            level: Level.N1,
-            shift: Shift.T2,
+            teamLevelId: l.id,
+            teamShiftId: s2!.id,
             sobreaviso: false,
             participatesInSchedule: true,
           },
@@ -155,8 +159,8 @@ describe.skipIf(!hasDatabaseUrl)("server/team — catálogo nível/turno (integr
           {
             name: "Teste OK",
             phone: "11988776644",
-            level: Level.N1,
-            shift: Shift.T1,
+            teamLevelId: l.id,
+            teamShiftId: s1.id,
             sobreaviso: false,
             participatesInSchedule: true,
           },
@@ -193,7 +197,7 @@ describe.skipIf(!hasDatabaseUrl)("server/team — catálogo nível/turno (integr
   });
 
   describe("validação de membros (M4)", () => {
-    it("sem catálogo na equipe: aplica regras legadas (N2+T3)", async () => {
+    it("sem catálogo na equipe: bloqueia criação (não há nível/turno válido)", async () => {
       const team = await createEmptyTeam(uniqueTeamName("mops-legacy"));
       try {
         mockResolvedSession(sessionAsAdmin());
@@ -201,17 +205,14 @@ describe.skipIf(!hasDatabaseUrl)("server/team — catálogo nível/turno (integr
           {
             name: "Legado N2T3",
             phone: "11977665544",
-            level: Level.N2,
-            shift: Shift.T3,
+            teamLevelId: "nao-existe",
+            teamShiftId: "tambem-nao",
             sobreaviso: false,
             participatesInSchedule: true,
           },
           { teamId: team.id },
         );
         expect(result.success).toBe(false);
-        if (!result.success) {
-          expect(result.error).toContain("N2 só pode");
-        }
       } finally {
         await cleanupTeamCascade(team.id);
       }

@@ -159,12 +159,13 @@ export function SchedulePageClient({
   );
 
   const scheduleMembersVisible = useMemo(() => {
-    let list = scheduleMembersOnly;
+    // Somente membros com level/shift enum (catálogo legado) entram na escala.
+    let list = scheduleMembersOnly.filter((m) => m.level != null && m.shift != null);
     if (levelFilter.length > 0) {
-      list = list.filter((m) => levelFilter.includes(m.level));
+      list = list.filter((m) => m.level != null && levelFilter.includes(m.level));
     }
     if (shiftFilter.length > 0) {
-      list = list.filter((m) => shiftFilter.includes(m.shift));
+      list = list.filter((m) => m.shift != null && shiftFilter.includes(m.shift));
     }
     return list;
   }, [scheduleMembersOnly, levelFilter, shiftFilter]);
@@ -187,7 +188,7 @@ export function SchedulePageClient({
             m.sobreaviso &&
             (m.level === "N2" || m.level === "ESPC" || m.level === "PRODUCAO")
         )
-        .map((m) => ({ id: m.id, name: m.name, level: m.level })),
+        .map((m) => ({ id: m.id, name: m.name, level: m.level as string })),
     [members]
   );
 

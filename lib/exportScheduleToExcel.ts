@@ -83,6 +83,7 @@ function buildSobreavisoGridMembers(
   const map = new Map<string, SobreavisoGridMember>();
 
   for (const m of eligibleMembers) {
+    if (!m.level || !m.shift) continue;
     if (!ON_CALL_LEVELS.includes(m.level)) continue;
     map.set(m.id, {
       memberId: m.id,
@@ -243,7 +244,7 @@ export async function exportScheduleToExcel(
   currentRow += 1;
 
   const sobreEligible = members.filter(
-    (m) => m.sobreaviso && ON_CALL_LEVELS.includes(m.level),
+    (m) => m.sobreaviso && m.level != null && ON_CALL_LEVELS.includes(m.level),
   );
   const sobreGridMembers = buildSobreavisoGridMembers(sobreavisoWeeks, sobreEligible);
   const sobreSections = groupSobreavisoByLevel(sobreGridMembers);

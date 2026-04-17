@@ -22,7 +22,9 @@ export interface BankHourRequestRow {
 export interface BankHourMemberBalanceRow {
   memberId: string;
   memberName: string;
+  /** Label do nível no catálogo (inclui entradas personalizadas). */
   level: string;
+  /** Label do turno no catálogo. */
   shift: string;
   participatesInSchedule: boolean;
   balanceHours: number;

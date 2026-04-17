@@ -7,8 +7,25 @@ export interface TeamMemberRow {
   id: string;
   name: string;
   phone: string;
-  level: Level;
-  shift: Shift;
+  /** FK para TeamLevel — fonte de verdade do nível do membro. */
+  teamLevelId: string;
+  /** FK para TeamShift — fonte de verdade do turno do membro. */
+  teamShiftId: string;
+  /** Label exibido (vem do catálogo). */
+  levelLabel: string;
+  shiftLabel: string;
+  /** Enum legado derivado de TeamLevel.legacyKind. NULL quando é personalizado. */
+  levelLegacyKind: Level | null;
+  shiftLegacyKind: Shift | null;
+  /**
+   * @deprecated Use `levelLegacyKind` + `levelLabel`. Mantido para consumidores legados;
+   * NULL para membros com catálogo personalizado (fora das regras de escala/sobreaviso).
+   */
+  level: Level | null;
+  /** @deprecated Use `shiftLegacyKind` + `shiftLabel`. */
+  shift: Shift | null;
+  /** True se level ou shift é personalizado (fora das regras legadas). */
+  isCustom: boolean;
   sobreaviso: boolean;
   participatesInSchedule: boolean;
   createdAt: Date;

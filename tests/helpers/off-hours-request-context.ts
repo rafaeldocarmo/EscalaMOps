@@ -8,6 +8,7 @@ import {
   ScheduleStatus,
   Shift,
 } from "@/lib/generated/prisma/enums";
+import { ensureLegacyCatalogForTeam } from "@/tests/helpers/team-crud-context";
 
 /** Mesma regra de data que `createOffHoursRequest` (meio-dia UTC). */
 export function parseDateKeyUtc(dateKey: string): Date {
@@ -47,9 +48,13 @@ export async function createOffHoursRequestTestContext(
     },
   });
 
+  const { levelIds, shiftIds } = await ensureLegacyCatalogForTeam(team.id);
+
   const member = await prisma.teamMember.create({
     data: {
       teamId: team.id,
+      teamLevelId: levelIds[Level.N1],
+      teamShiftId: shiftIds[Shift.T1],
       name: "Membro BH Teste",
       phone: `11999${suffix.slice(0, 5)}`,
       normalizedPhone: `5511999${suffix.slice(0, 5)}`,
@@ -90,6 +95,8 @@ export async function destroyOffHoursRequestTestContext(ctx: OffHoursRequestTest
   await prisma.schedule.deleteMany({ where: { id: ctx.scheduleId } });
   await prisma.bankHourBalance.deleteMany({ where: { memberId: ctx.memberId } });
   await prisma.teamMember.deleteMany({ where: { id: ctx.memberId } });
+  await prisma.teamLevel.deleteMany({ where: { teamId: ctx.teamId } });
+  await prisma.teamShift.deleteMany({ where: { teamId: ctx.teamId } });
   await prisma.team.deleteMany({ where: { id: ctx.teamId } });
 }
 
@@ -128,9 +135,12 @@ export async function createMemberTeamWithoutSchedule(): Promise<{ teamId: strin
   const team = await prisma.team.create({
     data: { name: `mops-bh-ns-${suffix}`, isDefault: false },
   });
+  const { levelIds, shiftIds } = await ensureLegacyCatalogForTeam(team.id);
   const member = await prisma.teamMember.create({
     data: {
       teamId: team.id,
+      teamLevelId: levelIds[Level.N1],
+      teamShiftId: shiftIds[Shift.T1],
       name: "Membro sem escala",
       phone: `21988${suffix.slice(0, 5)}`,
       normalizedPhone: `5521988${suffix.slice(0, 5)}`,
@@ -145,5 +155,7 @@ export async function destroyMemberTeamOnly(ctx: { teamId: string; memberId: str
   await prisma.bankHourRequest.deleteMany({ where: { requesterId: ctx.memberId } });
   await prisma.bankHourBalance.deleteMany({ where: { memberId: ctx.memberId } });
   await prisma.teamMember.deleteMany({ where: { id: ctx.memberId } });
+  await prisma.teamLevel.deleteMany({ where: { teamId: ctx.teamId } });
+  await prisma.teamShift.deleteMany({ where: { teamId: ctx.teamId } });
   await prisma.team.deleteMany({ where: { id: ctx.teamId } });
 }

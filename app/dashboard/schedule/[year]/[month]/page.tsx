@@ -43,17 +43,7 @@ export default async function SchedulePage({ params }: PageProps) {
 
   const schedule: ScheduleRow = scheduleData.schedule;
   const assignments: ScheduleAssignmentRow[] = scheduleData.assignments;
-  const teamMembers: TeamMemberRow[] = members.map((m) => ({
-    id: m.id,
-    name: m.name,
-    phone: m.phone,
-    level: m.level,
-    shift: m.shift,
-    sobreaviso: m.sobreaviso,
-    participatesInSchedule: m.participatesInSchedule,
-    createdAt: m.createdAt,
-    updatedAt: m.updatedAt,
-  }));
+  const teamMembers: TeamMemberRow[] = members;
 
   return (
     <div className="space-y-4">

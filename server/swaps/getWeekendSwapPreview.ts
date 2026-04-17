@@ -78,6 +78,8 @@ export async function getWeekendSwapPreview(
 
   const memberId = session.member.id;
   if (memberId === swapWithMemberId) return null;
+  // Preview só é calculável para membros em regra legada.
+  if (!session.member.level || !session.member.shift) return null;
 
   const allMembers = await prisma.teamMember.findMany({
     where: {
@@ -91,8 +93,8 @@ export async function getWeekendSwapPreview(
   const groupMembers: QueueMember[] = allMembers.map((m) => ({
     id: m.id,
     name: m.name,
-    level: m.level,
-    shift: m.shift,
+    level: m.level!,
+    shift: m.shift!,
     rotationIndex: m.rotationIndex,
   }));
 

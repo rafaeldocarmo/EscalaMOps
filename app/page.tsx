@@ -24,7 +24,10 @@ export default async function Home() {
             </p>
             {session.member && (
               <p className="text-sm text-muted-foreground">
-                Membro: {session.member.name} ({session.member.shift} {session.member.level})
+                Membro: {session.member.name}
+                {session.member.shift || session.member.level
+                  ? ` (${session.member.shift ?? "—"} ${session.member.level ?? "—"})`
+                  : ""}
               </p>
             )}
             <div className="flex flex-wrap items-center justify-center gap-2">

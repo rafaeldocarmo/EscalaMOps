@@ -104,37 +104,56 @@ model Team {
   @@map("teams")
 }
 
-/** Nível configurável por equipe (independente do enum legacy em team_members). */
+/**
+ * Nível configurável por equipe. É a fonte de verdade para o nível de um TeamMember.
+ *
+ * `legacyKind` liga a linha a um valor do enum `Level` (N1/N2/ESPC/PRODUCAO), usado
+ * pelas regras de negócio hardcoded (rotação, sobreaviso, fim de semana). Quando
+ * `legacyKind` é NULL, a linha representa um nível novo criado pelo usuário que
+ * ainda não está parametrizado — ele existe no catálogo mas fica de fora das regras.
+ */
 model TeamLevel {
-  id        String   @id @default(cuid())
-  teamId    String   @map("team_id")
-  /** Nome único por equipe; na validação de membros deve coincidir com o valor do enum (ex.: N1). */
-  label     String
-  sortOrder Int      @default(0) @map("sort_order")
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id         String   @id @default(cuid())
+  teamId     String   @map("team_id")
+  /** Nome exibido na UI. Único por equipe. */
+  label      String
+  /** Mapeamento para o enum Level (null = nível custom ainda sem regra associada). */
+  legacyKind Level?   @map("legacy_kind")
+  sortOrder  Int      @default(0) @map("sort_order")
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
 
-  team            Team                    @relation(fields: [teamId], references: [id], onDelete: Cascade)
-  allowedShifts   TeamLevelAllowedShift[]
+  team          Team                    @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  allowedShifts TeamLevelAllowedShift[]
+  members       TeamMember[]
 
   @@unique([teamId, label])
+  @@unique([teamId, legacyKind])
   @@index([teamId])
   @@map("team_levels")
 }
 
-/** Turno configurável por equipe (independente do enum legacy em team_members). */
+/**
+ * Turno configurável por equipe. É a fonte de verdade para o turno de um TeamMember.
+ *
+ * `legacyKind` liga a linha a um valor do enum `Shift` (T1/T2/T3/TC), pelas mesmas
+ * razões descritas em TeamLevel.legacyKind.
+ */
 model TeamShift {
-  id        String   @id @default(cuid())
-  teamId    String   @map("team_id")
-  label     String
-  sortOrder Int      @default(0) @map("sort_order")
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id         String   @id @default(cuid())
+  teamId     String   @map("team_id")
+  label      String
+  legacyKind Shift?   @map("legacy_kind")
+  sortOrder  Int      @default(0) @map("sort_order")
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
 
-  team                Team                    @relation(fields: [teamId], references: [id], onDelete: Cascade)
-  allowedForLevels    TeamLevelAllowedShift[]
+  team             Team                    @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  allowedForLevels TeamLevelAllowedShift[]
+  members          TeamMember[]
 
   @@unique([teamId, label])
+  @@unique([teamId, legacyKind])
   @@index([teamId])
   @@map("team_shifts")
 }
@@ -155,11 +174,22 @@ model TeamLevelAllowedShift {
 model TeamMember {
   id                    String   @id @default(cuid())
   teamId                String?  @map("team_id")
+  /** FK para TeamLevel: fonte de verdade do nível do membro. */
+  teamLevelId           String   @map("team_level_id")
+  /** FK para TeamShift: fonte de verdade do turno do membro. */
+  teamShiftId           String   @map("team_shift_id")
   name                  String
   phone                 String
   normalizedPhone       String   @map("normalized_phone")
-  level                 Level
-  shift                 Shift
+  /**
+   * @deprecated Derivado automaticamente de `teamLevel.legacyKind`. NULL quando o
+   * TeamLevel do membro ainda não tem regra legada associada (catálogo custom),
+   * caso em que o membro fica fora das regras de escala/sobreaviso/on-call.
+   * Será removido quando as regras forem parametrizadas.
+   */
+  level                 Level?
+  /** @deprecated idem TeamMember.level, para turnos. */
+  shift                 Shift?
   sobreaviso            Boolean  @default(false)
   participatesInSchedule Boolean @default(true) @map("participates_in_schedule")
   rotationIndex         Int      @default(0) @map("rotation_index")
@@ -176,9 +206,13 @@ model TeamMember {
   bankHourRequests      BankHourRequest[] @relation("BankHourRequests")
   bankHourTransactions   BankHourTransaction[] @relation("BankHourTransactions")
 
-  team Team? @relation(fields: [teamId], references: [id], onDelete: Restrict)
+  team      Team?     @relation(fields: [teamId], references: [id], onDelete: Restrict)
+  teamLevel TeamLevel @relation(fields: [teamLevelId], references: [id], onDelete: Restrict)
+  teamShift TeamShift @relation(fields: [teamShiftId], references: [id], onDelete: Restrict)
 
   @@index([teamId])
+  @@index([teamLevelId])
+  @@index([teamShiftId])
   @@index([normalizedPhone])
   @@map("team_members")
 }

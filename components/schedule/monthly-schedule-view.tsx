@@ -97,12 +97,14 @@ export function MonthlyScheduleView() {
   } = bootstrap;
 
   const stateMap = assignmentsToStateMap(assignments);
-  let visibleMembers = members;
+  // A escala legada só inclui membros com level/shift enum definidos; níveis/turnos
+  // personalizados ficam fora até serem parametrizados.
+  let visibleMembers = members.filter((m) => m.level != null && m.shift != null);
   if (levelFilter.length > 0) {
-    visibleMembers = visibleMembers.filter((m) => levelFilter.includes(m.level));
+    visibleMembers = visibleMembers.filter((m) => m.level != null && levelFilter.includes(m.level));
   }
   if (shiftFilter.length > 0) {
-    visibleMembers = visibleMembers.filter((m) => shiftFilter.includes(m.shift));
+    visibleMembers = visibleMembers.filter((m) => m.shift != null && shiftFilter.includes(m.shift));
   }
 
   const sections = buildScheduleSections(visibleMembers);

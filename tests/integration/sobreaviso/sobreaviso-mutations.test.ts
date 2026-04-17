@@ -10,7 +10,11 @@ import {
   cleanupTeamAndOnCallAssignments,
   createTeamWithSobreavisoMembers,
 } from "@/tests/helpers/sobreaviso-test-context";
-import { createEmptyTeam, uniqueTeamName } from "@/tests/helpers/team-crud-context";
+import {
+  createEmptyTeam,
+  createTeamWithLegacyCatalog,
+  uniqueTeamName,
+} from "@/tests/helpers/team-crud-context";
 
 const hasDatabaseUrl = Boolean(process.env.DATABASE_URL?.trim());
 
@@ -117,12 +121,14 @@ describe.skipIf(!hasDatabaseUrl)("sobreaviso — gerar, limpar, swap admin (inte
     });
 
     it("rejeita membros de equipes diferentes", async () => {
-      const t1 = await createEmptyTeam(uniqueTeamName("mops-swap1"));
-      const t2 = await createEmptyTeam(uniqueTeamName("mops-swap2"));
+      const ctx1 = await createTeamWithLegacyCatalog(uniqueTeamName("mops-swap1"));
+      const ctx2 = await createTeamWithLegacyCatalog(uniqueTeamName("mops-swap2"));
       const tail = "11987654321";
       const a = await prisma.teamMember.create({
         data: {
-          teamId: t1.id,
+          teamId: ctx1.team.id,
+          teamLevelId: ctx1.levelIds[Level.N1],
+          teamShiftId: ctx1.shiftIds[Shift.T1],
           name: "A",
           phone: tail,
           normalizedPhone: `55${tail}`,
@@ -132,7 +138,9 @@ describe.skipIf(!hasDatabaseUrl)("sobreaviso — gerar, limpar, swap admin (inte
       });
       const b = await prisma.teamMember.create({
         data: {
-          teamId: t2.id,
+          teamId: ctx2.team.id,
+          teamLevelId: ctx2.levelIds[Level.N1],
+          teamShiftId: ctx2.shiftIds[Shift.T1],
           name: "B",
           phone: "11987654322",
           normalizedPhone: "5511987654322",
@@ -149,16 +157,20 @@ describe.skipIf(!hasDatabaseUrl)("sobreaviso — gerar, limpar, swap admin (inte
         });
       } finally {
         await prisma.teamMember.deleteMany({ where: { id: { in: [a.id, b.id] } } });
-        await prisma.team.deleteMany({ where: { id: { in: [t1.id, t2.id] } } });
+        await prisma.teamLevel.deleteMany({ where: { teamId: { in: [ctx1.team.id, ctx2.team.id] } } });
+        await prisma.teamShift.deleteMany({ where: { teamId: { in: [ctx1.team.id, ctx2.team.id] } } });
+        await prisma.team.deleteMany({ where: { id: { in: [ctx1.team.id, ctx2.team.id] } } });
       }
     });
 
     it("ADMIN_TEAM: nega quando os membros não são da equipe gerida", async () => {
-      const teamA = await createEmptyTeam(uniqueTeamName("mops-saa"));
+      const ctxA = await createTeamWithLegacyCatalog(uniqueTeamName("mops-saa"));
       const teamB = await createEmptyTeam(uniqueTeamName("mops-sab"));
       const a = await prisma.teamMember.create({
         data: {
-          teamId: teamA.id,
+          teamId: ctxA.team.id,
+          teamLevelId: ctxA.levelIds[Level.N1],
+          teamShiftId: ctxA.shiftIds[Shift.T1],
           name: "Membro A",
           phone: "11911111111",
           normalizedPhone: "5511911111111",
@@ -168,7 +180,9 @@ describe.skipIf(!hasDatabaseUrl)("sobreaviso — gerar, limpar, swap admin (inte
       });
       const b = await prisma.teamMember.create({
         data: {
-          teamId: teamA.id,
+          teamId: ctxA.team.id,
+          teamLevelId: ctxA.levelIds[Level.N1],
+          teamShiftId: ctxA.shiftIds[Shift.T1],
           name: "Membro B",
           phone: "11922222222",
           normalizedPhone: "5511922222222",
@@ -182,7 +196,9 @@ describe.skipIf(!hasDatabaseUrl)("sobreaviso — gerar, limpar, swap admin (inte
         expect(r).toMatchObject({ success: false, error: "Acesso negado." });
       } finally {
         await prisma.teamMember.deleteMany({ where: { id: { in: [a.id, b.id] } } });
-        await prisma.team.deleteMany({ where: { id: { in: [teamA.id, teamB.id] } } });
+        await prisma.teamLevel.deleteMany({ where: { teamId: ctxA.team.id } });
+        await prisma.teamShift.deleteMany({ where: { teamId: ctxA.team.id } });
+        await prisma.team.deleteMany({ where: { id: { in: [ctxA.team.id, teamB.id] } } });
       }
     });
 
@@ -190,10 +206,14 @@ describe.skipIf(!hasDatabaseUrl)("sobreaviso — gerar, limpar, swap admin (inte
       vi.useFakeTimers({ toFake: ["Date"] });
       vi.setSystemTime(new Date("2099-06-15T12:00:00.000Z"));
 
-      const team = await createEmptyTeam(uniqueTeamName("mops-swap-ok"));
+      const { team, levelIds, shiftIds } = await createTeamWithLegacyCatalog(
+        uniqueTeamName("mops-swap-ok"),
+      );
       const mA = await prisma.teamMember.create({
         data: {
           teamId: team.id,
+          teamLevelId: levelIds[Level.N2],
+          teamShiftId: shiftIds[Shift.T1],
           name: "Swap A",
           phone: "11933333333",
           normalizedPhone: "5511933333333",
@@ -206,6 +226,8 @@ describe.skipIf(!hasDatabaseUrl)("sobreaviso — gerar, limpar, swap admin (inte
       const mB = await prisma.teamMember.create({
         data: {
           teamId: team.id,
+          teamLevelId: levelIds[Level.N2],
+          teamShiftId: shiftIds[Shift.T1],
           name: "Swap B",
           phone: "11944444444",
           normalizedPhone: "5511944444444",

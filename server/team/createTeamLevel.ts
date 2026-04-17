@@ -53,6 +53,7 @@ export async function createTeamLevel(input: unknown): Promise<CreateTeamLevelRe
       data: {
         teamId,
         label: parsed.data.label,
+        legacyKind: parsed.data.legacyKind ?? null,
         sortOrder: parsed.data.sortOrder ?? 0,
       },
       select: { id: true },
@@ -60,7 +61,15 @@ export async function createTeamLevel(input: unknown): Promise<CreateTeamLevelRe
     return { success: true, data: { id: row.id } };
   } catch (e) {
     const message = e instanceof Error ? e.message : "";
-    if (message.includes("Unique") || message.toLowerCase().includes("unique")) {
+    const isUnique = message.includes("Unique") || message.toLowerCase().includes("unique");
+    if (isUnique) {
+      if (message.includes("legacy_kind") || message.includes("legacyKind")) {
+        return {
+          success: false,
+          error:
+            "Já existe um nível dessa equipe associado a esse tipo do sistema. Edite o nível existente em vez de criar outro.",
+        };
+      }
       return { success: false, error: "Já existe um nível com esse nome nesta equipe." };
     }
     return { success: false, error: "Não foi possível criar o nível." };

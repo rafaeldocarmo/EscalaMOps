@@ -87,14 +87,16 @@ export function groupMembersByShiftAndLevel(
   members: TeamMemberRow[]
 ): GroupedMember[] {
   const sorted = [...members].sort((a, b) => {
-    if (a.level !== b.level) return a.level.localeCompare(b.level);
-    if (a.shift !== b.shift) return a.shift.localeCompare(b.shift);
+    const levelCmp = a.levelLabel.localeCompare(b.levelLabel, "pt-BR");
+    if (levelCmp !== 0) return levelCmp;
+    const shiftCmp = a.shiftLabel.localeCompare(b.shiftLabel, "pt-BR");
+    if (shiftCmp !== 0) return shiftCmp;
     return a.name.localeCompare(b.name, "pt-BR");
   });
   return sorted.map((member) => ({
     member,
-    shift: member.shift,
-    level: member.level,
+    shift: member.shiftLabel,
+    level: member.levelLabel,
   }));
 }
 

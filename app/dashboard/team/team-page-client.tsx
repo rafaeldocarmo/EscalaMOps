@@ -15,13 +15,12 @@ import {
 import { TeamModal } from "@/components/team/team-modal";
 import { TeamTable } from "@/components/team/team-table";
 import type { TeamFormValues } from "@/components/team/team-form";
-import type { TeamMemberRow, Level, Shift } from "@/types/team";
+import type { TeamMemberRow } from "@/types/team";
 import { createTeamMember } from "@/server/team/createTeamMember";
 import { updateTeamMember } from "@/server/team/updateTeamMember";
 import { deleteTeamMember } from "@/server/team/deleteTeamMember";
 import { Input } from "@/components/ui/input";
 import { MultiSelect, type MultiSelectOption } from "@/components/ui/multi-select";
-import { LEVEL_OPTIONS, SHIFT_OPTIONS } from "@/types/team";
 import type { TeamListItem } from "@/server/team/getTeams";
 
 interface TeamPageClientProps {
@@ -38,7 +37,7 @@ const SOBREAVISO_OPTIONS: MultiSelectOption<SobreavisoFilter>[] = [
   { value: "without", label: "Sem sobreaviso" },
 ];
 
-export function TeamPageClient({ initialMembers, teams, memberFormCatalog }: TeamPageClientProps) {
+export function TeamPageClient({ initialMembers, memberFormCatalog }: TeamPageClientProps) {
   const router = useRouter();
   const [addFormKey, setAddFormKey] = useState(0);
   const [addOpen, setAddOpen] = useState(false);
@@ -46,22 +45,28 @@ export function TeamPageClient({ initialMembers, teams, memberFormCatalog }: Tea
   const [addError, setAddError] = useState<string | null>(null);
   const [addFieldErrors, setAddFieldErrors] = useState<Record<string, string[]>>({});
   const [search, setSearch] = useState("");
-  const [selectedLevels, setSelectedLevels] = useState<Level[]>([]);
-  const [selectedShifts, setSelectedShifts] = useState<Shift[]>([]);
+  const [selectedLevelIds, setSelectedLevelIds] = useState<string[]>([]);
+  const [selectedShiftIds, setSelectedShiftIds] = useState<string[]>([]);
   const [selectedSobreaviso, setSelectedSobreaviso] = useState<SobreavisoFilter[]>([]);
 
   const refresh = useCallback(() => {
     router.refresh();
   }, [router]);
 
-  const levelFilterOptions = useMemo(() => {
+  const levelFilterOptions = useMemo<MultiSelectOption<string>[]>(() => {
     if (!memberFormCatalog) return [];
-    return LEVEL_OPTIONS.filter((o) => memberFormCatalog.levels.includes(o.value));
+    return memberFormCatalog.levels.map((l) => ({
+      value: l.id,
+      label: l.legacyKind == null ? `${l.label} (personalizado)` : l.label,
+    }));
   }, [memberFormCatalog]);
 
-  const shiftFilterOptions = useMemo(() => {
+  const shiftFilterOptions = useMemo<MultiSelectOption<string>[]>(() => {
     if (!memberFormCatalog) return [];
-    return SHIFT_OPTIONS.filter((o) => memberFormCatalog.orderedShifts.includes(o.value));
+    return memberFormCatalog.shifts.map((s) => ({
+      value: s.id,
+      label: s.legacyKind == null ? `${s.label} (personalizado)` : s.label,
+    }));
   }, [memberFormCatalog]);
 
   const filteredMembers = useMemo(() => {
@@ -79,11 +84,11 @@ export function TeamPageClient({ initialMembers, teams, memberFormCatalog }: Tea
         }
       }
 
-      if (selectedLevels.length > 0 && !selectedLevels.includes(member.level)) {
+      if (selectedLevelIds.length > 0 && !selectedLevelIds.includes(member.teamLevelId)) {
         return false;
       }
 
-      if (selectedShifts.length > 0 && !selectedShifts.includes(member.shift)) {
+      if (selectedShiftIds.length > 0 && !selectedShiftIds.includes(member.teamShiftId)) {
         return false;
       }
 
@@ -91,7 +96,6 @@ export function TeamPageClient({ initialMembers, teams, memberFormCatalog }: Tea
         const wantsWith = selectedSobreaviso.includes("with");
         const wantsWithout = selectedSobreaviso.includes("without");
 
-        // Se ambos estiverem selecionados, não filtra por sobreaviso
         if (!(wantsWith && wantsWithout)) {
           if (wantsWith && !member.sobreaviso) return false;
           if (wantsWithout && member.sobreaviso) return false;
@@ -100,7 +104,7 @@ export function TeamPageClient({ initialMembers, teams, memberFormCatalog }: Tea
 
       return true;
     });
-  }, [initialMembers, search, selectedLevels, selectedShifts, selectedSobreaviso]);
+  }, [initialMembers, search, selectedLevelIds, selectedShiftIds, selectedSobreaviso]);
 
   async function handleCreate(values: TeamFormValues) {
     setAddError(null);
@@ -199,16 +203,16 @@ export function TeamPageClient({ initialMembers, teams, memberFormCatalog }: Tea
               <MultiSelect
                 label="Nível"
                 options={levelFilterOptions}
-                value={selectedLevels}
-                onChange={setSelectedLevels}
+                value={selectedLevelIds}
+                onChange={setSelectedLevelIds}
                 size="default"
                 buttonClassName="h-11"
               />
               <MultiSelect
                 label="Turno"
                 options={shiftFilterOptions}
-                value={selectedShifts}
-                onChange={setSelectedShifts}
+                value={selectedShiftIds}
+                onChange={setSelectedShiftIds}
                 size="default"
                 buttonClassName="h-11"
               />

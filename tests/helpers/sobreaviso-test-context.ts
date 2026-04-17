@@ -1,7 +1,12 @@
 import { randomBytes } from "node:crypto";
 import { prisma } from "@/lib/prisma";
 import { Level, Shift } from "@/lib/generated/prisma/enums";
-import { cleanupTeamCascade, createEmptyTeam, uniqueTeamName } from "@/tests/helpers/team-crud-context";
+import {
+  cleanupTeamCascade,
+  createTeamWithLegacyCatalog,
+  ensureLegacyCatalogForTeam,
+  uniqueTeamName,
+} from "@/tests/helpers/team-crud-context";
 
 function mkPhones(slot: number) {
   const tail = `${randomBytes(3).toString("hex")}${slot}`.replace(/\D/g, "").slice(0, 8).padStart(8, "0");
@@ -10,9 +15,13 @@ function mkPhones(slot: number) {
 
 /** Três membros elegíveis para geração de sobreaviso (N2, ESPC, PRODUCAO), com `sobreaviso: true`. */
 export async function createSobreavisoEligibleMembers(teamId: string) {
+  const { levelIds, shiftIds } = await ensureLegacyCatalogForTeam(teamId);
+
   const mN2 = await prisma.teamMember.create({
     data: {
       teamId,
+      teamLevelId: levelIds[Level.N2],
+      teamShiftId: shiftIds[Shift.T1],
       name: "Sobre N2",
       ...mkPhones(1),
       level: Level.N2,
@@ -24,6 +33,8 @@ export async function createSobreavisoEligibleMembers(teamId: string) {
   const mEspc = await prisma.teamMember.create({
     data: {
       teamId,
+      teamLevelId: levelIds[Level.ESPC],
+      teamShiftId: shiftIds[Shift.TC],
       name: "Sobre ESPC",
       ...mkPhones(2),
       level: Level.ESPC,
@@ -35,6 +46,8 @@ export async function createSobreavisoEligibleMembers(teamId: string) {
   const mProd = await prisma.teamMember.create({
     data: {
       teamId,
+      teamLevelId: levelIds[Level.PRODUCAO],
+      teamShiftId: shiftIds[Shift.TC],
       name: "Sobre PROD",
       ...mkPhones(3),
       level: Level.PRODUCAO,
@@ -47,7 +60,7 @@ export async function createSobreavisoEligibleMembers(teamId: string) {
 }
 
 export async function createTeamWithSobreavisoMembers() {
-  const team = await createEmptyTeam(uniqueTeamName("mops-sa"));
+  const { team } = await createTeamWithLegacyCatalog(uniqueTeamName("mops-sa"));
   const members = await createSobreavisoEligibleMembers(team.id);
   return { team, ...members };
 }

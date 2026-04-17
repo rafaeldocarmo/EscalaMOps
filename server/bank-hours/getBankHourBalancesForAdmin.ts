@@ -16,18 +16,24 @@ export async function getBankHourBalancesForAdmin(): Promise<BankHourMemberBalan
     where: {
       ...(teamId ? { teamId } : {}),
     },
-    orderBy: [{ level: "asc" }, { shift: "asc" }, { name: "asc" }],
+    orderBy: [
+      { teamLevel: { sortOrder: "asc" } },
+      { teamShift: { sortOrder: "asc" } },
+      { name: "asc" },
+    ],
     include: {
       bankHourBalance: { select: { balanceHours: true } },
       bankHourRequests: { where: { status: "PENDING" }, select: { id: true } },
+      teamLevel: { select: { label: true } },
+      teamShift: { select: { label: true } },
     },
   });
 
   return members.map((m) => ({
     memberId: m.id,
     memberName: m.name,
-    level: m.level,
-    shift: m.shift,
+    level: m.teamLevel.label,
+    shift: m.teamShift.label,
     participatesInSchedule: m.participatesInSchedule,
     balanceHours: m.bankHourBalance?.balanceHours.toNumber() ?? 0,
     pendingRequests: m.bankHourRequests.length,

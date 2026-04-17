@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useState, useCallback } from "react";
+import { useState, useCallback, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -12,8 +12,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import type { Level, Shift } from "@/types/team";
-import { displayLabelForLevel, displayLabelForShift } from "@/types/team";
 import { formatPhone, PHONE_MASK_MAX_LENGTH } from "@/lib/formatPhone";
 import {
   type MemberFormCatalog,
@@ -26,8 +24,8 @@ const CATALOG_SETTINGS_PATH = "/dashboard/equipes/catalog";
 export interface TeamFormValues {
   name: string;
   phone: string;
-  level: Level;
-  shift: Shift;
+  teamLevelId: string;
+  teamShiftId: string;
   sobreaviso: boolean;
   participatesInSchedule: boolean;
 }
@@ -44,8 +42,8 @@ interface TeamFormProps {
 }
 
 function validateCombo(
-  level: Level,
-  shift: Shift,
+  teamLevelId: string,
+  teamShiftId: string,
   memberCatalog: MemberFormCatalog | null | undefined,
   isEditWithoutCatalog: boolean,
 ): string | null {
@@ -56,18 +54,29 @@ function validateCombo(
   if (memberCatalog.allowedPairKeys.size === 0) {
     return "Defina ao menos uma combinação na matriz de compatibilidade em Configurações → Níveis e turnos.";
   }
-  if (!isPairAllowedInCatalog(memberCatalog, level, shift)) {
+  if (!teamLevelId || !teamShiftId) {
+    return "Selecione nível e turno.";
+  }
+  if (!isPairAllowedInCatalog(memberCatalog, teamLevelId, teamShiftId)) {
     return "Esta combinação de nível e turno não é permitida para a equipe. Ajuste a matriz em Níveis e turnos.";
   }
   return null;
 }
 
-function canSobreaviso(level: Level): boolean {
-  return level === "N2" || level === "ESPC" || level === "PRODUCAO";
+function findLevel(memberCatalog: MemberFormCatalog | null | undefined, id: string) {
+  return memberCatalog?.levels.find((l) => l.id === id) ?? null;
 }
 
-function forceSobreaviso(level: Level): boolean {
-  return level === "PRODUCAO";
+function findShift(memberCatalog: MemberFormCatalog | null | undefined, id: string) {
+  return memberCatalog?.shifts.find((s) => s.id === id) ?? null;
+}
+
+function canSobreavisoByLegacy(legacyLevel: "N1" | "N2" | "ESPC" | "PRODUCAO" | null): boolean {
+  return legacyLevel === "N2" || legacyLevel === "ESPC" || legacyLevel === "PRODUCAO";
+}
+
+function forceSobreavisoByLegacy(legacyLevel: "N1" | "N2" | "ESPC" | "PRODUCAO" | null): boolean {
+  return legacyLevel === "PRODUCAO";
 }
 
 export function TeamForm({
@@ -79,36 +88,45 @@ export function TeamForm({
   error: externalError,
   fieldErrors: externalFieldErrors = {},
 }: TeamFormProps) {
-  const isEdit = defaultValues?.level != null && defaultValues?.shift != null;
+  const isEdit = defaultValues?.teamLevelId != null && defaultValues?.teamShiftId != null;
   const isEditWithoutCatalog = isEdit && !memberCatalog;
 
   const [name, setName] = useState(defaultValues?.name ?? "");
   const [phone, setPhone] = useState(() =>
     defaultValues?.phone ? formatPhone(defaultValues.phone) : "",
   );
-  const [level, setLevel] = useState<Level>(() => {
-    if (defaultValues?.level) return defaultValues.level;
-    if (memberCatalog?.levels[0]) return memberCatalog.levels[0];
-    return "N1";
-  });
-  const [shift, setShift] = useState<Shift>(() => {
-    if (defaultValues?.level != null && defaultValues?.shift != null) return defaultValues.shift;
-    const L = memberCatalog?.levels[0] ?? "N1";
-    if (memberCatalog) {
-      const allowed = shiftsAllowedForLevel(memberCatalog, L);
-      return allowed[0] ?? memberCatalog.orderedShifts[0] ?? "T1";
-    }
-    return "T1";
-  });
+
+  const initialLevelId = useMemo(() => {
+    if (defaultValues?.teamLevelId) return defaultValues.teamLevelId;
+    return memberCatalog?.levels[0]?.id ?? "";
+  }, [defaultValues?.teamLevelId, memberCatalog]);
+
+  const initialShiftId = useMemo(() => {
+    if (defaultValues?.teamShiftId) return defaultValues.teamShiftId;
+    if (!memberCatalog) return "";
+    const firstLevel = memberCatalog.levels[0];
+    if (!firstLevel) return memberCatalog.shifts[0]?.id ?? "";
+    const allowed = shiftsAllowedForLevel(memberCatalog, firstLevel.id);
+    return allowed[0]?.id ?? memberCatalog.shifts[0]?.id ?? "";
+  }, [defaultValues?.teamShiftId, memberCatalog]);
+
+  const [teamLevelId, setTeamLevelId] = useState<string>(initialLevelId);
+  const [teamShiftId, setTeamShiftId] = useState<string>(initialShiftId);
   const [sobreaviso, setSobreaviso] = useState(defaultValues?.sobreaviso ?? false);
   const [participatesInSchedule, setParticipatesInSchedule] = useState(
     defaultValues?.participatesInSchedule ?? true,
   );
   const [levelShiftError, setLevelShiftError] = useState<string | null>(null);
 
+  const selectedLevel = findLevel(memberCatalog, teamLevelId);
+  const selectedShift = findShift(memberCatalog, teamShiftId);
+  const isCustomSelection =
+    (selectedLevel != null && selectedLevel.legacyKind == null) ||
+    (selectedShift != null && selectedShift.legacyKind == null);
+
   const handleLevelChange = useCallback(
-    (value: Level) => {
-      setLevel(value);
+    (value: string) => {
+      setTeamLevelId(value);
       if (!memberCatalog) {
         setLevelShiftError(
           isEditWithoutCatalog ? null : "Cadastre níveis e turnos em Configurações antes de alterar.",
@@ -116,27 +134,47 @@ export function TeamForm({
         return;
       }
       const opts = shiftsAllowedForLevel(memberCatalog, value);
-      let nextShift: Shift;
-      if (opts.includes(shift)) nextShift = shift;
-      else if (opts.length > 0) nextShift = opts[0];
-      else nextShift = memberCatalog.orderedShifts[0] ?? "T1";
-      setShift(nextShift);
-      setLevelShiftError(validateCombo(value, nextShift, memberCatalog, false));
-      if (forceSobreaviso(value)) {
+      let nextShiftId = teamShiftId;
+      if (!opts.some((o) => o.id === teamShiftId)) {
+        nextShiftId = opts[0]?.id ?? memberCatalog.shifts[0]?.id ?? "";
+      }
+      setTeamShiftId(nextShiftId);
+      setLevelShiftError(validateCombo(value, nextShiftId, memberCatalog, false));
+
+      const newLevel = findLevel(memberCatalog, value);
+      const newShift = findShift(memberCatalog, nextShiftId);
+      const customNow =
+        (newLevel != null && newLevel.legacyKind == null) ||
+        (newShift != null && newShift.legacyKind == null);
+
+      if (customNow) {
+        setSobreaviso(false);
+        setParticipatesInSchedule(false);
+        return;
+      }
+
+      const legacy = newLevel?.legacyKind ?? null;
+      if (forceSobreavisoByLegacy(legacy)) {
         setSobreaviso(true);
-      } else if (!canSobreaviso(value)) {
+      } else if (!canSobreavisoByLegacy(legacy)) {
         setSobreaviso(false);
       }
     },
-    [shift, memberCatalog, isEditWithoutCatalog],
+    [teamShiftId, memberCatalog, isEditWithoutCatalog],
   );
 
   const handleShiftChange = useCallback(
-    (value: Shift) => {
-      setShift(value);
-      setLevelShiftError(validateCombo(level, value, memberCatalog, isEditWithoutCatalog));
+    (value: string) => {
+      setTeamShiftId(value);
+      setLevelShiftError(validateCombo(teamLevelId, value, memberCatalog, isEditWithoutCatalog));
+
+      const newShift = findShift(memberCatalog, value);
+      if (newShift != null && newShift.legacyKind == null) {
+        setSobreaviso(false);
+        setParticipatesInSchedule(false);
+      }
     },
-    [level, memberCatalog, isEditWithoutCatalog],
+    [teamLevelId, memberCatalog, isEditWithoutCatalog],
   );
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
@@ -146,57 +184,99 @@ export function TeamForm({
       setLevelShiftError("Cadastre níveis e turnos da equipe em Configurações antes de adicionar membros.");
       return;
     }
-    const err = validateCombo(level, shift, memberCatalog, isEditWithoutCatalog);
+    const err = validateCombo(teamLevelId, teamShiftId, memberCatalog, isEditWithoutCatalog);
     if (err) {
       setLevelShiftError(err);
       return;
     }
+
+    let finalSobreaviso: boolean;
+    let finalParticipates: boolean;
+
+    if (isCustomSelection) {
+      finalSobreaviso = false;
+      finalParticipates = false;
+    } else {
+      const legacy = selectedLevel?.legacyKind ?? null;
+      finalSobreaviso = forceSobreavisoByLegacy(legacy)
+        ? true
+        : canSobreavisoByLegacy(legacy)
+          ? sobreaviso
+          : false;
+      finalParticipates = participatesInSchedule;
+    }
+
     await onSubmit({
       name: name.trim(),
       phone: phone.trim(),
-      level,
-      shift,
-      sobreaviso: forceSobreaviso(level) ? true : canSobreaviso(level) ? sobreaviso : false,
-      participatesInSchedule,
+      teamLevelId,
+      teamShiftId,
+      sobreaviso: finalSobreaviso,
+      participatesInSchedule: finalParticipates,
     });
   }
 
   const nameError = externalFieldErrors.name?.[0];
   const phoneError = externalFieldErrors.phone?.[0];
-  const levelError = externalFieldErrors.level?.[0];
-  const shiftError = externalFieldErrors.shift?.[0];
+  const levelError = externalFieldErrors.teamLevelId?.[0];
+  const shiftError = externalFieldErrors.teamShiftId?.[0];
 
-  const levelChoices: Level[] = (() => {
-    if (!memberCatalog) return isEdit && defaultValues?.level ? [defaultValues.level] : [];
+  const levelChoices = useMemo(() => {
+    if (!memberCatalog) {
+      if (isEdit && defaultValues?.teamLevelId) {
+        return [
+          {
+            id: defaultValues.teamLevelId,
+            label: "(catálogo indisponível)",
+            legacyKind: null,
+          },
+        ];
+      }
+      return [];
+    }
     const list = [...memberCatalog.levels];
-    if (defaultValues?.level && !list.includes(defaultValues.level)) {
-      list.push(defaultValues.level);
+    if (defaultValues?.teamLevelId && !list.some((l) => l.id === defaultValues.teamLevelId)) {
+      list.push({
+        id: defaultValues.teamLevelId,
+        label: "(removido do catálogo)",
+        legacyKind: null,
+      });
     }
     return list;
-  })();
+  }, [memberCatalog, defaultValues?.teamLevelId, isEdit]);
 
-  const shiftChoices: Shift[] = (() => {
-    if (!memberCatalog) return isEdit && defaultValues?.shift ? [defaultValues.shift] : [];
-    let list = shiftsAllowedForLevel(memberCatalog, level);
-    if (defaultValues?.level === level && defaultValues.shift && !list.includes(defaultValues.shift)) {
-      list = [defaultValues.shift, ...list];
+  const shiftChoices = useMemo(() => {
+    if (!memberCatalog) {
+      if (isEdit && defaultValues?.teamShiftId) {
+        return [
+          {
+            id: defaultValues.teamShiftId,
+            label: "(catálogo indisponível)",
+            legacyKind: null,
+          },
+        ];
+      }
+      return [];
+    }
+    let list = shiftsAllowedForLevel(memberCatalog, teamLevelId);
+    if (
+      defaultValues?.teamLevelId === teamLevelId &&
+      defaultValues?.teamShiftId &&
+      !list.some((s) => s.id === defaultValues.teamShiftId)
+    ) {
+      const existing = memberCatalog.shifts.find((s) => s.id === defaultValues.teamShiftId);
+      if (existing) list = [existing, ...list];
     }
     if (list.length === 0) {
-      list = [...memberCatalog.orderedShifts];
+      list = [...memberCatalog.shifts];
     }
     return list;
-  })();
-
-  const levelOptionsForSelect = levelChoices.map((v) => ({
-    value: v,
-    label: memberCatalog?.levelLabels[v] ?? displayLabelForLevel(v),
-  }));
-  const shiftOptionsForSelect = shiftChoices.map((v) => ({
-    value: v,
-    label: memberCatalog?.shiftLabels[v] ?? displayLabelForShift(v),
-  }));
+  }, [memberCatalog, teamLevelId, defaultValues?.teamLevelId, defaultValues?.teamShiftId, isEdit]);
 
   const createBlocked = !isEdit && !memberCatalog;
+
+  const legacyLevel = selectedLevel?.legacyKind ?? null;
+  const showSobreavisoSwitch = !isCustomSelection && canSobreavisoByLegacy(legacyLevel);
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
@@ -258,11 +338,6 @@ export function TeamForm({
           <p className="mt-1 text-muted-foreground">
             Cadastre o catálogo em Configurações para poder alterar nível e turno. Você pode editar nome e telefone.
           </p>
-          <p className="mt-2 text-foreground">
-            <span className="text-muted-foreground">Nível:</span> {displayLabelForLevel(level)}
-            {" · "}
-            <span className="text-muted-foreground">Turno:</span> {displayLabelForShift(shift)}
-          </p>
           <Link
             href={CATALOG_SETTINGS_PATH}
             className="mt-2 inline-block text-sm font-medium text-primary underline-offset-4 hover:underline"
@@ -283,17 +358,20 @@ export function TeamForm({
           <div className="space-y-2">
             <Label>Nível</Label>
             <Select
-              value={level}
-              onValueChange={(v) => handleLevelChange(v as Level)}
+              value={teamLevelId}
+              onValueChange={handleLevelChange}
               disabled={loading || !memberCatalog}
             >
               <SelectTrigger id="team-level" className="w-full" aria-invalid={!!levelError}>
                 <SelectValue placeholder="Selecione o nível" />
               </SelectTrigger>
               <SelectContent>
-                {levelOptionsForSelect.map((opt) => (
-                  <SelectItem key={opt.value} value={opt.value}>
+                {levelChoices.map((opt) => (
+                  <SelectItem key={opt.id} value={opt.id}>
                     {opt.label}
+                    {opt.legacyKind == null ? (
+                      <span className="ml-2 text-xs text-muted-foreground">(personalizado)</span>
+                    ) : null}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -307,17 +385,20 @@ export function TeamForm({
           <div className="space-y-2">
             <Label>Turno</Label>
             <Select
-              value={shift}
-              onValueChange={(v) => handleShiftChange(v as Shift)}
+              value={teamShiftId}
+              onValueChange={handleShiftChange}
               disabled={loading || !memberCatalog}
             >
               <SelectTrigger id="team-shift" className="w-full" aria-invalid={!!shiftError}>
                 <SelectValue placeholder="Selecione o turno" />
               </SelectTrigger>
               <SelectContent>
-                {shiftOptionsForSelect.map((opt) => (
-                  <SelectItem key={opt.value} value={opt.value}>
+                {shiftChoices.map((opt) => (
+                  <SelectItem key={opt.id} value={opt.id}>
                     {opt.label}
+                    {opt.legacyKind == null ? (
+                      <span className="ml-2 text-xs text-muted-foreground">(personalizado)</span>
+                    ) : null}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -331,35 +412,47 @@ export function TeamForm({
         </>
       ) : null}
 
-      <div className="flex items-center gap-3">
-        <button
-          type="button"
-          role="switch"
-          aria-checked={participatesInSchedule}
-          disabled={loading}
-          onClick={() => setParticipatesInSchedule((v) => !v)}
-          className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 ${
-            participatesInSchedule ? "bg-primary" : "bg-input"
-          }`}
-        >
-          <span
-            className={`pointer-events-none block h-5 w-5 rounded-full bg-background shadow-lg ring-0 transition-transform ${
-              participatesInSchedule ? "translate-x-5" : "translate-x-0"
-            }`}
-          />
-        </button>
-        <Label className="cursor-pointer" onClick={() => !loading && setParticipatesInSchedule((v) => !v)}>
-          Participa da rotação da escala
-        </Label>
-      </div>
+      {isCustomSelection ? (
+        <div className="rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-sm text-foreground">
+          <p className="font-medium">Nível ou turno personalizado</p>
+          <p className="mt-1 text-muted-foreground">
+            Esta combinação ainda não tem regra legada associada. O membro ficará fora da escala mensal, do sobreaviso
+            e do on-call até que você parametrize as regras para este nível/turno.
+          </p>
+        </div>
+      ) : null}
 
-      {canSobreaviso(level) && (
+      {!isCustomSelection ? (
+        <div className="flex items-center gap-3">
+          <button
+            type="button"
+            role="switch"
+            aria-checked={participatesInSchedule}
+            disabled={loading}
+            onClick={() => setParticipatesInSchedule((v) => !v)}
+            className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 ${
+              participatesInSchedule ? "bg-primary" : "bg-input"
+            }`}
+          >
+            <span
+              className={`pointer-events-none block h-5 w-5 rounded-full bg-background shadow-lg ring-0 transition-transform ${
+                participatesInSchedule ? "translate-x-5" : "translate-x-0"
+              }`}
+            />
+          </button>
+          <Label className="cursor-pointer" onClick={() => !loading && setParticipatesInSchedule((v) => !v)}>
+            Participa da rotação da escala
+          </Label>
+        </div>
+      ) : null}
+
+      {showSobreavisoSwitch && (
         <div className="flex items-center gap-3">
           <button
             type="button"
             role="switch"
             aria-checked={sobreaviso}
-            disabled={loading || forceSobreaviso(level)}
+            disabled={loading || forceSobreavisoByLegacy(legacyLevel)}
             onClick={() => setSobreaviso((v) => !v)}
             className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 ${
               sobreaviso ? "bg-primary" : "bg-input"
@@ -371,8 +464,11 @@ export function TeamForm({
               }`}
             />
           </button>
-          <Label className="cursor-pointer" onClick={() => !loading && !forceSobreaviso(level) && setSobreaviso((v) => !v)}>
-            Participa do Sobreaviso{forceSobreaviso(level) ? " (obrigatório)" : ""}
+          <Label
+            className="cursor-pointer"
+            onClick={() => !loading && !forceSobreavisoByLegacy(legacyLevel) && setSobreaviso((v) => !v)}
+          >
+            Participa do Sobreaviso{forceSobreavisoByLegacy(legacyLevel) ? " (obrigatório)" : ""}
           </Label>
         </div>
       )}

@@ -41,8 +41,19 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import type { TeamLevelShiftCatalogData, TeamCatalogRow } from "@/server/team/getTeamLevelShiftCatalog";
+import type {
+  TeamLevelShiftCatalogData,
+  TeamCatalogLevelRow,
+  TeamCatalogShiftRow,
+} from "@/server/team/getTeamLevelShiftCatalog";
 import { createTeamLevel } from "@/server/team/createTeamLevel";
 import { createTeamShift } from "@/server/team/createTeamShift";
 import { updateTeamLevel } from "@/server/team/updateTeamLevel";
@@ -50,21 +61,48 @@ import { updateTeamShift } from "@/server/team/updateTeamShift";
 import { deleteTeamLevel } from "@/server/team/deleteTeamLevel";
 import { deleteTeamShift } from "@/server/team/deleteTeamShift";
 import { replaceAllowedShiftsForTeamLevel } from "@/server/team/replaceAllowedShiftsForTeamLevel";
+import type { Level, Shift } from "@/types/team";
 
 interface TeamCatalogPageClientProps {
   initialData: TeamLevelShiftCatalogData;
 }
 
 type EntityVariant = "level" | "shift";
+type CatalogRow = TeamCatalogLevelRow | TeamCatalogShiftRow;
 
 type ItemDialogState =
   | { open: false }
   | { open: true; variant: EntityVariant; mode: "create"; row?: undefined }
-  | { open: true; variant: EntityVariant; mode: "edit"; row: TeamCatalogRow };
+  | { open: true; variant: "level"; mode: "edit"; row: TeamCatalogLevelRow }
+  | { open: true; variant: "shift"; mode: "edit"; row: TeamCatalogShiftRow };
 
 type DeleteState =
   | { open: false }
-  | { open: true; variant: EntityVariant; row: TeamCatalogRow };
+  | { open: true; variant: EntityVariant; row: CatalogRow };
+
+const LEGACY_LEVEL_OPTIONS: { value: Level; label: string }[] = [
+  { value: "N1", label: "N1" },
+  { value: "N2", label: "N2" },
+  { value: "ESPC", label: "Especialista (ESPC)" },
+  { value: "PRODUCAO", label: "Produção" },
+];
+
+const LEGACY_SHIFT_OPTIONS: { value: Shift; label: string }[] = [
+  { value: "T1", label: "T1" },
+  { value: "T2", label: "T2" },
+  { value: "T3", label: "T3" },
+  { value: "TC", label: "TC" },
+];
+
+const CUSTOM_LEGACY_KIND_VALUE = "__custom__";
+
+function legacyKindBadge(legacyKind: Level | Shift | null, variant: EntityVariant): string {
+  if (!legacyKind) return "Personalizado";
+  if (variant === "level") {
+    return LEGACY_LEVEL_OPTIONS.find((o) => o.value === legacyKind)?.label ?? String(legacyKind);
+  }
+  return LEGACY_SHIFT_OPTIONS.find((o) => o.value === legacyKind)?.label ?? String(legacyKind);
+}
 
 function pairIndex(pairs: { teamLevelId: string; teamShiftId: string }[]) {
   const byLevel = new Map<string, Set<string>>();
@@ -75,11 +113,11 @@ function pairIndex(pairs: { teamLevelId: string; teamShiftId: string }[]) {
   return byLevel;
 }
 
-function sortCatalogRows(a: TeamCatalogRow, b: TeamCatalogRow) {
+function sortCatalogRows(a: CatalogRow, b: CatalogRow) {
   return a.sortOrder - b.sortOrder || a.label.localeCompare(b.label);
 }
 
-function useSyncedIdOrder(rows: TeamCatalogRow[]) {
+function useSyncedIdOrder(rows: CatalogRow[]) {
   const [order, setOrder] = useState<string[]>([]);
   const syncKey = useMemo(
     () =>
@@ -101,12 +139,14 @@ function SortableCatalogRow({
   row,
   disabled,
   entityLabel,
+  variant,
   onEdit,
   onDelete,
 }: {
-  row: TeamCatalogRow;
+  row: CatalogRow;
   disabled: boolean;
   entityLabel: "nível" | "turno";
+  variant: EntityVariant;
   onEdit: () => void;
   onDelete: () => void;
 }) {
@@ -135,6 +175,22 @@ function SortableCatalogRow({
         </button>
       </TableCell>
       <TableCell className="font-medium">{row.label}</TableCell>
+      <TableCell className="text-xs text-muted-foreground">
+        <span
+          className={
+            row.legacyKind
+              ? "inline-flex items-center rounded-md bg-muted px-2 py-0.5"
+              : "inline-flex items-center rounded-md border border-dashed border-border px-2 py-0.5 italic"
+          }
+          title={
+            row.legacyKind
+              ? "Tipo do sistema: entra nas regras automáticas de escala e sobreaviso."
+              : "Personalizado: aparece no catálogo, mas ainda não entra no cadastro de membros nem nas regras de escala."
+          }
+        >
+          {legacyKindBadge(row.legacyKind, variant)}
+        </span>
+      </TableCell>
       <TableCell className="w-28 text-right">
         <div className="flex justify-end gap-1">
           <Button
@@ -167,6 +223,7 @@ function SortableCatalogRow({
 
 function CatalogSortableTable({
   entityLabel,
+  variant,
   orderedRows,
   busy,
   onReorder,
@@ -174,11 +231,12 @@ function CatalogSortableTable({
   onDelete,
 }: {
   entityLabel: "nível" | "turno";
-  orderedRows: TeamCatalogRow[];
+  variant: EntityVariant;
+  orderedRows: CatalogRow[];
   busy: boolean;
   onReorder: (orderedIds: string[]) => void;
-  onEdit: (row: TeamCatalogRow) => void;
-  onDelete: (row: TeamCatalogRow) => void;
+  onEdit: (row: CatalogRow) => void;
+  onDelete: (row: CatalogRow) => void;
 }) {
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
@@ -204,6 +262,7 @@ function CatalogSortableTable({
           <TableRow>
             <TableHead className="w-12" />
             <TableHead>Nome</TableHead>
+            <TableHead className="w-44">Tipo do sistema</TableHead>
             <TableHead className="w-28 text-right">Ações</TableHead>
           </TableRow>
         </TableHeader>
@@ -215,6 +274,7 @@ function CatalogSortableTable({
                 row={row}
                 disabled={busy}
                 entityLabel={entityLabel}
+                variant={variant}
                 onEdit={() => onEdit(row)}
                 onDelete={() => onDelete(row)}
               />
@@ -247,12 +307,16 @@ export function TeamCatalogPageClient({ initialData }: TeamCatalogPageClientProp
 
   const levelsOrdered = useMemo(() => {
     const map = new Map(levels.map((l) => [l.id, l]));
-    return levelOrder.map((id) => map.get(id)).filter((r): r is TeamCatalogRow => r != null);
+    return levelOrder
+      .map((id) => map.get(id))
+      .filter((r): r is TeamCatalogLevelRow => r != null);
   }, [levels, levelOrder]);
 
   const shiftsOrdered = useMemo(() => {
     const map = new Map(shifts.map((s) => [s.id, s]));
-    return shiftOrder.map((id) => map.get(id)).filter((r): r is TeamCatalogRow => r != null);
+    return shiftOrder
+      .map((id) => map.get(id))
+      .filter((r): r is TeamCatalogShiftRow => r != null);
   }, [shifts, shiftOrder]);
 
   async function persistLevelOrder(orderedIds: string[]) {
@@ -323,8 +387,13 @@ export function TeamCatalogPageClient({ initialData }: TeamCatalogPageClientProp
       <div>
         <h1 className="text-2xl font-bold tracking-tight text-foreground">Níveis e turnos</h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          Use o mesmo nome dos níveis e turnos dos membros (ex.: N1, T1). Arraste pelo ícone à esquerda para
-          definir a ordem nas listas e na matriz. Defina também quais combinações são permitidas na matriz.
+          Cadastre os níveis e turnos que serão usados pela equipe. O campo{" "}
+          <span className="font-medium">Tipo do sistema</span> amarra a entrada a uma regra existente
+          de escala/sobreaviso (N1, N2, ESPC, PRODUCAO, T1, T2, T3, TC). Níveis e turnos{" "}
+          <span className="italic">Personalizados</span> aparecem no catálogo, mas ainda não entram
+          no cadastro de membros nem nas regras automáticas — serão habilitados quando a
+          parametrização de regras for implementada. Arraste pelo ícone à esquerda para reordenar e
+          use a matriz abaixo para definir combinações permitidas.
         </p>
       </div>
 
@@ -351,10 +420,18 @@ export function TeamCatalogPageClient({ initialData }: TeamCatalogPageClientProp
             ) : (
               <CatalogSortableTable
                 entityLabel="nível"
+                variant="level"
                 orderedRows={levelsOrdered}
                 busy={reorderBusy === "levels"}
                 onReorder={(ids) => void persistLevelOrder(ids)}
-                onEdit={(row) => setItemDialog({ open: true, variant: "level", mode: "edit", row })}
+                onEdit={(row) =>
+                  setItemDialog({
+                    open: true,
+                    variant: "level",
+                    mode: "edit",
+                    row: row as TeamCatalogLevelRow,
+                  })
+                }
                 onDelete={(row) => setDeleteState({ open: true, variant: "level", row })}
               />
             )}
@@ -383,10 +460,18 @@ export function TeamCatalogPageClient({ initialData }: TeamCatalogPageClientProp
             ) : (
               <CatalogSortableTable
                 entityLabel="turno"
+                variant="shift"
                 orderedRows={shiftsOrdered}
                 busy={reorderBusy === "shifts"}
                 onReorder={(ids) => void persistShiftOrder(ids)}
-                onEdit={(row) => setItemDialog({ open: true, variant: "shift", mode: "edit", row })}
+                onEdit={(row) =>
+                  setItemDialog({
+                    open: true,
+                    variant: "shift",
+                    mode: "edit",
+                    row: row as TeamCatalogShiftRow,
+                  })
+                }
                 onDelete={(row) => setDeleteState({ open: true, variant: "shift", row })}
               />
             )}
@@ -496,6 +581,8 @@ function CatalogItemDialog({
   const open = itemDialog.open;
   const [loading, setLoading] = useState(false);
   const [label, setLabel] = useState("");
+  /** `null` = personalizado (sem legacyKind). Stored as string for the Select. */
+  const [legacyKind, setLegacyKind] = useState<string>(CUSTOM_LEGACY_KIND_VALUE);
   const [error, setError] = useState<string | null>(null);
 
   const variant = itemDialog.open ? itemDialog.variant : "level";
@@ -507,11 +594,17 @@ function CatalogItemDialog({
     if (itemDialog.mode === "edit") {
       const r = itemDialog.row;
       setLabel(r.label);
+      setLegacyKind(r.legacyKind ?? CUSTOM_LEGACY_KIND_VALUE);
     } else {
       setLabel("");
+      setLegacyKind(CUSTOM_LEGACY_KIND_VALUE);
     }
     setError(null);
   }, [itemDialog]);
+
+  const options = variant === "level" ? LEGACY_LEVEL_OPTIONS : LEGACY_SHIFT_OPTIONS;
+  const legacyKindForSubmit: Level | Shift | null =
+    legacyKind === CUSTOM_LEGACY_KIND_VALUE ? null : (legacyKind as Level | Shift);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -526,6 +619,7 @@ function CatalogItemDialog({
           const r = await createTeamLevel({
             teamId,
             label: label.trim(),
+            legacyKind: legacyKindForSubmit as Level | null,
             sortOrder: createSortOrder,
           });
           if (!r.success) {
@@ -537,6 +631,7 @@ function CatalogItemDialog({
           const r = await updateTeamLevel({
             id: editRow.id,
             label: label.trim(),
+            legacyKind: legacyKindForSubmit as Level | null,
           });
           if (!r.success) {
             setError(r.error);
@@ -549,6 +644,7 @@ function CatalogItemDialog({
           const r = await createTeamShift({
             teamId,
             label: label.trim(),
+            legacyKind: legacyKindForSubmit as Shift | null,
             sortOrder: createSortOrder,
           });
           if (!r.success) {
@@ -560,6 +656,7 @@ function CatalogItemDialog({
           const r = await updateTeamShift({
             id: editRow.id,
             label: label.trim(),
+            legacyKind: legacyKindForSubmit as Shift | null,
           });
           if (!r.success) {
             setError(r.error);
@@ -583,6 +680,8 @@ function CatalogItemDialog({
         ? "Novo turno"
         : "Editar turno";
 
+  const entityKind = variant === "level" ? "nível" : "turno";
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md">
@@ -597,11 +696,44 @@ function CatalogItemDialog({
                 id="cat-label"
                 value={label}
                 onChange={(e) => setLabel(e.target.value)}
-                placeholder="ex.: N1 (igual ao nível do membro)"
+                placeholder={
+                  variant === "level"
+                    ? "ex.: N1 Jr, Suporte Noturno"
+                    : "ex.: Turno Manhã"
+                }
                 autoComplete="off"
                 disabled={loading}
               />
             </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="cat-legacy-kind">Tipo do sistema</Label>
+              <Select
+                value={legacyKind}
+                onValueChange={(v) => setLegacyKind(v)}
+                disabled={loading}
+              >
+                <SelectTrigger id="cat-legacy-kind">
+                  <SelectValue placeholder="Selecione" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={CUSTOM_LEGACY_KIND_VALUE}>
+                    Personalizado (sem regra de escala)
+                  </SelectItem>
+                  {options.map((o) => (
+                    <SelectItem key={o.value} value={o.value}>
+                      {o.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                {legacyKindForSubmit
+                  ? `Este ${entityKind} entra nas regras de escala/sobreaviso do tipo ${legacyKindForSubmit}. Só pode existir um ${entityKind} por tipo em cada equipe.`
+                  : `${entityKind[0].toUpperCase()}${entityKind.slice(1)} personalizado: aparece no catálogo, mas fica fora das regras atuais de escala e do formulário de membros até que a parametrização seja implementada.`}
+              </p>
+            </div>
+
             {error ? (
               <p className="text-sm text-destructive" role="alert">
                 {error}

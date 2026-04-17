@@ -6,6 +6,7 @@ import {
   ScheduleStatus,
   Shift,
 } from "@/lib/generated/prisma/enums";
+import { ensureLegacyCatalogForTeam } from "@/tests/helpers/team-crud-context";
 
 const YEAR = 2099;
 const MONTH = 7;
@@ -35,6 +36,7 @@ async function createTeamWithSchedule(suffix: string) {
   const team = await prisma.team.create({
     data: { name: `mops-swap-${suffix}`, isDefault: false },
   });
+  const { levelIds, shiftIds } = await ensureLegacyCatalogForTeam(team.id);
   const schedule = await prisma.schedule.create({
     data: {
       teamId: team.id,
@@ -43,7 +45,7 @@ async function createTeamWithSchedule(suffix: string) {
       status: ScheduleStatus.OPEN,
     },
   });
-  return { team, schedule };
+  return { team, schedule, levelIds, shiftIds };
 }
 
 function memberData(
@@ -52,10 +54,14 @@ function memberData(
   suffix: string,
   level: Level,
   shift: Shift,
+  levelIds: Record<Level, string>,
+  shiftIds: Record<Shift, string>,
 ) {
   const tail = `${suffix.replace(/[^a-f0-9]/g, "")}${slot}`.slice(0, 9).padStart(9, "0");
   return {
     teamId,
+    teamLevelId: levelIds[level],
+    teamShiftId: shiftIds[shift],
     name: `Membro ${suffix}-${slot}`,
     phone: `11${tail}`,
     normalizedPhone: `5511${tail}`,
@@ -69,9 +75,9 @@ function memberData(
  */
 export async function createOffSwapLegadoContext(): Promise<OffSwapLegadoContext> {
   const suffix = randomBytes(4).toString("hex");
-  const { team, schedule } = await createTeamWithSchedule(suffix);
+  const { team, schedule, levelIds, shiftIds } = await createTeamWithSchedule(suffix);
   const requester = await prisma.teamMember.create({
-    data: memberData(team.id, 1, suffix, Level.N1, Shift.T1),
+    data: memberData(team.id, 1, suffix, Level.N1, Shift.T1, levelIds, shiftIds),
   });
   await prisma.scheduleAssignment.create({
     data: {
@@ -89,12 +95,12 @@ export async function createOffSwapLegadoContext(): Promise<OffSwapLegadoContext
  */
 export async function createOffSwapTwoMemberContext(): Promise<OffSwapTwoMemberContext> {
   const suffix = randomBytes(4).toString("hex");
-  const { team, schedule } = await createTeamWithSchedule(suffix);
+  const { team, schedule, levelIds, shiftIds } = await createTeamWithSchedule(suffix);
   const requester = await prisma.teamMember.create({
-    data: memberData(team.id, 1, suffix, Level.N1, Shift.T1),
+    data: memberData(team.id, 1, suffix, Level.N1, Shift.T1, levelIds, shiftIds),
   });
   const target = await prisma.teamMember.create({
-    data: memberData(team.id, 2, suffix, Level.N1, Shift.T1),
+    data: memberData(team.id, 2, suffix, Level.N1, Shift.T1, levelIds, shiftIds),
   });
   const dOrig = parseSwapDateUtc(OFF_SWAP_ORIGINAL_KEY);
   const dTarg = parseSwapDateUtc(OFF_SWAP_TARGET_KEY);
@@ -121,6 +127,8 @@ export async function destroyOffSwapLegadoContext(ctx: OffSwapLegadoContext): Pr
   await prisma.scheduleAssignment.deleteMany({ where: { scheduleId: ctx.scheduleId } });
   await prisma.schedule.deleteMany({ where: { id: ctx.scheduleId } });
   await prisma.teamMember.deleteMany({ where: { teamId: ctx.teamId } });
+  await prisma.teamLevel.deleteMany({ where: { teamId: ctx.teamId } });
+  await prisma.teamShift.deleteMany({ where: { teamId: ctx.teamId } });
   await prisma.team.deleteMany({ where: { id: ctx.teamId } });
 }
 
@@ -138,5 +146,7 @@ export async function destroyOffSwapTwoMemberContext(ctx: OffSwapTwoMemberContex
   await prisma.scheduleAssignment.deleteMany({ where: { scheduleId: ctx.scheduleId } });
   await prisma.schedule.deleteMany({ where: { id: ctx.scheduleId } });
   await prisma.teamMember.deleteMany({ where: { teamId: ctx.teamId } });
+  await prisma.teamLevel.deleteMany({ where: { teamId: ctx.teamId } });
+  await prisma.teamShift.deleteMany({ where: { teamId: ctx.teamId } });
   await prisma.team.deleteMany({ where: { id: ctx.teamId } });
 }

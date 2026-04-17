@@ -5,17 +5,29 @@ import { isStaffAdmin } from "@/lib/authz";
 import { prisma } from "@/lib/prisma";
 import { resolveTeamIdForReadForSession } from "@/lib/multiTeam";
 import { assertStaffCanManageTeam } from "@/server/team/assertStaffCanManageTeam";
+import type { Level, Shift } from "@/types/team";
 
-export type TeamCatalogRow = {
+export type TeamCatalogLevelRow = {
   id: string;
   label: string;
+  legacyKind: Level | null;
   sortOrder: number;
 };
 
+export type TeamCatalogShiftRow = {
+  id: string;
+  label: string;
+  legacyKind: Shift | null;
+  sortOrder: number;
+};
+
+/** @deprecated Use `TeamCatalogLevelRow` ou `TeamCatalogShiftRow`. */
+export type TeamCatalogRow = TeamCatalogLevelRow;
+
 export type TeamLevelShiftCatalogData = {
   teamId: string;
-  levels: TeamCatalogRow[];
-  shifts: TeamCatalogRow[];
+  levels: TeamCatalogLevelRow[];
+  shifts: TeamCatalogShiftRow[];
   allowedPairs: { teamLevelId: string; teamShiftId: string }[];
 };
 
@@ -47,12 +59,12 @@ export async function getTeamLevelShiftCatalog(teamId?: string | null): Promise<
     prisma.teamLevel.findMany({
       where: { teamId: resolvedTeamId },
       orderBy: [{ sortOrder: "asc" }, { label: "asc" }],
-      select: { id: true, label: true, sortOrder: true },
+      select: { id: true, label: true, legacyKind: true, sortOrder: true },
     }),
     prisma.teamShift.findMany({
       where: { teamId: resolvedTeamId },
       orderBy: [{ sortOrder: "asc" }, { label: "asc" }],
-      select: { id: true, label: true, sortOrder: true },
+      select: { id: true, label: true, legacyKind: true, sortOrder: true },
     }),
     prisma.teamLevelAllowedShift.findMany({
       where: { teamLevel: { teamId: resolvedTeamId } },

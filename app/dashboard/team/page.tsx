@@ -30,17 +30,7 @@ export default async function TeamPage() {
     <TeamPageClient
       teams={teams}
       memberFormCatalog={memberFormCatalog}
-      initialMembers={members.map((m) => ({
-        id: m.id,
-        name: m.name,
-        phone: m.phone,
-        level: m.level,
-        shift: m.shift,
-        sobreaviso: m.sobreaviso,
-        participatesInSchedule: m.participatesInSchedule,
-        createdAt: m.createdAt,
-        updatedAt: m.updatedAt,
-      }))}
+      initialMembers={members}
     />
   );
 }

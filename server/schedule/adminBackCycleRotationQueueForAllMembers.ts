@@ -52,14 +52,22 @@ export async function adminBackCycleRotationQueueForAllMembers(
     return { success: false, error: "Escala não encontrada." };
   }
 
-  const rotationMembers: QueueMember[] = await prisma.teamMember.findMany({
+  const rawRotationMembers = await prisma.teamMember.findMany({
     where: {
       participatesInSchedule: true,
       level: { in: ["N1", "N2"] },
+      shift: { not: null },
     },
     orderBy: [{ rotationIndex: "asc" }, { name: "asc" }],
     select: { id: true, name: true, level: true, shift: true, rotationIndex: true },
   });
+  const rotationMembers: QueueMember[] = rawRotationMembers.map((m) => ({
+    id: m.id,
+    name: m.name,
+    level: m.level!,
+    shift: m.shift!,
+    rotationIndex: m.rotationIndex,
+  }));
 
   // Build updates for each weekend queue group; members not in WEEKEND_GROUPS don't affect selection anyway.
   const updates: { memberId: string; newRotationIndex: number }[] = [];

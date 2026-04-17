@@ -10,12 +10,12 @@ export async function loadMemberFormCatalogForTeam(teamId: string): Promise<Memb
     prisma.teamLevel.findMany({
       where: { teamId },
       orderBy: [{ sortOrder: "asc" }, { label: "asc" }],
-      select: { id: true, label: true, sortOrder: true },
+      select: { id: true, label: true, legacyKind: true, sortOrder: true },
     }),
     prisma.teamShift.findMany({
       where: { teamId },
       orderBy: [{ sortOrder: "asc" }, { label: "asc" }],
-      select: { id: true, label: true, sortOrder: true },
+      select: { id: true, label: true, legacyKind: true, sortOrder: true },
     }),
     prisma.teamLevelAllowedShift.findMany({
       where: { teamLevel: { teamId } },

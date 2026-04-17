@@ -78,10 +78,11 @@ export async function adminShiftRotationQueueForAllMembers(
   });
   if (!schedule) return { success: false, error: "Escala não encontrada." };
 
-  const rotationMembers: QueueMember[] = await prisma.teamMember.findMany({
+  const rawRotationMembers = await prisma.teamMember.findMany({
     where: {
       participatesInSchedule: true,
       level: { in: ["N1", "N2"] },
+      shift: { not: null },
     },
     select: {
       id: true,
@@ -91,6 +92,13 @@ export async function adminShiftRotationQueueForAllMembers(
       rotationIndex: true,
     },
   });
+  const rotationMembers: QueueMember[] = rawRotationMembers.map((m) => ({
+    id: m.id,
+    name: m.name,
+    level: m.level!,
+    shift: m.shift!,
+    rotationIndex: m.rotationIndex,
+  }));
 
   // Apply a single weekend-step to each shift/level queue group.
   // Forward (+1) consumes the next weekend; reverse (-1) undoes the last consumption.
