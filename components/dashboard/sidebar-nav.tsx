@@ -46,7 +46,7 @@ function Item({
       className={cn(
         "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
         active
-          ? "bg-muted text-foreground"
+          ? "text-cyan-700 dark:bg-sky-900/30 dark:text-sky-100"
           : "text-muted-foreground hover:bg-muted/60 hover:text-foreground"
       )}
     >
@@ -178,7 +178,7 @@ export function SidebarNav() {
                   "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
                   pathname.startsWith("/dashboard/equipes") ||
                     pathname.startsWith("/dashboard/permissions")
-                    ? "bg-muted text-foreground"
+                    ? "bg-sky-100 text-sky-900 dark:bg-sky-900/30 dark:text-sky-100"
                     : "text-muted-foreground hover:bg-muted/60 hover:text-foreground"
                 )}
               >
