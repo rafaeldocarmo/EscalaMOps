@@ -3,10 +3,8 @@
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import type { SwapActionResult } from "@/types/swaps";
-import type { Level, Shift } from "@/lib/generated/prisma/enums";
 
 function parseDate(dateStr: string): Date {
-  // Frame 12:00Z matches how other swap functions store dates.
   return new Date(dateStr + "T12:00:00.000Z");
 }
 
@@ -52,18 +50,18 @@ export async function createOffSwapWithMemberRequest(
   const [requester, targetMember] = await Promise.all([
     prisma.teamMember.findUnique({
       where: { id: requesterId },
-      select: { level: true, shift: true, teamId: true },
+      select: { teamLevelId: true, teamShiftId: true, teamId: true },
     }),
     prisma.teamMember.findUnique({
       where: { id: targetMemberId },
-      select: { level: true, shift: true, teamId: true },
+      select: { teamLevelId: true, teamShiftId: true, teamId: true },
     }),
   ]);
 
   if (!requester || !targetMember) {
     return { success: false, error: "Membro não encontrado." };
   }
-  if (requester.level !== (targetMember.level as Level) || requester.shift !== (targetMember.shift as Shift)) {
+  if (requester.teamLevelId !== targetMember.teamLevelId || requester.teamShiftId !== targetMember.teamShiftId) {
     return { success: false, error: "Só é possível trocar com alguém do mesmo nível e turno." };
   }
 
@@ -85,43 +83,18 @@ export async function createOffSwapWithMemberRequest(
     return { success: false, error: "Escala do mês não encontrada para uma das datas." };
   }
 
-  // Validações usando registros OFF:
-  // - requester: originalDate precisa ser OFF
-  // - requester: targetDate precisa ser WORK (ou seja, NÃO pode haver registro OFF)
-  // - targetMember: targetDate precisa ser OFF
-  // - targetMember: originalDate precisa ser WORK (ou seja, NÃO pode haver registro OFF)
   const [requesterOrigOff, requesterTargOff, targetOrigOff, targetTargOff] = await Promise.all([
     prisma.scheduleAssignment.findFirst({
-      where: {
-        scheduleId: scheduleOrig.id,
-        memberId: requesterId,
-        date: originalDate,
-        status: "OFF",
-      },
+      where: { scheduleId: scheduleOrig.id, memberId: requesterId, date: originalDate, status: "OFF" },
     }),
     prisma.scheduleAssignment.findFirst({
-      where: {
-        scheduleId: scheduleTarg.id,
-        memberId: requesterId,
-        date: targetDate,
-        status: "OFF",
-      },
+      where: { scheduleId: scheduleTarg.id, memberId: requesterId, date: targetDate, status: "OFF" },
     }),
     prisma.scheduleAssignment.findFirst({
-      where: {
-        scheduleId: scheduleOrig.id,
-        memberId: targetMemberId,
-        date: originalDate,
-        status: "OFF",
-      },
+      where: { scheduleId: scheduleOrig.id, memberId: targetMemberId, date: originalDate, status: "OFF" },
     }),
     prisma.scheduleAssignment.findFirst({
-      where: {
-        scheduleId: scheduleTarg.id,
-        memberId: targetMemberId,
-        date: targetDate,
-        status: "OFF",
-      },
+      where: { scheduleId: scheduleTarg.id, memberId: targetMemberId, date: targetDate, status: "OFF" },
     }),
   ]);
 
@@ -164,4 +137,3 @@ export async function createOffSwapWithMemberRequest(
 
   return { success: true };
 }
-

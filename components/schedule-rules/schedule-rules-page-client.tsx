@@ -3,47 +3,13 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Pencil, RefreshCw, Trash2 } from "lucide-react";
+import { RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import {
-  Dialog,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { cn } from "@/lib/utils";
 import type { ScheduleRulesData } from "@/server/scheduleRules/getScheduleRulesForTeam";
 import { upsertScheduleRule } from "@/server/scheduleRules/upsertScheduleRule";
-import { deleteScheduleRule } from "@/server/scheduleRules/deleteScheduleRule";
 import { resetScheduleRulesToDefaults } from "@/server/scheduleRules/resetScheduleRulesToDefaults";
 import { SchedulePreviewDialog } from "./schedule-preview-dialog";
 
@@ -76,6 +42,141 @@ function cellKey(shiftId: string, levelId: string) {
   return `${shiftId}|${levelId}`;
 }
 
+function contrastTextColor(hex: string): string {
+  const m = /^#([0-9a-fA-F]{6})$/.exec(hex);
+  if (!m) return "#ffffff";
+  const n = parseInt(m[1]!, 16);
+  const r = (n >> 16) & 0xff;
+  const g = (n >> 8) & 0xff;
+  const b = n & 0xff;
+  const luminance = (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255;
+  return luminance > 0.6 ? "#0f172a" : "#ffffff";
+}
+
+function catalogColor(hex: string | undefined): string {
+  return hex && /^#[0-9a-fA-F]{6}$/.test(hex) ? hex : "#64748b";
+}
+
+function shiftCircleLabel(label: string): string {
+  const t = label.trim();
+  if (t.length <= 4) return t;
+  return `${t.slice(0, 3)}…`;
+}
+
+function ShiftColumnHeader({
+  label,
+  color,
+  total,
+  totalLabel = "Total",
+}: {
+  label: string;
+  color: string;
+  total?: number;
+  totalLabel?: string;
+}) {
+  const bg = catalogColor(color);
+  return (
+    <div className="flex flex-col items-center gap-1 px-1 py-2 text-center">
+      <span
+        className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-xs font-bold leading-none"
+        style={{ backgroundColor: bg, color: contrastTextColor(bg) }}
+        title={label}
+      >
+        {shiftCircleLabel(label)}
+      </span>
+      <span className="line-clamp-2 min-h-9 max-w-[7rem] text-sm font-medium leading-tight text-foreground">
+        {label}
+      </span>
+      {total !== undefined ? (
+        <span className="text-xs tabular-nums text-muted-foreground">
+          {totalLabel}: {total}
+        </span>
+      ) : null}
+    </div>
+  );
+}
+
+function LevelRowHeader({ label, color, rowTotal }: { label: string; color: string; rowTotal?: number }) {
+  const bar = catalogColor(color);
+  return (
+    <div className="flex min-h-[4.5rem] items-stretch gap-3">
+      <span className="w-1.5 shrink-0 rounded-full" style={{ backgroundColor: bar }} aria-hidden />
+      <div className="flex min-w-0 flex-col justify-center py-1">
+        <span className="font-semibold text-foreground">{label}</span>
+        {rowTotal !== undefined ? (
+          <span className="text-xs tabular-nums text-muted-foreground">Total: {rowTotal}</span>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
+function WeekendCoverageCell({
+  count,
+  disabled,
+  onDec,
+  onInc,
+}: {
+  count: number;
+  disabled: boolean;
+  onDec: () => void;
+  onInc: () => void;
+}) {
+  const active = count > 0;
+  return (
+    <div
+      className={cn(
+        "rounded-xl border px-2 py-3 text-center transition-colors",
+        active
+          ? "border-sky-300/90 bg-sky-50/95 shadow-sm dark:border-sky-700/60 dark:bg-sky-950/35"
+          : "border-border/50 bg-card",
+      )}
+    >
+      <div
+        className={cn(
+          "text-3xl font-semibold tabular-nums",
+          active ? "text-foreground" : "text-muted-foreground/80",
+        )}
+      >
+        {count}
+      </div>
+      <div
+        className={cn("text-xs", active ? "text-muted-foreground" : "text-muted-foreground/70")}
+      >
+        pessoas
+      </div>
+      <div className="mt-3 grid grid-cols-2 overflow-hidden rounded-md border border-border/60">
+        <button
+          type="button"
+          className={cn(
+            "h-10 cursor-pointer text-sm font-semibold transition-colors border",
+            active
+              ? "bg-background text-foreground hover:bg-sky-100/80 dark:hover:bg-sky-900/40"
+              : "bg-muted/30 text-muted-foreground/60 hover:bg-muted/50",
+          )}
+          disabled={disabled || count <= 0}
+          onClick={onDec}
+        >
+          −
+        </button>
+        <button
+          type="button"
+          className={cn(
+            "h-10 cursor-pointer text-sm font-semibold transition-colors border",
+            active
+              ? "bg-background text-foreground hover:bg-sky-100/80 dark:hover:bg-sky-900/40"
+              : "bg-muted/30 text-muted-foreground/60 hover:bg-muted/50",
+          )}
+          disabled={disabled}
+          onClick={onInc}
+        >
+          +
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function findRule<T>(
   rules: ScheduleRulesData["rules"],
   kind: RuleKindValue,
@@ -101,6 +202,75 @@ function parseCount(v: unknown): number {
   return 0;
 }
 
+function normalizeCompensationPatterns(
+  raw: CompensationPatternEntry[] | undefined,
+  n: number,
+): CompensationPatternEntry[] {
+  const src = Array.isArray(raw) && raw.length ? raw : [];
+  const def: CompensationPatternEntry = { dayBefore: 4, dayAfter: 3 };
+  const out: CompensationPatternEntry[] = [];
+  for (let i = 0; i < n; i++) {
+    const p = src[i];
+    out.push(
+      p && typeof p.dayBefore === "number" && typeof p.dayAfter === "number"
+        ? { dayBefore: p.dayBefore, dayAfter: p.dayAfter }
+        : { ...def },
+    );
+  }
+  return out;
+}
+
+function buildWeekendDraftMap(
+  rules: ScheduleRulesData["rules"],
+  levels: { id: string }[],
+  shifts: { id: string }[],
+): Record<string, number> {
+  const out: Record<string, number> = {};
+  for (const l of levels) {
+    for (const s of shifts) {
+      const k = cellKey(s.id, l.id);
+      const r = findRule<WeekendCoverageParams>(rules, "WEEKEND_COVERAGE", s.id, l.id);
+      out[k] = parseCount(r?.params?.count);
+    }
+  }
+  return out;
+}
+
+function weekendMapsEqual(a: Record<string, number>, b: Record<string, number>): boolean {
+  const keys = new Set([...Object.keys(a), ...Object.keys(b)]);
+  for (const k of keys) {
+    if ((a[k] ?? 0) !== (b[k] ?? 0)) return false;
+  }
+  return true;
+}
+
+function compensationPatternsEqual(
+  a: CompensationPatternEntry[] | undefined,
+  b: CompensationPatternEntry[] | undefined,
+): boolean {
+  const aa = a ?? [];
+  const bb = b ?? [];
+  if (aa.length !== bb.length) return false;
+  for (let i = 0; i < aa.length; i++) {
+    const x = aa[i]!;
+    const y = bb[i]!;
+    if (x.dayBefore !== y.dayBefore) return false;
+    if (x.dayAfter !== y.dayAfter) return false;
+  }
+  return true;
+}
+
+function compensationMapsEqual(
+  a: Record<string, CompensationPatternEntry[]>,
+  b: Record<string, CompensationPatternEntry[]>,
+): boolean {
+  const keys = new Set([...Object.keys(a), ...Object.keys(b)]);
+  for (const k of keys) {
+    if (!compensationPatternsEqual(a[k], b[k])) return false;
+  }
+  return true;
+}
+
 export function ScheduleRulesPageClient({ initialData }: ScheduleRulesPageClientProps) {
   const router = useRouter();
   const [data, setData] = useState(initialData);
@@ -111,17 +281,6 @@ export function ScheduleRulesPageClient({ initialData }: ScheduleRulesPageClient
 
   const refresh = useCallback(() => router.refresh(), [router]);
 
-  const [coverageDialog, setCoverageDialog] = useState<
-    | { open: false }
-    | { open: true; shiftId: string; shiftLabel: string; levelId: string; levelLabel: string; currentCount: number; existingId: string | null }
-  >({ open: false });
-
-  const [compensationDialog, setCompensationDialog] = useState<
-    | { open: false }
-    | { open: true; shiftId: string; shiftLabel: string; levelId: string; levelLabel: string; patterns: CompensationPatternEntry[]; existingId: string | null }
-  >({ open: false });
-
-  const [deleteState, setDeleteState] = useState<{ id: string; label: string } | null>(null);
   const [saving, setSaving] = useState(false);
   const [resetting, setResetting] = useState(false);
 
@@ -134,124 +293,233 @@ export function ScheduleRulesPageClient({ initialData }: ScheduleRulesPageClient
     [data.shifts]
   );
 
-  const openCoverageEditor = useCallback(
-    (shiftId: string, shiftLabel: string, levelId: string, levelLabel: string) => {
-      const rule = findRule<WeekendCoverageParams>(
-        data.rules,
-        "WEEKEND_COVERAGE",
-        shiftId,
-        levelId
-      );
-      setCoverageDialog({
-        open: true,
-        shiftId,
-        shiftLabel,
-        levelId,
-        levelLabel,
-        currentCount: rule?.params.count ?? 0,
-        existingId: rule?.id ?? null,
-      });
-    },
-    [data.rules]
+  const weekendServerMap = useMemo(
+    () => buildWeekendDraftMap(data.rules, levels, shifts),
+    [data.rules, levels, shifts],
   );
 
-  const openCompensationEditor = useCallback(
-    (shiftId: string, shiftLabel: string, levelId: string, levelLabel: string) => {
-      const rule = findRule<CompensationPatternParams>(
-        data.rules,
-        "COMPENSATION_PATTERN",
-        shiftId,
-        levelId
-      );
-      const base: CompensationPatternEntry[] = rule?.params.patterns ?? [];
-      setCompensationDialog({
-        open: true,
-        shiftId,
-        shiftLabel,
-        levelId,
-        levelLabel,
-        patterns: base.length > 0 ? base.map((p) => ({ ...p })) : [{ dayBefore: 4, dayAfter: 3 }],
-        existingId: rule?.id ?? null,
-      });
-    },
-    [data.rules]
+  const [weekendDraft, setWeekendDraft] = useState<Record<string, number> | null>(null);
+
+  useEffect(() => {
+    setWeekendDraft(weekendServerMap);
+  }, [weekendServerMap]);
+
+  const weekendEffective = weekendDraft ?? weekendServerMap;
+
+  const isWeekendDirty = useMemo(
+    () => !weekendMapsEqual(weekendEffective, weekendServerMap),
+    [weekendEffective, weekendServerMap],
   );
 
-  const saveCoverage = useCallback(
-    async (input: {
-      shiftId: string;
-      levelId: string;
-      count: number;
-      existingId: string | null;
-    }) => {
-      setSaving(true);
-      try {
-        const result = await upsertScheduleRule({
-          teamId: data.teamId,
-          teamShiftId: input.shiftId,
-          teamLevelId: input.levelId,
-          kind: "WEEKEND_COVERAGE",
-          params: { count: input.count },
-        });
-        if (result.success) {
-          toast.success("Cobertura salva.");
-          setCoverageDialog({ open: false });
-          refresh();
-        } else {
-          toast.error(result.error);
-        }
-      } finally {
-        setSaving(false);
+  const weekendColumnTotals = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const s of shifts) {
+      let t = 0;
+      for (const l of levels) {
+        t += weekendEffective[cellKey(s.id, l.id)] ?? 0;
       }
-    },
-    [data.teamId, refresh]
-  );
+      map.set(s.id, t);
+    }
+    return map;
+  }, [weekendEffective, levels, shifts]);
 
-  const saveCompensation = useCallback(
-    async (input: {
-      shiftId: string;
-      levelId: string;
-      patterns: CompensationPatternEntry[];
-    }) => {
-      setSaving(true);
-      try {
-        const result = await upsertScheduleRule({
-          teamId: data.teamId,
-          teamShiftId: input.shiftId,
-          teamLevelId: input.levelId,
-          kind: "COMPENSATION_PATTERN",
-          params: { patterns: input.patterns },
-        });
-        if (result.success) {
-          toast.success("Padrão de compensação salvo.");
-          setCompensationDialog({ open: false });
-          refresh();
-        } else {
-          toast.error(result.error);
-        }
-      } finally {
-        setSaving(false);
+  const weekendRowTotals = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const l of levels) {
+      let t = 0;
+      for (const s of shifts) {
+        t += weekendEffective[cellKey(s.id, l.id)] ?? 0;
       }
-    },
-    [data.teamId, refresh]
+      map.set(l.id, t);
+    }
+    return map;
+  }, [weekendEffective, levels, shifts]);
+
+  const memberCounts = useMemo(
+    () => data.memberCountByLevelShift ?? {},
+    [data.memberCountByLevelShift],
   );
 
-  const handleDelete = useCallback(async () => {
-    if (!deleteState) return;
+  // Na compensação, o número de "pessoas" exibidas segue a regra de cobertura (WEEKEND_COVERAGE)
+  // já salva no banco (weekendServerMap). Ainda filtramos por pares que tenham ao menos 1 membro cadastrado.
+  const compensationPeopleByCell = useMemo(() => {
+    const out: Record<string, number> = {};
+    for (const [k, members] of Object.entries(memberCounts)) {
+      if (members <= 0) continue;
+      const weekend = weekendServerMap[k] ?? 0;
+      if (weekend > 0) out[k] = weekend;
+    }
+    return out;
+  }, [memberCounts, weekendServerMap]);
+
+  const { compLevels, compShifts } = useMemo(() => {
+    const levelIds = new Set<string>();
+    const shiftIds = new Set<string>();
+    for (const [k, c] of Object.entries(compensationPeopleByCell)) {
+      if (c <= 0) continue;
+      const bar = k.indexOf("|");
+      if (bar <= 0) continue;
+      const shiftId = k.slice(0, bar);
+      const levelId = k.slice(bar + 1);
+      if (shiftId && levelId) {
+        shiftIds.add(shiftId);
+        levelIds.add(levelId);
+      }
+    }
+    return {
+      compLevels: levels.filter((l) => levelIds.has(l.id)),
+      compShifts: shifts.filter((s) => shiftIds.has(s.id)),
+    };
+  }, [compensationPeopleByCell, levels, shifts]);
+
+  const compensationServerMap = useMemo(() => {
+    const out: Record<string, CompensationPatternEntry[]> = {};
+    for (const l of compLevels) {
+      for (const s of compShifts) {
+        const k = cellKey(s.id, l.id);
+        const peopleHere = compensationPeopleByCell[k] ?? 0;
+        if (peopleHere <= 0) continue;
+        const rule = findRule<CompensationPatternParams>(data.rules, "COMPENSATION_PATTERN", s.id, l.id);
+        out[k] = normalizeCompensationPatterns(
+          (rule?.params as CompensationPatternParams | undefined)?.patterns,
+          peopleHere,
+        );
+      }
+    }
+    return out;
+  }, [compLevels, compShifts, compensationPeopleByCell, data.rules]);
+
+  const [compensationDraft, setCompensationDraft] = useState<
+    Record<string, CompensationPatternEntry[]> | null
+  >(null);
+
+  useEffect(() => {
+    setCompensationDraft(compensationServerMap);
+  }, [compensationServerMap]);
+
+  const compensationEffective = compensationDraft ?? compensationServerMap;
+
+  const isCompensationDirty = useMemo(
+    () => !compensationMapsEqual(compensationEffective, compensationServerMap),
+    [compensationEffective, compensationServerMap],
+  );
+
+  const compColumnPeopleTotals = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const s of compShifts) {
+      let t = 0;
+      for (const l of compLevels) {
+        t += compensationPeopleByCell[cellKey(s.id, l.id)] ?? 0;
+      }
+      map.set(s.id, t);
+    }
+    return map;
+  }, [compensationPeopleByCell, compLevels, compShifts]);
+
+  const compRowPeopleTotals = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const l of compLevels) {
+      let t = 0;
+      for (const s of compShifts) {
+        t += compensationPeopleByCell[cellKey(s.id, l.id)] ?? 0;
+      }
+      map.set(l.id, t);
+    }
+    return map;
+  }, [compensationPeopleByCell, compLevels, compShifts]);
+
+  const discardCompensationDraft = useCallback(() => {
+    setCompensationDraft(compensationServerMap);
+  }, [compensationServerMap]);
+
+  const saveWeekendCoverage = useCallback(async () => {
+    const toSave = weekendDraft ?? weekendServerMap;
     setSaving(true);
     try {
-      const result = await deleteScheduleRule({ id: deleteState.id });
-      if (result.success) {
-        toast.success("Regra removida.");
-        setDeleteState(null);
-        refresh();
-      } else {
-        toast.error(result.error);
+      for (const l of levels) {
+        for (const s of shifts) {
+          const k = cellKey(s.id, l.id);
+          const next = toSave[k] ?? 0;
+          const prev = weekendServerMap[k] ?? 0;
+          if (next === prev) continue;
+          const result = await upsertScheduleRule({
+            teamId: data.teamId,
+            teamShiftId: s.id,
+            teamLevelId: l.id,
+            kind: "WEEKEND_COVERAGE",
+            params: { count: next },
+          });
+          if (!result.success) {
+            toast.error(result.error);
+            return;
+          }
+        }
       }
+      toast.success("Cobertura de fim de semana salva.");
+      refresh();
     } finally {
       setSaving(false);
     }
-  }, [deleteState, refresh]);
+  }, [data.teamId, weekendDraft, weekendServerMap, levels, shifts, refresh]);
+
+  const discardWeekendDraft = useCallback(() => {
+    setWeekendDraft({ ...weekendServerMap });
+  }, [weekendServerMap]);
+
+  const adjustWeekendCount = useCallback(
+    (shiftId: string, levelId: string, delta: number) => {
+      const k = cellKey(shiftId, levelId);
+      setWeekendDraft((prev) => {
+        const base = { ...(prev ?? weekendServerMap) };
+        const cur = base[k] ?? 0;
+        base[k] = Math.max(0, cur + delta);
+        return base;
+      });
+    },
+    [weekendServerMap],
+  );
+
+  const saveCompensation = useCallback(async () => {
+    const toSave = compensationDraft ?? compensationServerMap;
+    setSaving(true);
+    try {
+      for (const l of compLevels) {
+        for (const s of compShifts) {
+          const k = cellKey(s.id, l.id);
+          const peopleHere = compensationPeopleByCell[k] ?? 0;
+          if (peopleHere <= 0) continue;
+
+          const next = normalizeCompensationPatterns(toSave[k], peopleHere);
+          const prev = normalizeCompensationPatterns(compensationServerMap[k], peopleHere);
+          if (compensationPatternsEqual(next, prev)) continue;
+
+          const result = await upsertScheduleRule({
+            teamId: data.teamId,
+            teamShiftId: s.id,
+            teamLevelId: l.id,
+            kind: "COMPENSATION_PATTERN",
+            params: { patterns: next },
+          });
+          if (!result.success) {
+            toast.error(result.error);
+            return;
+          }
+        }
+      }
+      toast.success("Compensação salva.");
+      refresh();
+    } finally {
+      setSaving(false);
+    }
+  }, [
+    compLevels,
+    compShifts,
+    compensationDraft,
+    compensationPeopleByCell,
+    compensationServerMap,
+    data.teamId,
+    refresh,
+  ]);
 
   const handleReset = useCallback(async () => {
     setResetting(true);
@@ -319,63 +587,116 @@ export function ScheduleRulesPageClient({ initialData }: ScheduleRulesPageClient
       </div>
 
       <Tabs defaultValue="weekend">
-        <TabsList>
-          <TabsTrigger value="weekend">Cobertura de fim de semana</TabsTrigger>
-          <TabsTrigger value="compensation">Compensação de folga</TabsTrigger>
+        <TabsList className="inline-flex h-auto flex-wrap gap-1 rounded-full border border-border/60 bg-muted/40 p-1">
+          <TabsTrigger
+            value="weekend"
+            className="rounded-full px-4 py-2 text-sm data-[state=active]:bg-background data-[state=active]:shadow-sm"
+          >
+            Fim de Semana
+          </TabsTrigger>
+          <TabsTrigger
+            value="compensation"
+            className="rounded-full px-4 py-2 text-sm data-[state=active]:bg-background data-[state=active]:shadow-sm"
+          >
+            Compensação
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="weekend" className="mt-4">
           <Card className="rounded-xl border border-border/60 shadow-sm">
-            <CardHeader className="border-b border-border/50">
-              <CardTitle className="text-lg font-bold text-foreground">
-                Quantas pessoas trabalham no fim de semana
-              </CardTitle>
-              <CardDescription className="text-sm text-muted-foreground">
-                Cada célula indica quantas pessoas do grupo (turno × nível) entram no rodízio de
-                sábado+domingo. Valor 0 significa que o grupo sempre folga no fim de semana.
-              </CardDescription>
+            <CardHeader className="space-y-4 border-b border-border/50">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                <div>
+                  <CardTitle className="text-lg font-bold text-foreground">
+                    Cobertura de Fim de Semana
+                  </CardTitle>
+                  <CardDescription className="mt-1 text-sm text-muted-foreground">
+                    Ajuste as quantidades com + e −. As alterações só são gravadas quando você clicar em{" "}
+                    <span className="font-medium text-foreground">Salvar</span>.
+                  </CardDescription>
+                </div>
+                <div className="flex flex-wrap items-center gap-2 sm:shrink-0">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="cursor-pointer"
+                    disabled={!isWeekendDirty || saving}
+                    onClick={() => discardWeekendDraft()}
+                  >
+                    Descartar
+                  </Button>
+                  <Button
+                    type="button"
+                    className="cursor-pointer"
+                    disabled={!isWeekendDirty || saving}
+                    onClick={() => void saveWeekendCoverage()}
+                  >
+                    {saving ? "Salvando…" : "Salvar"}
+                  </Button>
+                </div>
+              </div>
             </CardHeader>
-            <CardContent className="p-0">
+            <CardContent className="p-4">
               <div className="overflow-x-auto">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead className="min-w-[120px]">Turno</TableHead>
-                      {levels.map((l) => (
-                        <TableHead key={l.id} className="text-center">
-                          {l.label}
-                        </TableHead>
-                      ))}
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
+                <div
+                  className="rounded-xl border border-border/60 bg-background"
+                  style={{ minWidth: `${200 + shifts.length * 150}px` }}
+                >
+                  <div
+                    className="grid items-stretch gap-0 border-b border-border/60"
+                    style={{
+                      gridTemplateColumns: `minmax(160px, 200px) repeat(${shifts.length}, minmax(130px, 1fr))`,
+                    }}
+                  >
+                    <div className="px-3 py-3" />
                     {shifts.map((s) => (
-                      <TableRow key={s.id}>
-                        <TableCell className="font-medium">{s.label}</TableCell>
-                        {levels.map((l) => {
-                          const rule = findRule<WeekendCoverageParams>(
-                            data.rules,
-                            "WEEKEND_COVERAGE",
-                            s.id,
-                            l.id
-                          );
-                          const count = rule?.params.count;
+                      <div key={s.id} className="border-l border-border/40 px-1 py-2 first:border-l-0 sm:first:border-l">
+                        <ShiftColumnHeader
+                          label={s.label}
+                          color={s.color}
+                          total={weekendColumnTotals.get(s.id) ?? 0}
+                        />
+                      </div>
+                    ))}
+                  </div>
+
+                  <div className="divide-y divide-border/60">
+                    {levels.map((l) => (
+                      <div
+                        key={l.id}
+                        className="grid items-stretch gap-0"
+                        style={{
+                          gridTemplateColumns: `minmax(160px, 200px) repeat(${shifts.length}, minmax(130px, 1fr))`,
+                        }}
+                      >
+                        <div className="flex items-center px-3 py-3">
+                          <LevelRowHeader
+                            label={l.label}
+                            color={l.color}
+                            rowTotal={weekendRowTotals.get(l.id) ?? 0}
+                          />
+                        </div>
+                        {shifts.map((s) => {
+                          const count = weekendEffective[cellKey(s.id, l.id)] ?? 0;
+                          const disabled = saving;
                           return (
-                            <TableCell key={cellKey(s.id, l.id)} className="text-center">
-                              <button
-                                type="button"
-                                onClick={() => openCoverageEditor(s.id, s.label, l.id, l.label)}
-                                className="inline-flex h-9 min-w-[3rem] items-center justify-center rounded-md border border-border/60 bg-background px-3 text-sm font-medium text-foreground hover:bg-muted cursor-pointer"
-                              >
-                                {count === undefined ? "—" : count}
-                              </button>
-                            </TableCell>
+                            <div
+                              key={cellKey(s.id, l.id)}
+                              className="border-l border-border/40 p-2 first:border-l-0 sm:first:border-l"
+                            >
+                              <WeekendCoverageCell
+                                count={count}
+                                disabled={disabled}
+                                onDec={() => adjustWeekendCount(s.id, l.id, -1)}
+                                onInc={() => adjustWeekendCount(s.id, l.id, 1)}
+                              />
+                            </div>
                           );
                         })}
-                      </TableRow>
+                      </div>
                     ))}
-                  </TableBody>
-                </Table>
+                  </div>
+                </div>
               </div>
             </CardContent>
           </Card>
@@ -383,377 +704,192 @@ export function ScheduleRulesPageClient({ initialData }: ScheduleRulesPageClient
 
         <TabsContent value="compensation" className="mt-4">
           <Card className="rounded-xl border border-border/60 shadow-sm">
-            <CardHeader className="border-b border-border/50">
-              <CardTitle className="text-lg font-bold text-foreground">
-                Dias de compensação
-              </CardTitle>
-              <CardDescription className="text-sm text-muted-foreground">
-                Quem trabalha no fim de semana ganha 1 folga na semana anterior e 1 na semana
-                posterior. Configure quais dias úteis são usados. Para grupos com mais de 1 pessoa,
-                cada padrão é usado por uma pessoa diferente (na ordem estável do grupo).
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="p-0">
-              <div className="overflow-x-auto">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead className="min-w-[120px]">Turno</TableHead>
-                      {levels.map((l) => (
-                        <TableHead key={l.id} className="text-center">
-                          {l.label}
-                        </TableHead>
-                      ))}
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {shifts.map((s) => (
-                      <TableRow key={s.id}>
-                        <TableCell className="font-medium">{s.label}</TableCell>
-                        {levels.map((l) => {
-                          const rule = findRule<CompensationPatternParams>(
-                            data.rules,
-                            "COMPENSATION_PATTERN",
-                            s.id,
-                            l.id
-                          );
-                          const patterns = rule?.params.patterns ?? null;
-                          const ruleId = rule?.id ?? null;
-                          const summary =
-                            patterns && patterns.length > 0
-                              ? patterns
-                                  .map(
-                                    (p) =>
-                                      `${WEEKDAY_LABELS.find((w) => w.value === p.dayBefore)?.label ?? "?"}→${
-                                        WEEKDAY_LABELS.find((w) => w.value === p.dayAfter)?.label ?? "?"
-                                      }`
-                                  )
-                                  .join(", ")
-                              : "—";
-                          return (
-                            <TableCell key={cellKey(s.id, l.id)} className="text-center">
-                              <div className="flex items-center justify-center gap-1">
-                                <button
-                                  type="button"
-                                  onClick={() =>
-                                    openCompensationEditor(s.id, s.label, l.id, l.label)
-                                  }
-                                  className="inline-flex h-9 min-w-[6rem] items-center justify-center rounded-md border border-border/60 bg-background px-3 text-xs font-medium text-foreground hover:bg-muted cursor-pointer"
-                                  title="Editar padrão"
-                                >
-                                  <Pencil className="mr-1 h-3 w-3" />
-                                  {summary}
-                                </button>
-                                {ruleId ? (
-                                  <Button
-                                    type="button"
-                                    variant="ghost"
-                                    size="icon"
-                                    className="h-8 w-8 cursor-pointer text-destructive hover:text-destructive"
-                                    onClick={() =>
-                                      setDeleteState({
-                                        id: ruleId,
-                                        label: `compensação ${s.label} · ${l.label}`,
-                                      })
-                                    }
-                                    aria-label="Remover"
-                                  >
-                                    <Trash2 className="h-3 w-3" />
-                                  </Button>
-                                ) : null}
-                              </div>
-                            </TableCell>
-                          );
-                        })}
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
+            <CardHeader className="space-y-4 border-b border-border/50">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                <div>
+                  <CardTitle className="text-lg font-bold text-foreground">Dias de compensação</CardTitle>
+                  <CardDescription className="mt-1 text-sm text-muted-foreground">
+                    Ajuste os dias de antes/depois. As alterações só são gravadas quando você clicar em{" "}
+                    <span className="font-medium text-foreground">Salvar</span>.
+                  </CardDescription>
+                </div>
+                <div className="flex flex-wrap items-center gap-2 sm:shrink-0">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="cursor-pointer"
+                    disabled={!isCompensationDirty || saving}
+                    onClick={() => discardCompensationDraft()}
+                  >
+                    Descartar
+                  </Button>
+                  <Button
+                    type="button"
+                    className="cursor-pointer"
+                    disabled={!isCompensationDirty || saving}
+                    onClick={() => void saveCompensation()}
+                  >
+                    {saving ? "Salvando…" : "Salvar"}
+                  </Button>
+                </div>
               </div>
+            </CardHeader>
+            <CardContent className="p-4">
+              {compLevels.length === 0 || compShifts.length === 0 ? (
+                <p className="text-sm text-muted-foreground">
+                  Não há combinação nível × turno com membros. Cadastre membros na equipe; a grade de compensação
+                  aparece após o cadastro.
+                </p>
+              ) : (
+                <div className="overflow-x-auto">
+                  <div
+                    className="rounded-xl border border-border/60 bg-background"
+                    style={{ minWidth: `${200 + compShifts.length * 200}px` }}
+                  >
+                    <div
+                      className="grid items-stretch gap-0 border-b border-border/60"
+                      style={{
+                        gridTemplateColumns: `minmax(160px, 200px) repeat(${compShifts.length}, minmax(180px, 1fr))`,
+                      }}
+                    >
+                      <div className="px-3 py-3" />
+                      {compShifts.map((s) => (
+                        <div
+                          key={s.id}
+                          className="border-l border-border/40 px-1 py-2 first:border-l-0 sm:first:border-l"
+                        >
+                          <ShiftColumnHeader
+                            label={s.label}
+                            color={s.color}
+                            total={compColumnPeopleTotals.get(s.id) ?? 0}
+                            totalLabel="Pessoas"
+                          />
+                        </div>
+                      ))}
+                    </div>
+
+                    <div className="divide-y divide-border/60">
+                      {compLevels.map((l) => (
+                        <div
+                          key={l.id}
+                          className="grid items-stretch gap-0"
+                          style={{
+                            gridTemplateColumns: `minmax(160px, 200px) repeat(${compShifts.length}, minmax(180px, 1fr))`,
+                          }}
+                        >
+                          <div className="flex items-center px-3 py-3">
+                            <LevelRowHeader
+                              label={l.label}
+                              color={l.color}
+                              rowTotal={compRowPeopleTotals.get(l.id) ?? 0}
+                            />
+                          </div>
+                          {compShifts.map((s) => {
+                            const k = cellKey(s.id, l.id);
+                            const peopleHere = compensationPeopleByCell[k] ?? 0;
+                            const patterns = normalizeCompensationPatterns(compensationEffective[k], peopleHere);
+                            const persisted = compensationServerMap[k] != null;
+                            const disabled = saving;
+                            if (peopleHere === 0) {
+                              return (
+                                <div
+                                  key={k}
+                                  className="border-l border-border/40 p-2 text-center first:border-l-0 sm:first:border-l"
+                                >
+                                  <span className="text-sm text-muted-foreground">—</span>
+                                </div>
+                              );
+                            }
+                            return (
+                              <div
+                                key={k}
+                                className="border-l border-border/40 p-2 first:border-l-0 sm:first:border-l"
+                              >
+                                <div
+                                  className={cn(
+                                    "rounded-xl border px-2 py-2",
+                                    persisted
+                                      ? "border-sky-300/90 bg-sky-50/95 shadow-sm dark:border-sky-700/60 dark:bg-sky-950/35"
+                                      : "border-border/50 bg-card",
+                                  )}
+                                >
+                                  <div className="space-y-2">
+                                    {patterns.map((p, idx) => (
+                                      <div
+                                        key={idx}
+                                        className="flex flex-wrap items-end gap-2 rounded-lg border border-border/50 bg-background/90 p-2"
+                                      >
+                                        <div className="min-w-0 flex-1">
+                                          <div className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+                                            Antes
+                                          </div>
+                                          <select
+                                            className="mt-0.5 h-9 w-full cursor-pointer rounded-md border border-input bg-background px-2 text-sm shadow-sm"
+                                            value={String(p.dayBefore)}
+                                            disabled={disabled}
+                                            onChange={(e) => {
+                                              const v = Number(e.target.value);
+                                              setCompensationDraft((prev) => {
+                                                const base = { ...(prev ?? compensationServerMap) };
+                                                const cur = normalizeCompensationPatterns(base[k], peopleHere);
+                                                base[k] = cur.map((row, i) =>
+                                                  i === idx ? { ...row, dayBefore: v } : row,
+                                                );
+                                                return base;
+                                              });
+                                            }}
+                                          >
+                                            {WEEKDAY_LABELS.map((w) => (
+                                              <option key={w.value} value={w.value}>
+                                                {w.label}
+                                              </option>
+                                            ))}
+                                          </select>
+                                        </div>
+                                        <div className="min-w-0 flex-1">
+                                          <div className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+                                            Depois
+                                          </div>
+                                          <select
+                                            className="mt-0.5 h-9 w-full cursor-pointer rounded-md border border-input bg-background px-2 text-sm shadow-sm"
+                                            value={String(p.dayAfter)}
+                                            disabled={disabled}
+                                            onChange={(e) => {
+                                              const v = Number(e.target.value);
+                                              setCompensationDraft((prev) => {
+                                                const base = { ...(prev ?? compensationServerMap) };
+                                                const cur = normalizeCompensationPatterns(base[k], peopleHere);
+                                                base[k] = cur.map((row, i) =>
+                                                  i === idx ? { ...row, dayAfter: v } : row,
+                                                );
+                                                return base;
+                                              });
+                                            }}
+                                          >
+                                            {WEEKDAY_LABELS.map((w) => (
+                                              <option key={w.value} value={w.value}>
+                                                {w.label}
+                                              </option>
+                                            ))}
+                                          </select>
+                                        </div>
+                                      </div>
+                                    ))}
+                                  </div>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )}
             </CardContent>
           </Card>
         </TabsContent>
       </Tabs>
-
-      <CoverageDialog
-        key={
-          coverageDialog.open
-            ? `cov-${coverageDialog.shiftId}-${coverageDialog.levelId}-${coverageDialog.currentCount}`
-            : "cov-closed"
-        }
-        state={coverageDialog}
-        onClose={() => setCoverageDialog({ open: false })}
-        onSave={saveCoverage}
-        saving={saving}
-      />
-
-      <CompensationDialog
-        state={compensationDialog}
-        onChangeState={setCompensationDialog}
-        onClose={() => setCompensationDialog({ open: false })}
-        onSave={saveCompensation}
-        saving={saving}
-      />
-
-      <AlertDialog open={!!deleteState} onOpenChange={(open) => !open && setDeleteState(null)}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Remover regra</AlertDialogTitle>
-            <AlertDialogDescription>
-              Ao remover, esse grupo deixa de ter {deleteState?.label ?? "a regra"} configurada e
-              passa a usar o default do escopo pai. Você pode recriá-la depois.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={saving}>Cancelar</AlertDialogCancel>
-            <AlertDialogAction
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-              onClick={(e) => {
-                e.preventDefault();
-                void handleDelete();
-              }}
-              disabled={saving}
-            >
-              {saving ? "Removendo…" : "Remover"}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
     </div>
-  );
-}
-
-function CoverageDialog({
-  state,
-  onClose,
-  onSave,
-  saving,
-}: {
-  state:
-    | { open: false }
-    | { open: true; shiftId: string; shiftLabel: string; levelId: string; levelLabel: string; currentCount: number; existingId: string | null };
-  onClose: () => void;
-  onSave: (input: { shiftId: string; levelId: string; count: number; existingId: string | null }) => Promise<void>;
-  saving: boolean;
-}) {
-  const [value, setValue] = useState(() =>
-    state.open ? String(state.currentCount ?? 0) : "0",
-  );
-
-  return (
-    <Dialog open={state.open} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="sm:max-w-md">
-        <DialogHeader>
-          <DialogTitle>
-            Cobertura — {state.open ? state.shiftLabel : ""} · {state.open ? state.levelLabel : ""}
-          </DialogTitle>
-        </DialogHeader>
-        <div className="space-y-2 py-2">
-          <Label htmlFor="coverage-count">Pessoas no FDS</Label>
-          <Input
-            id="coverage-count"
-            type="number"
-            min={0}
-            max={20}
-            value={value}
-            onChange={(e) => setValue(e.target.value)}
-            className="h-11"
-          />
-          <p className="text-xs text-muted-foreground">
-            Use 0 para que o grupo sempre folgue no fim de semana.
-          </p>
-        </div>
-        <DialogFooter className="gap-2 sm:gap-0">
-          <Button type="button" variant="outline" onClick={onClose}>
-            Cancelar
-          </Button>
-          <Button
-            type="button"
-            disabled={saving || !state.open}
-            className="cursor-pointer"
-            onClick={() => {
-              if (!state.open) return;
-              const count = parseCount(value);
-              void onSave({
-                shiftId: state.shiftId,
-                levelId: state.levelId,
-                count,
-                existingId: state.existingId,
-              });
-            }}
-          >
-            {saving ? "Salvando…" : "Salvar"}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  );
-}
-
-type CompensationState =
-  | { open: false }
-  | {
-      open: true;
-      shiftId: string;
-      shiftLabel: string;
-      levelId: string;
-      levelLabel: string;
-      patterns: CompensationPatternEntry[];
-      existingId: string | null;
-    };
-
-function CompensationDialog({
-  state,
-  onChangeState,
-  onClose,
-  onSave,
-  saving,
-}: {
-  state: CompensationState;
-  onChangeState: (updater: (s: CompensationState) => CompensationState) => void;
-  onClose: () => void;
-  onSave: (input: {
-    shiftId: string;
-    levelId: string;
-    patterns: CompensationPatternEntry[];
-  }) => Promise<void>;
-  saving: boolean;
-}) {
-  if (!state.open) {
-    return (
-      <Dialog open={false} onOpenChange={(open) => !open && onClose()}>
-        <DialogContent className="sm:max-w-lg" />
-      </Dialog>
-    );
-  }
-
-  const patterns = state.patterns;
-
-  const updatePattern = (index: number, patch: Partial<CompensationPatternEntry>) => {
-    onChangeState((s) => {
-      if (!s.open) return s;
-      const next = s.patterns.map((p, i) => (i === index ? { ...p, ...patch } : p));
-      return { ...s, patterns: next };
-    });
-  };
-  const removePattern = (index: number) => {
-    onChangeState((s) => {
-      if (!s.open) return s;
-      if (s.patterns.length <= 1) return s;
-      return { ...s, patterns: s.patterns.filter((_, i) => i !== index) };
-    });
-  };
-  const addPattern = () => {
-    onChangeState((s) => {
-      if (!s.open) return s;
-      return {
-        ...s,
-        patterns: [...s.patterns, { dayBefore: 4, dayAfter: 3 }],
-      };
-    });
-  };
-
-  return (
-    <Dialog open={state.open} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="sm:max-w-lg">
-        <DialogHeader>
-          <DialogTitle>
-            Compensação — {state.shiftLabel} · {state.levelLabel}
-          </DialogTitle>
-        </DialogHeader>
-        <div className="space-y-4 py-2">
-          <p className="text-xs text-muted-foreground">
-            Cada padrão define 1 folga na semana anterior (dayBefore) e 1 na posterior (dayAfter).
-            Se houver mais pessoas no grupo que padrões, eles são usados em rodízio (i % N).
-          </p>
-
-          <div className="space-y-2">
-            {patterns.map((p, i) => (
-              <div key={i} className="flex items-end gap-2 rounded-md border border-border/60 px-3 py-2">
-                <div className="min-w-[3rem] pb-2 text-xs font-semibold uppercase text-muted-foreground">
-                  #{i + 1}
-                </div>
-                <div className="flex-1 space-y-1">
-                  <Label className="text-xs">Antes (semana pré)</Label>
-                  <Select
-                    value={String(p.dayBefore)}
-                    onValueChange={(v) => updatePattern(i, { dayBefore: Number(v) })}
-                  >
-                    <SelectTrigger className="h-9">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {WEEKDAY_LABELS.map((w) => (
-                        <SelectItem key={w.value} value={String(w.value)}>
-                          {w.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="flex-1 space-y-1">
-                  <Label className="text-xs">Depois (semana pós)</Label>
-                  <Select
-                    value={String(p.dayAfter)}
-                    onValueChange={(v) => updatePattern(i, { dayAfter: Number(v) })}
-                  >
-                    <SelectTrigger className="h-9">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {WEEKDAY_LABELS.map((w) => (
-                        <SelectItem key={w.value} value={String(w.value)}>
-                          {w.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  className="h-9 w-9 text-destructive hover:text-destructive cursor-pointer"
-                  onClick={() => removePattern(i)}
-                  disabled={patterns.length <= 1}
-                  aria-label="Remover padrão"
-                >
-                  <Trash2 className="h-4 w-4" />
-                </Button>
-              </div>
-            ))}
-          </div>
-
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            className="cursor-pointer"
-            onClick={addPattern}
-          >
-            Adicionar padrão
-          </Button>
-        </div>
-        <DialogFooter className="gap-2 sm:gap-0">
-          <Button type="button" variant="outline" onClick={onClose}>
-            Cancelar
-          </Button>
-          <Button
-            type="button"
-            disabled={saving}
-            className="cursor-pointer"
-            onClick={() =>
-              void onSave({
-                shiftId: state.shiftId,
-                levelId: state.levelId,
-                patterns,
-              })
-            }
-          >
-            {saving ? "Salvando…" : "Salvar"}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
   );
 }

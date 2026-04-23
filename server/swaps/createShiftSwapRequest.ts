@@ -4,7 +4,6 @@ import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { resolveTeamIdForRead } from "@/lib/multiTeam";
 import type { SwapActionResult } from "@/types/swaps";
-import type { Shift } from "@/lib/generated/prisma/enums";
 import { sendWhatsappMessage } from "@/server/whatsapp/sendWhatsappMessage";
 
 function parseDate(dateKey: string): Date {
@@ -22,7 +21,7 @@ function formatDdMm(dateKey: string): string {
  */
 export async function createShiftSwapRequest(
   dateKey: string,
-  targetShift: Shift,
+  targetShift: string,
   justification?: string
 ): Promise<SwapActionResult> {
   const session = await auth();

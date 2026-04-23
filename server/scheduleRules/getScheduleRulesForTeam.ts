@@ -20,9 +20,14 @@ export interface ScheduleRuleRow {
 
 export interface ScheduleRulesData {
   teamId: string;
-  levels: { id: string; label: string; legacyKind: string | null; sortOrder: number }[];
-  shifts: { id: string; label: string; legacyKind: string | null; sortOrder: number }[];
+  levels: { id: string; label: string; color: string; sortOrder: number }[];
+  shifts: { id: string; label: string; color: string; sortOrder: number }[];
   rules: ScheduleRuleRow[];
+  /**
+   * Contagem de membros por par (turno, nível). Chave: `${teamShiftId}|${teamLevelId}`.
+   * Usado na aba de compensação para exibir só grupos com pessoas e para dimensionar padrões.
+   */
+  memberCountByLevelShift: Record<string, number>;
 }
 
 export type GetScheduleRulesForTeamResult =
@@ -52,7 +57,7 @@ export async function getScheduleRulesForTeam(
     return { success: false, error: "Acesso negado." };
   }
 
-  const [rules, shifts, levels] = await Promise.all([
+  const [rules, shifts, levels, memberGroups] = await Promise.all([
     prisma.scheduleRule.findMany({
       where: { teamId: resolvedTeamId },
       orderBy: [{ kind: "asc" }, { updatedAt: "desc" }],
@@ -70,14 +75,24 @@ export async function getScheduleRulesForTeam(
     prisma.teamShift.findMany({
       where: { teamId: resolvedTeamId },
       orderBy: [{ sortOrder: "asc" }, { label: "asc" }],
-      select: { id: true, label: true, legacyKind: true, sortOrder: true },
+      select: { id: true, label: true, color: true, sortOrder: true },
     }),
     prisma.teamLevel.findMany({
       where: { teamId: resolvedTeamId },
       orderBy: [{ sortOrder: "asc" }, { label: "asc" }],
-      select: { id: true, label: true, legacyKind: true, sortOrder: true },
+      select: { id: true, label: true, color: true, sortOrder: true },
+    }),
+    prisma.teamMember.groupBy({
+      by: ["teamLevelId", "teamShiftId"],
+      where: { teamId: resolvedTeamId },
+      _count: { _all: true },
     }),
   ]);
+
+  const memberCountByLevelShift: Record<string, number> = {};
+  for (const g of memberGroups) {
+    memberCountByLevelShift[`${g.teamShiftId}|${g.teamLevelId}`] = g._count._all;
+  }
 
   return {
     success: true,
@@ -86,6 +101,7 @@ export async function getScheduleRulesForTeam(
       levels,
       shifts,
       rules,
+      memberCountByLevelShift,
     },
   };
 }

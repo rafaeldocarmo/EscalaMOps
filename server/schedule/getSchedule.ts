@@ -97,15 +97,15 @@ export async function getMemberScheduleForSwapPreview(
   const [myMember, otherMember] = await Promise.all([
     prisma.teamMember.findUnique({
       where: { id: session.member.id },
-      select: { level: true, shift: true },
+      select: { teamLevelId: true, teamShiftId: true },
     }),
     prisma.teamMember.findUnique({
       where: { id: otherMemberId },
-      select: { level: true, shift: true },
+      select: { teamLevelId: true, teamShiftId: true },
     }),
   ]);
   if (!myMember || !otherMember) return null;
-  if (myMember.level !== otherMember.level || myMember.shift !== otherMember.shift) return null;
+  if (myMember.teamLevelId !== otherMember.teamLevelId || myMember.teamShiftId !== otherMember.teamShiftId) return null;
 
   const otherRow = await prisma.teamMember.findUnique({
     where: { id: otherMemberId },

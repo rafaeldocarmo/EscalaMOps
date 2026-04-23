@@ -53,7 +53,7 @@ export async function createTeamShift(input: unknown): Promise<CreateTeamShiftRe
       data: {
         teamId,
         label: parsed.data.label,
-        legacyKind: parsed.data.legacyKind ?? null,
+        color: parsed.data.color ?? "#64748b",
         sortOrder: parsed.data.sortOrder ?? 0,
       },
       select: { id: true },
@@ -63,13 +63,6 @@ export async function createTeamShift(input: unknown): Promise<CreateTeamShiftRe
     const message = e instanceof Error ? e.message : "";
     const isUnique = message.includes("Unique") || message.toLowerCase().includes("unique");
     if (isUnique) {
-      if (message.includes("legacy_kind") || message.includes("legacyKind")) {
-        return {
-          success: false,
-          error:
-            "Já existe um turno dessa equipe associado a esse tipo do sistema. Edite o turno existente em vez de criar outro.",
-        };
-      }
       return { success: false, error: "Já existe um turno com esse nome nesta equipe." };
     }
     return { success: false, error: "Não foi possível criar o turno." };

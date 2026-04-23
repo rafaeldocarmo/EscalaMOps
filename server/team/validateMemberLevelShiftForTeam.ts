@@ -1,15 +1,7 @@
 import { prisma } from "@/lib/prisma";
-import type { Level, Shift } from "@/lib/generated/prisma/enums";
 
 export type ValidateMemberLevelShiftResult =
-  | {
-      ok: true;
-      /** Enum derivado do catálogo (pode ser NULL quando é custom). */
-      legacyLevel: Level | null;
-      legacyShift: Shift | null;
-      /** True se pelo menos um dos lados (nível ou turno) é personalizado. */
-      isCustom: boolean;
-    }
+  | { ok: true }
   | { ok: false; error: string };
 
 const CATALOG_REQUIRED_MSG =
@@ -17,8 +9,7 @@ const CATALOG_REQUIRED_MSG =
 
 /**
  * Valida que o par (teamLevelId, teamShiftId) pertence à equipe e está permitido
- * pela matriz de compatibilidade. Retorna também os `legacyKind` correspondentes
- * para o chamador gravar o enum compatível em `TeamMember.level`/`shift`.
+ * pela matriz de compatibilidade.
  */
 export async function validateMemberLevelShiftForTeam(
   teamId: string | null | undefined,
@@ -32,19 +23,18 @@ export async function validateMemberLevelShiftForTeam(
   const [teamLevel, teamShift] = await Promise.all([
     prisma.teamLevel.findFirst({
       where: { id: teamLevelId, teamId },
-      select: { id: true, legacyKind: true },
+      select: { id: true },
     }),
     prisma.teamShift.findFirst({
       where: { id: teamShiftId, teamId },
-      select: { id: true, legacyKind: true },
+      select: { id: true },
     }),
   ]);
 
   if (!teamLevel || !teamShift) {
     return {
       ok: false,
-      error:
-        "Nível ou turno não pertencem à equipe. Atualize a seleção e tente novamente.",
+      error: "Nível ou turno não pertencem à equipe. Atualize a seleção e tente novamente.",
     };
   }
 
@@ -61,10 +51,5 @@ export async function validateMemberLevelShiftForTeam(
     };
   }
 
-  return {
-    ok: true,
-    legacyLevel: teamLevel.legacyKind,
-    legacyShift: teamShift.legacyKind,
-    isCustom: teamLevel.legacyKind == null || teamShift.legacyKind == null,
-  };
+  return { ok: true };
 }

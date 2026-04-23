@@ -10,8 +10,8 @@ export function createMemberFixture(overrides: Partial<SessionMember> = {}): Ses
     id: "member-test-1",
     name: "Membro Teste",
     phone: "11987654321",
-    level: "N1",
-    shift: "T1",
+    teamLevelId: "level-test-id",
+    teamShiftId: "shift-test-id",
     ...overrides,
   };
 }

@@ -49,9 +49,8 @@ export async function updateTeamLevel(input: unknown): Promise<UpdateTeamLevelRe
   const { id, ...rest } = parsed.data;
   const data: Record<string, unknown> = {};
   if (rest.label !== undefined) data.label = rest.label;
+  if (rest.color !== undefined) data.color = rest.color;
   if (rest.sortOrder !== undefined) data.sortOrder = rest.sortOrder;
-  // `legacyKind` está presente no input quando o admin quer alterá-lo (inclusive para null).
-  if ("legacyKind" in rest) data.legacyKind = rest.legacyKind ?? null;
 
   if (Object.keys(data).length === 0) {
     return { success: true };
@@ -72,14 +71,6 @@ export async function updateTeamLevel(input: unknown): Promise<UpdateTeamLevelRe
       };
     }
     if (isUniqueConstraintError(e)) {
-      const chain = flattenErrorChain(e);
-      if (chain.includes("legacy_kind") || chain.includes("legacyKind")) {
-        return {
-          success: false,
-          error:
-            "Já existe um nível dessa equipe com esse tipo do sistema. Remova o vínculo de outro nível antes.",
-        };
-      }
       return { success: false, error: "Já existe um nível com esse nome nesta equipe." };
     }
     const chain = flattenErrorChain(e);

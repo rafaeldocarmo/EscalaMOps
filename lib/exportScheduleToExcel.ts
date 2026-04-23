@@ -1,6 +1,6 @@
 import ExcelJS from "exceljs";
 import type { ScheduleStateMap } from "@/types/schedule";
-import type { Shift, TeamMemberRow } from "@/types/team";
+import type { TeamMemberRow } from "@/types/team";
 import type { SobreavisoWeek } from "@/server/sobreaviso/getSobreavisoScheduleForMonth";
 import { getDaysInMonth, dateKey, buildScheduleSections } from "./scheduleUtils";
 
@@ -68,7 +68,7 @@ interface SobreavisoGridMember {
   memberId: string;
   memberName: string;
   level: string;
-  shift: Shift | null;
+  shiftLabel: string;
   activeDates: Set<string>;
   transitionDates: Set<string>;
 }
@@ -85,7 +85,7 @@ function buildSobreavisoGridMembers(
       memberId: m.id,
       memberName: m.name,
       level: m.levelLabel,
-      shift: m.shift,
+      shiftLabel: m.shiftLabel,
       activeDates: new Set(),
       transitionDates: new Set(),
     });
@@ -98,7 +98,7 @@ function buildSobreavisoGridMembers(
         memberId: w.memberId,
         memberName: w.memberName,
         level: w.level,
-        shift: fromTeam?.shift ?? null,
+        shiftLabel: fromTeam?.shiftLabel ?? "",
         activeDates: new Set(),
         transitionDates: new Set(),
       });
@@ -286,7 +286,7 @@ export async function exportScheduleToExcel(
         setCellBorder(ws.getCell(currentRow, 1));
         ws.getCell(currentRow, 2).value = member.level;
         setCellBorder(ws.getCell(currentRow, 2));
-        ws.getCell(currentRow, 3).value = member.shift ?? "";
+        ws.getCell(currentRow, 3).value = member.shiftLabel;
         setCellBorder(ws.getCell(currentRow, 3));
 
         for (let day = 1; day <= daysInMonth; day++) {

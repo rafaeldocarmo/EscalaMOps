@@ -4,9 +4,6 @@ import { startOfDay, endOfDay } from "date-fns";
 import { log } from "@/lib/log";
 import { pinWhatsappMessage, sendWhatsappMessage } from "./sendWhatsappMessage";
 
-type Level = "N1" | "N2";
-type Shift = "T1" | "T2" | "T3";
-
 /**
  * Monta e envia pelo WhatsApp o resumo da escala do dia informado (ou hoje).
  * Usa os registros de Schedule / ScheduleAssignment para descobrir quem está TRABALHANDO.
@@ -47,9 +44,20 @@ export async function sendDailyScheduleSummary(targetDate?: Date): Promise<void>
 
   const [members, offAssignments, onCallAssignments] = await Promise.all([
     prisma.teamMember.findMany({
-      where: { level: { in: ["N1", "N2"] }, participatesInSchedule: true },
-      orderBy: [{ level: "asc" }, { shift: "asc" }, { name: "asc" }],
-      select: { id: true, name: true, level: true, shift: true },
+      where: { participatesInSchedule: true },
+      orderBy: [
+        { teamLevel: { sortOrder: "asc" } },
+        { teamShift: { sortOrder: "asc" } },
+        { name: "asc" },
+      ],
+      select: {
+        id: true,
+        name: true,
+        teamLevelId: true,
+        teamShiftId: true,
+        teamLevel: { select: { label: true } },
+        teamShift: { select: { label: true } },
+      },
     }),
     prisma.scheduleAssignment.findMany({
       where: {
@@ -64,81 +72,63 @@ export async function sendDailyScheduleSummary(targetDate?: Date): Promise<void>
         startDate: { lte: dayEnd },
         endDate: { gte: dayStart },
       },
-      include: { member: { select: { name: true, level: true, shift: true } } },
+      include: {
+        member: { select: { name: true } },
+        teamLevel: { select: { label: true } },
+      },
     }),
   ]);
 
   const offSet = new Set(offAssignments.map((a) => a.memberId));
 
-  const levels: Level[] = ["N1", "N2"];
-  const shiftsByLevel: Record<Level, Shift[]> = {
-    N1: ["T1", "T2", "T3"],
-    N2: ["T1", "T2"],
-  };
-
-  const groups: Record<Level, Record<Shift, string[]>> = {
-    N1: { T1: [], T2: [], T3: [] },
-    N2: { T1: [], T2: [], T3: [] },
-  };
-
-  type OnCallLevel = "N2" | "ESPC" | "PRODUCAO";
-  const onCallGroups: Record<OnCallLevel, string[]> = {
-    N2: [],
-    ESPC: [],
-    PRODUCAO: [],
-  };
-
-  function fullName(name: string): string {
-    return name.trim();
-  }
+  // Group members by level → shift
+  const byLevel = new Map<string, Map<string, string[]>>();
+  const levelOrder: string[] = [];
 
   for (const member of members) {
-    const level = member.level as Level;
-    const shift = member.shift as Shift;
-
-    if (level === "N2" && shift === "T3") continue;
     if (offSet.has(member.id)) continue;
-
-    groups[level][shift].push(fullName(member.name));
+    const levelLabel = member.teamLevel.label;
+    const shiftLabel = member.teamShift.label;
+    if (!byLevel.has(levelLabel)) {
+      byLevel.set(levelLabel, new Map());
+      levelOrder.push(levelLabel);
+    }
+    const byShift = byLevel.get(levelLabel)!;
+    if (!byShift.has(shiftLabel)) byShift.set(shiftLabel, []);
+    byShift.get(shiftLabel)!.push(member.name.trim());
   }
 
+  // Group on-call by level
+  const onCallByLevel = new Map<string, string[]>();
   for (const a of onCallAssignments) {
-    const level = a.level as OnCallLevel;
-    if (level in onCallGroups) {
-      onCallGroups[level].push(fullName(a.member.name));
-    }
+    const lvl = a.teamLevel?.label ?? "—";
+    if (!onCallByLevel.has(lvl)) onCallByLevel.set(lvl, []);
+    onCallByLevel.get(lvl)!.push(a.member.name.trim());
   }
 
   const lines: string[] = [];
   lines.push(`*Escala para esse final de semana*`, "");
 
-  for (const level of levels) {
+  for (const level of levelOrder) {
     lines.push(`*${level}*`);
-    for (const shift of shiftsByLevel[level]) {
-      const names = groups[level][shift];
-      if (names.length > 0) {
-        for (const name of names) {
-          lines.push(`* \`${shift} - ${name}\``);
-        }
+    const byShift = byLevel.get(level)!;
+    for (const [shift, names] of byShift) {
+      for (const name of names) {
+        lines.push(`* \`${shift} - ${name}\``);
       }
     }
     lines.push("");
   }
 
   lines.push("*SOBREAVISO*", "");
-  lines.push("*N2*");
-  for (const name of onCallGroups.N2) {
-    lines.push(`* \`N2 - ${name}\``);
+  for (const [level, names] of onCallByLevel) {
+    lines.push(`*${level}*`);
+    for (const name of names) {
+      lines.push(`* \`${level} - ${name}\``);
+    }
+    lines.push("");
   }
-  lines.push("");
-  lines.push("*ESP/PROD*");
-  for (const name of onCallGroups.ESPC) {
-    lines.push(`* \`ESP - ${name}\``);
-  }
-  for (const name of onCallGroups.PRODUCAO) {
-    lines.push(`* \`Prod. Online - ${name}\``);
-  }
-  lines.push("");
+
   lines.push("_*Recomendações:*_");
   lines.push("* Mantenha o celular sempre carregado.");
   lines.push("* Fique atento aos chamados do N2.");
@@ -149,7 +139,6 @@ export async function sendDailyScheduleSummary(targetDate?: Date): Promise<void>
   const message = lines.join("\n");
   const { messageId } = await sendWhatsappMessage(message);
   if (messageId) {
-    // Fixamos/pinamos a mensagem do dia para ficar sempre visível.
     await pinWhatsappMessage(messageId).catch(() => {});
   }
 
@@ -159,4 +148,3 @@ export async function sendDailyScheduleSummary(targetDate?: Date): Promise<void>
     data: { year, month, messageId: messageId ?? null },
   });
 }
-

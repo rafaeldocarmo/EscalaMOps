@@ -3,7 +3,6 @@ import { createOffSwapWithMemberRequest } from "@/server/swaps/createOffSwapWith
 import { sendWhatsappMessage } from "@/server/whatsapp/sendWhatsappMessage";
 import { resolveTeamIdForRead } from "@/lib/multiTeam";
 import { prisma } from "@/lib/prisma";
-import { Level } from "@/lib/generated/prisma/enums";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { mockResolvedSession, resetAuthMock } from "@/tests/helpers/auth-mock";
 import { createMemberFixture, sessionAsPlainUser } from "@/tests/helpers/session-factory";
@@ -218,10 +217,17 @@ describe.skipIf(!hasDatabaseUrl)("createOffSwapRequest / createOffSwapWithMember
     it("rejeita quando nível ou turno do colega difere", async () => {
       const ctx = await createOffSwapTwoMemberContext();
       try {
-        await prisma.teamMember.update({
-          where: { id: ctx.targetMemberId },
-          data: { level: Level.N2 },
+        // Muda o teamLevelId do colega para um nível diferente (N2 vs N1 do solicitante)
+        const otherLevel = await prisma.teamLevel.findFirst({
+          where: { teamId: ctx.teamId, label: "N2" },
+          select: { id: true },
         });
+        if (otherLevel) {
+          await prisma.teamMember.update({
+            where: { id: ctx.targetMemberId },
+            data: { teamLevelId: otherLevel.id },
+          });
+        }
         mockResolvedSession(
           sessionAsPlainUser({
             member: createMemberFixture({ id: ctx.requesterId }),

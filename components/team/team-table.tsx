@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { PencilIcon, Trash2Icon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -28,6 +28,17 @@ import type { TeamFormValues } from "./team-form";
 import { sortTeamMembers } from "@/lib/sortTeamMembers";
 import { formatMemberName } from "@/lib/formatMemberName";
 
+function contrastTextColor(hex: string): string {
+  const m = /^#([0-9a-fA-F]{6})$/.exec(hex);
+  if (!m) return "#ffffff";
+  const n = parseInt(m[1]!, 16);
+  const r = (n >> 16) & 0xff;
+  const g = (n >> 8) & 0xff;
+  const b = n & 0xff;
+  const luminance = (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255;
+  return luminance > 0.6 ? "#0f172a" : "#ffffff";
+}
+
 interface TeamTableProps {
   members: TeamMemberRow[];
   memberCatalog?: MemberFormCatalog | null;
@@ -51,6 +62,16 @@ export function TeamTable({
 
   const sortedMembers = sortTeamMembers(members);
   const memberToEdit = editId ? members.find((m) => m.id === editId) : null;
+  const levelColorById = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const l of memberCatalog?.levels ?? []) map.set(l.id, l.color);
+    return map;
+  }, [memberCatalog]);
+  const shiftColorById = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const s of memberCatalog?.shifts ?? []) map.set(s.id, s.color);
+    return map;
+  }, [memberCatalog]);
 
   async function handleEditSubmit(values: TeamFormValues) {
     if (!editId) return;
@@ -114,30 +135,38 @@ export function TeamTable({
                   </TableCell>
                   <TableCell className="px-4 text-foreground">{member.phone}</TableCell>
                   <TableCell className="px-4">
-                    <span
-                      className={
-                        "inline-flex items-center rounded-md border px-2 py-0.5 text-xs font-medium " +
-                        (member.levelLegacyKind == null
-                          ? "border-purple-500/40 bg-purple-500/15 text-purple-700"
-                          : "border-green-500/40 bg-green-500/15 text-green-700")
-                      }
-                      title={member.levelLegacyKind == null ? "Personalizado (fora das regras legadas)" : undefined}
-                    >
-                      {member.levelLabel}
-                    </span>
+                    {(() => {
+                      const color = levelColorById.get(member.teamLevelId);
+                      return (
+                        <span
+                          className="inline-flex items-center rounded-md px-2 py-0.5 text-xs font-medium"
+                          style={
+                            color
+                              ? { backgroundColor: color, color: contrastTextColor(color) }
+                              : undefined
+                          }
+                        >
+                          {member.levelLabel}
+                        </span>
+                      );
+                    })()}
                   </TableCell>
                   <TableCell className="px-4">
-                    <span
-                      className={
-                        "inline-flex items-center rounded-md border px-2 py-0.5 text-xs font-medium " +
-                        (member.shiftLegacyKind == null
-                          ? "border-purple-500/40 bg-purple-500/15 text-purple-700"
-                          : "border-amber-500/40 bg-amber-500/15 text-amber-700")
-                      }
-                      title={member.shiftLegacyKind == null ? "Personalizado (fora das regras legadas)" : undefined}
-                    >
-                      {member.shiftLabel}
-                    </span>
+                    {(() => {
+                      const color = shiftColorById.get(member.teamShiftId);
+                      return (
+                        <span
+                          className="inline-flex items-center rounded-md px-2 py-0.5 text-xs font-medium"
+                          style={
+                            color
+                              ? { backgroundColor: color, color: contrastTextColor(color) }
+                              : undefined
+                          }
+                        >
+                          {member.shiftLabel}
+                        </span>
+                      );
+                    })()}
                   </TableCell>
                   <TableCell className="px-4">
                     {member.sobreaviso ? (

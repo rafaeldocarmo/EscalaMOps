@@ -78,8 +78,6 @@ export async function createTeamMember(
         name: parsed.data.name.trim(),
         phone: parsed.data.phone.trim(),
         normalizedPhone,
-        level: combo.legacyLevel,
-        shift: combo.legacyShift,
         sobreaviso,
         participatesInSchedule,
       },

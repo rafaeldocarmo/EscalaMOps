@@ -177,23 +177,13 @@ export function TeamForm({
   const levelChoices = useMemo(() => {
     if (!memberCatalog) {
       if (isEdit && defaultValues?.teamLevelId) {
-        return [
-          {
-            id: defaultValues.teamLevelId,
-            label: "(catálogo indisponível)",
-            legacyKind: null,
-          },
-        ];
+        return [{ id: defaultValues.teamLevelId, label: "(catálogo indisponível)", color: "#64748b" }];
       }
       return [];
     }
     const list = [...memberCatalog.levels];
     if (defaultValues?.teamLevelId && !list.some((l) => l.id === defaultValues.teamLevelId)) {
-      list.push({
-        id: defaultValues.teamLevelId,
-        label: "(removido do catálogo)",
-        legacyKind: null,
-      });
+      list.push({ id: defaultValues.teamLevelId, label: "(removido do catálogo)", color: "#64748b" });
     }
     return list;
   }, [memberCatalog, defaultValues?.teamLevelId, isEdit]);
@@ -202,11 +192,7 @@ export function TeamForm({
     if (!memberCatalog) {
       if (isEdit && defaultValues?.teamShiftId) {
         return [
-          {
-            id: defaultValues.teamShiftId,
-            label: "(catálogo indisponível)",
-            legacyKind: null,
-          },
+          { id: defaultValues.teamShiftId, label: "(catálogo indisponível)", color: "#64748b" },
         ];
       }
       return [];

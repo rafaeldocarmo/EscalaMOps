@@ -23,7 +23,7 @@ export interface OnCallWeek {
   endDate: string;
   memberId: string;
   memberName: string;
-  /** Label do nível (catálogo). Fallback para legacyKind string se label ausente. */
+  /** Label do nível (catálogo). */
   level: string;
   teamLevelId: string;
 }
@@ -103,7 +103,7 @@ export async function generateSobreavisoSchedule(
       id: true,
       name: true,
       teamLevelId: true,
-      teamLevel: { select: { label: true, legacyKind: true } },
+      teamLevel: { select: { label: true } },
       onCallRotationIndex: true,
     },
     orderBy: [{ teamLevel: { sortOrder: "asc" } }, { name: "asc" }],
@@ -113,7 +113,7 @@ export async function generateSobreavisoSchedule(
     id: m.id,
     name: m.name,
     teamLevelId: m.teamLevelId,
-    teamLevelLabel: m.teamLevel.label,
+      teamLevelLabel: m.teamLevel?.label ?? m.teamLevelId,
     onCallRotationIndex: m.onCallRotationIndex,
   }));
 
@@ -196,7 +196,6 @@ export async function generateSobreavisoSchedule(
       data: {
         memberId: week.memberId,
         teamLevelId: week.teamLevelId,
-        level: member?.teamLevel.legacyKind ?? null,
         startDate: new Date(week.startDate + "T12:00:00.000Z"),
         endDate: new Date(week.endDate + "T12:00:00.000Z"),
       },

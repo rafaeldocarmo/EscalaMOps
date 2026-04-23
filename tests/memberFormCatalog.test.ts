@@ -1,8 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
   buildMemberFormCatalog,
-  isCustomLevel,
-  isCustomShift,
   isPairAllowedInCatalog,
   shiftsAllowedForLevel,
 } from "@/lib/memberFormCatalog";
@@ -12,13 +10,13 @@ describe("buildMemberFormCatalog", () => {
     expect(
       buildMemberFormCatalog({
         levels: [],
-        shifts: [{ id: "s", label: "T1", legacyKind: "T1", sortOrder: 0 }],
+        shifts: [{ id: "s", label: "T1", color: "#3b82f6", sortOrder: 0 }],
         allowedPairs: [],
       }),
     ).toBeNull();
     expect(
       buildMemberFormCatalog({
-        levels: [{ id: "l", label: "N1", legacyKind: "N1", sortOrder: 0 }],
+        levels: [{ id: "l", label: "N1", color: "#22c55e", sortOrder: 0 }],
         shifts: [],
         allowedPairs: [],
       }),
@@ -28,12 +26,12 @@ describe("buildMemberFormCatalog", () => {
   it("monta pares a partir da matriz e resolve turnos por nível (IDs)", () => {
     const c = buildMemberFormCatalog({
       levels: [
-        { id: "l1", label: "N1", legacyKind: "N1", sortOrder: 0 },
-        { id: "l2", label: "N2", legacyKind: "N2", sortOrder: 1 },
+        { id: "l1", label: "N1", color: "#22c55e", sortOrder: 0 },
+        { id: "l2", label: "N2", color: "#16a34a", sortOrder: 1 },
       ],
       shifts: [
-        { id: "s1", label: "T1", legacyKind: "T1", sortOrder: 0 },
-        { id: "s2", label: "T2", legacyKind: "T2", sortOrder: 1 },
+        { id: "s1", label: "T1", color: "#0ea5e9", sortOrder: 0 },
+        { id: "s2", label: "T2", color: "#3b82f6", sortOrder: 1 },
       ],
       allowedPairs: [
         { teamLevelId: "l1", teamShiftId: "s1" },
@@ -52,15 +50,15 @@ describe("buildMemberFormCatalog", () => {
     expect(shiftsAllowedForLevel(c, "l2").map((s) => s.id)).toEqual(["s1"]);
   });
 
-  it("inclui níveis e turnos personalizados (legacyKind=null) no catálogo", () => {
+  it("inclui todos os níveis e turnos do catálogo", () => {
     const c = buildMemberFormCatalog({
       levels: [
-        { id: "l1", label: "N1", legacyKind: "N1", sortOrder: 0 },
-        { id: "l2", label: "Operações", legacyKind: null, sortOrder: 1 },
+        { id: "l1", label: "N1", color: "#22c55e", sortOrder: 0 },
+        { id: "l2", label: "Operações", color: "#f59e0b", sortOrder: 1 },
       ],
       shifts: [
-        { id: "s1", label: "T1", legacyKind: "T1", sortOrder: 0 },
-        { id: "s2", label: "Extra", legacyKind: null, sortOrder: 1 },
+        { id: "s1", label: "T1", color: "#0ea5e9", sortOrder: 0 },
+        { id: "s2", label: "Extra", color: "#a855f7", sortOrder: 1 },
       ],
       allowedPairs: [
         { teamLevelId: "l1", teamShiftId: "s1" },
@@ -71,19 +69,16 @@ describe("buildMemberFormCatalog", () => {
     if (!c) return;
     expect(c.levels).toHaveLength(2);
     expect(c.shifts).toHaveLength(2);
-    expect(isCustomLevel(c.levels[1]!)).toBe(true);
-    expect(isCustomShift(c.shifts[1]!)).toBe(true);
-    expect(isCustomLevel(c.levels[0]!)).toBe(false);
     expect(isPairAllowedInCatalog(c, "l2", "s2")).toBe(true);
   });
 
   it("preserva o label customizado do catálogo", () => {
     const c = buildMemberFormCatalog({
       levels: [
-        { id: "l1", label: "Suporte Junior", legacyKind: "N1", sortOrder: 0 },
-        { id: "l2", label: "Produção", legacyKind: "PRODUCAO", sortOrder: 1 },
+        { id: "l1", label: "Suporte Junior", color: "#22c55e", sortOrder: 0 },
+        { id: "l2", label: "Produção", color: "#14b8a6", sortOrder: 1 },
       ],
-      shifts: [{ id: "s1", label: "Turno Comercial", legacyKind: "TC", sortOrder: 0 }],
+      shifts: [{ id: "s1", label: "Turno Comercial", color: "#64748b", sortOrder: 0 }],
       allowedPairs: [
         { teamLevelId: "l1", teamShiftId: "s1" },
         { teamLevelId: "l2", teamShiftId: "s1" },

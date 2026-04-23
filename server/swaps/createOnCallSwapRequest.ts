@@ -31,7 +31,7 @@ export async function createOnCallSwapRequest(targetMemberId: string): Promise<S
   if (!requester.sobreaviso || !target.sobreaviso) {
     return { success: false, error: "Ambos os membros precisam participar do sobreaviso." };
   }
-  if (requester.level !== target.level) {
+  if (requester.teamLevelId !== target.teamLevelId) {
     return { success: false, error: "Só é possível trocar sobreaviso com alguém do mesmo nível." };
   }
 

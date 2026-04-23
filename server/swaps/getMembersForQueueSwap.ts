@@ -2,7 +2,6 @@
 
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
-import type { Level, Shift } from "@/lib/generated/prisma/enums";
 import type { MemberOption } from "@/types/swaps";
 
 /**
@@ -11,14 +10,12 @@ import type { MemberOption } from "@/types/swaps";
 export async function getMembersForQueueSwap(): Promise<MemberOption[]> {
   const session = await auth();
   if (!session?.user || !session.member) return [];
-  // Queue swap só existe para membros em regra legada (mesmo level/shift enum).
-  if (!session.member.level || !session.member.shift) return [];
 
   const members = await prisma.teamMember.findMany({
     where: {
       id: { not: session.member.id },
-      level: session.member.level as Level,
-      shift: session.member.shift as Shift,
+      teamLevelId: session.member.teamLevelId,
+      teamShiftId: session.member.teamShiftId,
       participatesInSchedule: true,
     },
     orderBy: { name: "asc" },

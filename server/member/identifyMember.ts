@@ -11,10 +11,8 @@ export type IdentifyMemberResult =
         id: string;
         name: string;
         phone: string;
-        /** NULL quando o membro usa catálogo personalizado (fora das regras legadas). */
-        level: string | null;
-        /** NULL quando o membro usa catálogo personalizado. */
-        shift: string | null;
+        teamLevelId: string;
+        teamShiftId: string;
       };
     }
   | { success: false; error: string };
@@ -38,7 +36,7 @@ export async function identifyMemberByPhone(
 
   const member = await prisma.teamMember.findFirst({
     where: { normalizedPhone: normalized },
-    select: { id: true, name: true, phone: true, level: true, shift: true },
+    select: { id: true, name: true, phone: true, teamLevelId: true, teamShiftId: true },
   });
 
   if (!member) {
@@ -51,8 +49,8 @@ export async function identifyMemberByPhone(
       id: member.id,
       name: member.name,
       phone: member.phone,
-      level: member.level,
-      shift: member.shift,
+      teamLevelId: member.teamLevelId,
+      teamShiftId: member.teamShiftId,
     },
   };
 }

@@ -21,7 +21,7 @@ async function main() {
   const members = await prisma.teamMember.findMany({
     orderBy: { name: "asc" },
     take: 10,
-    select: { id: true, name: true, phone: true, normalizedPhone: true, level: true, shift: true },
+    select: { id: true, name: true, phone: true, normalizedPhone: true, teamLevelId: true, teamShiftId: true },
   });
 
   console.log(JSON.stringify({ schedules, assignments, members }, null, 2));

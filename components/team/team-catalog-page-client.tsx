@@ -41,13 +41,6 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import type {
   TeamLevelShiftCatalogData,
@@ -61,7 +54,6 @@ import { updateTeamShift } from "@/server/team/updateTeamShift";
 import { deleteTeamLevel } from "@/server/team/deleteTeamLevel";
 import { deleteTeamShift } from "@/server/team/deleteTeamShift";
 import { replaceAllowedShiftsForTeamLevel } from "@/server/team/replaceAllowedShiftsForTeamLevel";
-import type { Level, Shift } from "@/types/team";
 
 interface TeamCatalogPageClientProps {
   initialData: TeamLevelShiftCatalogData;
@@ -80,28 +72,28 @@ type DeleteState =
   | { open: false }
   | { open: true; variant: EntityVariant; row: CatalogRow };
 
-const LEGACY_LEVEL_OPTIONS: { value: Level; label: string }[] = [
-  { value: "N1", label: "N1" },
-  { value: "N2", label: "N2" },
-  { value: "ESPC", label: "Especialista (ESPC)" },
-  { value: "PRODUCAO", label: "Produção" },
-];
+function contrastTextColor(hex: string): string {
+  const m = /^#([0-9a-fA-F]{6})$/.exec(hex);
+  if (!m) return "#ffffff";
+  const n = parseInt(m[1]!, 16);
+  const r = (n >> 16) & 0xff;
+  const g = (n >> 8) & 0xff;
+  const b = n & 0xff;
+  // Perceived luminance (sRGB)
+  const luminance = (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255;
+  return luminance > 0.6 ? "#0f172a" : "#ffffff";
+}
 
-const LEGACY_SHIFT_OPTIONS: { value: Shift; label: string }[] = [
-  { value: "T1", label: "T1" },
-  { value: "T2", label: "T2" },
-  { value: "T3", label: "T3" },
-  { value: "TC", label: "TC" },
-];
-
-const CUSTOM_LEGACY_KIND_VALUE = "__custom__";
-
-function legacyKindBadge(legacyKind: Level | Shift | null, variant: EntityVariant): string {
-  if (!legacyKind) return "Personalizado";
-  if (variant === "level") {
-    return LEGACY_LEVEL_OPTIONS.find((o) => o.value === legacyKind)?.label ?? String(legacyKind);
-  }
-  return LEGACY_SHIFT_OPTIONS.find((o) => o.value === legacyKind)?.label ?? String(legacyKind);
+function ColorBadge({ label, color }: { label: string; color: string }) {
+  return (
+    <span
+      className="inline-flex items-center justify-center rounded-full px-2 py-0.5 text-xs font-semibold"
+      style={{ backgroundColor: color, color: contrastTextColor(color) }}
+      title={label}
+    >
+      {label}
+    </span>
+  );
 }
 
 function pairIndex(pairs: { teamLevelId: string; teamShiftId: string }[]) {
@@ -130,7 +122,7 @@ function useSyncedIdOrder(rows: CatalogRow[]) {
   useEffect(() => {
     const sorted = [...rows].sort(sortCatalogRows);
     setOrder(sorted.map((r) => r.id));
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- só realinhar quando o snapshot do servidor mudar (syncKey)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [syncKey]);
   return [order, setOrder] as const;
 }
@@ -139,14 +131,12 @@ function SortableCatalogRow({
   row,
   disabled,
   entityLabel,
-  variant,
   onEdit,
   onDelete,
 }: {
   row: CatalogRow;
   disabled: boolean;
   entityLabel: "nível" | "turno";
-  variant: EntityVariant;
   onEdit: () => void;
   onDelete: () => void;
 }) {
@@ -158,6 +148,7 @@ function SortableCatalogRow({
     transform: CSS.Transform.toString(transform),
     transition,
     opacity: isDragging ? 0.65 : undefined,
+    height: "60px",
   };
 
   return (
@@ -174,22 +165,11 @@ function SortableCatalogRow({
           <GripVertical className="h-4 w-4 shrink-0" />
         </button>
       </TableCell>
-      <TableCell className="font-medium">{row.label}</TableCell>
-      <TableCell className="text-xs text-muted-foreground">
-        <span
-          className={
-            row.legacyKind
-              ? "inline-flex items-center rounded-md bg-muted px-2 py-0.5"
-              : "inline-flex items-center rounded-md border border-dashed border-border px-2 py-0.5 italic"
-          }
-          title={
-            row.legacyKind
-              ? "Tipo do sistema: entra nas regras automáticas de escala e sobreaviso."
-              : "Personalizado: aparece no catálogo, mas ainda não entra no cadastro de membros nem nas regras de escala."
-          }
-        >
-          {legacyKindBadge(row.legacyKind, variant)}
-        </span>
+      <TableCell className="font-medium">
+        <div className="flex items-center gap-2">
+          <span className="h-4 w-1 rounded-full h-[30px]" style={{ backgroundColor: row.color }} aria-hidden />
+          <span>{row.label}</span>
+        </div>
       </TableCell>
       <TableCell className="w-28 text-right">
         <div className="flex justify-end gap-1">
@@ -223,7 +203,6 @@ function SortableCatalogRow({
 
 function CatalogSortableTable({
   entityLabel,
-  variant,
   orderedRows,
   busy,
   onReorder,
@@ -231,7 +210,6 @@ function CatalogSortableTable({
   onDelete,
 }: {
   entityLabel: "nível" | "turno";
-  variant: EntityVariant;
   orderedRows: CatalogRow[];
   busy: boolean;
   onReorder: (orderedIds: string[]) => void;
@@ -258,14 +236,6 @@ function CatalogSortableTable({
   return (
     <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
       <Table>
-        <TableHeader>
-          <TableRow>
-            <TableHead className="w-12" />
-            <TableHead>Nome</TableHead>
-            <TableHead className="w-44">Tipo do sistema</TableHead>
-            <TableHead className="w-28 text-right">Ações</TableHead>
-          </TableRow>
-        </TableHeader>
         <TableBody>
           <SortableContext items={ids} strategy={verticalListSortingStrategy}>
             {orderedRows.map((row) => (
@@ -274,7 +244,6 @@ function CatalogSortableTable({
                 row={row}
                 disabled={busy}
                 entityLabel={entityLabel}
-                variant={variant}
                 onEdit={() => onEdit(row)}
                 onDelete={() => onDelete(row)}
               />
@@ -387,18 +356,13 @@ export function TeamCatalogPageClient({ initialData }: TeamCatalogPageClientProp
       <div>
         <h1 className="text-2xl font-bold tracking-tight text-foreground">Níveis e turnos</h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          Cadastre os níveis e turnos que serão usados pela equipe. O campo{" "}
-          <span className="font-medium">Tipo do sistema</span> amarra a entrada a uma regra existente
-          de escala/sobreaviso (N1, N2, ESPC, PRODUCAO, T1, T2, T3, TC). Níveis e turnos{" "}
-          <span className="italic">Personalizados</span> aparecem no catálogo, mas ainda não entram
-          no cadastro de membros nem nas regras automáticas — serão habilitados quando a
-          parametrização de regras for implementada. Arraste pelo ícone à esquerda para reordenar e
-          use a matriz abaixo para definir combinações permitidas.
+          Cadastre os níveis e turnos que serão usados pela equipe. Arraste pelo ícone à esquerda
+          para reordenar e use a matriz abaixo para definir as combinações permitidas.
         </p>
       </div>
 
       <div className="grid gap-6 lg:grid-cols-2">
-        <Card className="rounded-xl border border-border/60 shadow-sm">
+        <Card className="rounded-xl border border-border/60 shadow-sm gap-0">
           <CardHeader className="flex flex-row items-start justify-between space-y-0 border-b border-border/50 pb-4">
             <div>
               <CardTitle className="text-lg font-bold">Níveis</CardTitle>
@@ -420,7 +384,6 @@ export function TeamCatalogPageClient({ initialData }: TeamCatalogPageClientProp
             ) : (
               <CatalogSortableTable
                 entityLabel="nível"
-                variant="level"
                 orderedRows={levelsOrdered}
                 busy={reorderBusy === "levels"}
                 onReorder={(ids) => void persistLevelOrder(ids)}
@@ -438,7 +401,7 @@ export function TeamCatalogPageClient({ initialData }: TeamCatalogPageClientProp
           </CardContent>
         </Card>
 
-        <Card className="rounded-xl border border-border/60 shadow-sm">
+        <Card className="rounded-xl border border-border/60 shadow-sm gap-0">
           <CardHeader className="flex flex-row items-start justify-between space-y-0 border-b border-border/50 pb-4">
             <div>
               <CardTitle className="text-lg font-bold">Turnos</CardTitle>
@@ -460,7 +423,6 @@ export function TeamCatalogPageClient({ initialData }: TeamCatalogPageClientProp
             ) : (
               <CatalogSortableTable
                 entityLabel="turno"
-                variant="shift"
                 orderedRows={shiftsOrdered}
                 busy={reorderBusy === "shifts"}
                 onReorder={(ids) => void persistShiftOrder(ids)}
@@ -492,22 +454,27 @@ export function TeamCatalogPageClient({ initialData }: TeamCatalogPageClientProp
               Cadastre ao menos um nível e um turno para editar a matriz.
             </p>
           ) : (
-            <div className="overflow-x-auto rounded-lg border border-border/60">
+            <div className="overflow-x-auto rounded-lg">
               <Table>
                 <TableHeader>
                   <TableRow>
                     <TableHead className="sticky left-0 z-10 min-w-[140px] bg-card">Nível</TableHead>
                     {shiftsOrdered.map((s) => (
                       <TableHead key={s.id} className="min-w-[100px] text-center">
-                        <span className="font-medium">{s.label}</span>
+                        <ColorBadge label={s.label} color={s.color} />
                       </TableHead>
                     ))}
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {levelsOrdered.map((lv) => (
-                    <TableRow key={lv.id}>
-                      <TableCell className="sticky left-0 z-10 bg-card font-medium">{lv.label}</TableCell>
+                    <TableRow key={lv.id} className="h-[60px]">
+                      <TableCell className="sticky left-0 z-10 bg-card font-medium">
+                        <div className="flex items-center gap-2">
+                          <span className="h-[50px] w-1.5 rounded-full" style={{ backgroundColor: lv.color }} aria-hidden />
+                          <span>{lv.label}</span>
+                        </div>
+                      </TableCell>
                       {shiftsOrdered.map((sh) => {
                         const checked = pairsByLevel.get(lv.id)?.has(sh.id) ?? false;
                         const busy = matrixBusy === `${lv.id}:${sh.id}`;
@@ -581,8 +548,7 @@ function CatalogItemDialog({
   const open = itemDialog.open;
   const [loading, setLoading] = useState(false);
   const [label, setLabel] = useState("");
-  /** `null` = personalizado (sem legacyKind). Stored as string for the Select. */
-  const [legacyKind, setLegacyKind] = useState<string>(CUSTOM_LEGACY_KIND_VALUE);
+  const [color, setColor] = useState("#64748b");
   const [error, setError] = useState<string | null>(null);
 
   const variant = itemDialog.open ? itemDialog.variant : "level";
@@ -592,19 +558,14 @@ function CatalogItemDialog({
   useEffect(() => {
     if (!itemDialog.open) return;
     if (itemDialog.mode === "edit") {
-      const r = itemDialog.row;
-      setLabel(r.label);
-      setLegacyKind(r.legacyKind ?? CUSTOM_LEGACY_KIND_VALUE);
+      setLabel(itemDialog.row.label);
+      setColor(itemDialog.row.color ?? "#64748b");
     } else {
       setLabel("");
-      setLegacyKind(CUSTOM_LEGACY_KIND_VALUE);
+      setColor("#64748b");
     }
     setError(null);
   }, [itemDialog]);
-
-  const options = variant === "level" ? LEGACY_LEVEL_OPTIONS : LEGACY_SHIFT_OPTIONS;
-  const legacyKindForSubmit: Level | Shift | null =
-    legacyKind === CUSTOM_LEGACY_KIND_VALUE ? null : (legacyKind as Level | Shift);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -616,53 +577,19 @@ function CatalogItemDialog({
     try {
       if (variant === "level") {
         if (mode === "create") {
-          const r = await createTeamLevel({
-            teamId,
-            label: label.trim(),
-            legacyKind: legacyKindForSubmit as Level | null,
-            sortOrder: createSortOrder,
-          });
-          if (!r.success) {
-            setError(r.error);
-            setLoading(false);
-            return;
-          }
+          const r = await createTeamLevel({ teamId, label: label.trim(), color, sortOrder: createSortOrder });
+          if (!r.success) { setError(r.error); setLoading(false); return; }
         } else if (editRow) {
-          const r = await updateTeamLevel({
-            id: editRow.id,
-            label: label.trim(),
-            legacyKind: legacyKindForSubmit as Level | null,
-          });
-          if (!r.success) {
-            setError(r.error);
-            setLoading(false);
-            return;
-          }
+          const r = await updateTeamLevel({ id: editRow.id, label: label.trim(), color });
+          if (!r.success) { setError(r.error); setLoading(false); return; }
         }
       } else {
         if (mode === "create") {
-          const r = await createTeamShift({
-            teamId,
-            label: label.trim(),
-            legacyKind: legacyKindForSubmit as Shift | null,
-            sortOrder: createSortOrder,
-          });
-          if (!r.success) {
-            setError(r.error);
-            setLoading(false);
-            return;
-          }
+          const r = await createTeamShift({ teamId, label: label.trim(), color, sortOrder: createSortOrder });
+          if (!r.success) { setError(r.error); setLoading(false); return; }
         } else if (editRow) {
-          const r = await updateTeamShift({
-            id: editRow.id,
-            label: label.trim(),
-            legacyKind: legacyKindForSubmit as Shift | null,
-          });
-          if (!r.success) {
-            setError(r.error);
-            setLoading(false);
-            return;
-          }
+          const r = await updateTeamShift({ id: editRow.id, label: label.trim(), color });
+          if (!r.success) { setError(r.error); setLoading(false); return; }
         }
       }
       onSuccess();
@@ -673,14 +600,8 @@ function CatalogItemDialog({
 
   const title =
     variant === "level"
-      ? mode === "create"
-        ? "Novo nível"
-        : "Editar nível"
-      : mode === "create"
-        ? "Novo turno"
-        : "Editar turno";
-
-  const entityKind = variant === "level" ? "nível" : "turno";
+      ? mode === "create" ? "Novo nível" : "Editar nível"
+      : mode === "create" ? "Novo turno" : "Editar turno";
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -689,51 +610,45 @@ function CatalogItemDialog({
           <DialogHeader>
             <DialogTitle>{title}</DialogTitle>
           </DialogHeader>
-          <div className="grid gap-4 py-4">
+          <div className="grid py-4">
             <div className="space-y-2">
               <Label htmlFor="cat-label">Nome</Label>
               <Input
                 id="cat-label"
                 value={label}
                 onChange={(e) => setLabel(e.target.value)}
-                placeholder={
-                  variant === "level"
-                    ? "ex.: N1 Jr, Suporte Noturno"
-                    : "ex.: Turno Manhã"
-                }
+                placeholder={variant === "level" ? "ex.: N1, Sênior, Suporte Noturno" : "ex.: Turno Manhã"}
                 autoComplete="off"
                 disabled={loading}
               />
             </div>
-
             <div className="space-y-2">
-              <Label htmlFor="cat-legacy-kind">Tipo do sistema</Label>
-              <Select
-                value={legacyKind}
-                onValueChange={(v) => setLegacyKind(v)}
-                disabled={loading}
-              >
-                <SelectTrigger id="cat-legacy-kind">
-                  <SelectValue placeholder="Selecione" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value={CUSTOM_LEGACY_KIND_VALUE}>
-                    Personalizado (sem regra de escala)
-                  </SelectItem>
-                  {options.map((o) => (
-                    <SelectItem key={o.value} value={o.value}>
-                      {o.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Label htmlFor="cat-color">Cor</Label>
+              <div className="flex items-center gap-3">
+                <input
+                  id="cat-color"
+                  type="color"
+                  value={color}
+                  disabled={loading}
+                  onChange={(e) => setColor(e.target.value)}
+                  className="h-10 w-14 cursor-pointer rounded-md border border-border bg-transparent p-1"
+                  aria-label="Selecionar cor"
+                />
+                <Input
+                  value={color}
+                  onChange={(e) => setColor(e.target.value)}
+                  placeholder="#3b82f6"
+                  autoComplete="off"
+                  disabled={loading}
+                />
+                <div className="min-w-[80px] text-right">
+                  <ColorBadge label={variant === "level" ? "Nível" : "Turno"} color={color} />
+                </div>
+              </div>
               <p className="text-xs text-muted-foreground">
-                {legacyKindForSubmit
-                  ? `Este ${entityKind} entra nas regras de escala/sobreaviso do tipo ${legacyKindForSubmit}. Só pode existir um ${entityKind} por tipo em cada equipe.`
-                  : `${entityKind[0].toUpperCase()}${entityKind.slice(1)} personalizado: aparece no catálogo, mas fica fora das regras atuais de escala e do formulário de membros até que a parametrização seja implementada.`}
+                Use um hex no formato <span className="font-mono">#RRGGBB</span>.
               </p>
             </div>
-
             {error ? (
               <p className="text-sm text-destructive" role="alert">
                 {error}

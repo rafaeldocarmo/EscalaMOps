@@ -15,7 +15,6 @@ function dateToKey(d: Date): string {
   return `${y}-${m}-${day}`;
 }
 
-/** Usar para datas vindas do banco (UTC) para evitar deslocamento por fuso. */
 function dateToKeyUTC(d: Date): string {
   const y = d.getUTCFullYear();
   const m = String(d.getUTCMonth() + 1).padStart(2, "0");
@@ -74,9 +73,7 @@ export async function getWeeklySchedule(): Promise<{
   const scheduleIds: string[] = [];
   const s1 = defaultTeam
     ? await prisma.schedule.findUnique({
-        where: {
-          teamId_year_month: { teamId: defaultTeam.id, year: yearStart, month: monthStart },
-        },
+        where: { teamId_year_month: { teamId: defaultTeam.id, year: yearStart, month: monthStart } },
         select: { id: true },
       })
     : await prisma.schedule.findFirst({
@@ -87,9 +84,7 @@ export async function getWeeklySchedule(): Promise<{
   if (yearEnd !== yearStart || monthEnd !== monthStart) {
     const s2 = defaultTeam
       ? await prisma.schedule.findUnique({
-          where: {
-            teamId_year_month: { teamId: defaultTeam.id, year: yearEnd, month: monthEnd },
-          },
+          where: { teamId_year_month: { teamId: defaultTeam.id, year: yearEnd, month: monthEnd } },
           select: { id: true },
         })
       : await prisma.schedule.findFirst({
@@ -99,13 +94,35 @@ export async function getWeeklySchedule(): Promise<{
     if (s2) scheduleIds.push(s2.id);
   }
 
-  const levels = ["N1", "N2"];
-  const shifts = ["T1", "T2", "T3"];
-  const orderedGroups: { shift: string; level: string }[] = [];
-  for (const level of levels) {
-    for (const shift of shifts) {
-      if (level === "N2" && shift === "T3") continue;
-      orderedGroups.push({ level, shift });
+  const members = await prisma.teamMember.findMany({
+    where: { participatesInSchedule: true },
+    orderBy: [
+      { teamLevel: { sortOrder: "asc" } },
+      { teamShift: { sortOrder: "asc" } },
+      { name: "asc" },
+    ],
+    select: {
+      id: true,
+      name: true,
+      teamLevelId: true,
+      teamShiftId: true,
+      teamLevel: { select: { label: true, sortOrder: true } },
+      teamShift: { select: { label: true, sortOrder: true } },
+    },
+  });
+
+  // Build ordered groups from distinct (teamLevelId, teamShiftId) pairs
+  const seenGroups = new Set<string>();
+  const orderedGroups: { level: string; shift: string; key: string }[] = [];
+  for (const m of members) {
+    const key = `${m.teamLevelId}_${m.teamShiftId}`;
+    if (!seenGroups.has(key)) {
+      seenGroups.add(key);
+      orderedGroups.push({
+        level: m.teamLevel.label,
+        shift: m.teamShift.label,
+        key,
+      });
     }
   }
 
@@ -119,12 +136,6 @@ export async function getWeeklySchedule(): Promise<{
       })),
     };
   }
-
-  const members = await prisma.teamMember.findMany({
-    where: { participatesInSchedule: true },
-    orderBy: [{ level: "asc" }, { shift: "asc" }, { name: "asc" }],
-    select: { id: true, name: true, level: true, shift: true },
-  });
 
   const offAssignments = await prisma.scheduleAssignment.findMany({
     where: {
@@ -144,12 +155,12 @@ export async function getWeeklySchedule(): Promise<{
   for (const day of weekDays) {
     byDayByGroup.set(day.dateKey, new Map());
     for (const g of orderedGroups) {
-      byDayByGroup.get(day.dateKey)!.set(`${g.level}_${g.shift}`, []);
+      byDayByGroup.get(day.dateKey)!.set(g.key, []);
     }
   }
 
   for (const member of members) {
-    const groupKey = `${member.level}_${member.shift}`;
+    const groupKey = `${member.teamLevelId}_${member.teamShiftId}`;
     const name = member.name.trim();
     const parts = name.split(/\s+/);
     const displayName = parts.length >= 2 ? `${parts[0]} ${parts[parts.length - 1]}` : name;
@@ -171,7 +182,7 @@ export async function getWeeklySchedule(): Promise<{
     days: weekDays.map((day) => ({
       shift: g.shift,
       level: g.level,
-      names: byDayByGroup.get(day.dateKey)?.get(`${g.level}_${g.shift}`) ?? [],
+      names: byDayByGroup.get(day.dateKey)?.get(g.key) ?? [],
     })),
   }));
 

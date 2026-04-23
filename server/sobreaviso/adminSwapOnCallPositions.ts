@@ -96,7 +96,7 @@ export async function adminSwapOnCallPositions(
     endDate: format(r.endDate, "yyyy-MM-dd"),
     memberId: r.memberId,
     memberName: r.member.name,
-    level: r.teamLevel?.label ?? r.level ?? "",
+    level: r.teamLevel?.label ?? "",
   }));
 
   return { success: true, sobreavisoWeeks };

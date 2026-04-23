@@ -67,12 +67,12 @@ export async function getSobreavisoSummaryForWeek(): Promise<OnCallSummaryByWeek
   ]);
 
   function toSummary(
-    assignments: { member: { name: string }; teamLevel: { label: string } | null; level: string | null }[],
+    assignments: { member: { name: string }; teamLevel: { label: string } | null }[],
   ): OnCallSummaryForWeek[] {
     const byLevel = new Map<string, Set<string>>();
 
     for (const a of assignments) {
-      const lvl = a.teamLevel?.label ?? a.level ?? "—";
+      const lvl = a.teamLevel?.label ?? "—";
       if (!byLevel.has(lvl)) byLevel.set(lvl, new Set());
       byLevel.get(lvl)!.add(a.member.name);
     }

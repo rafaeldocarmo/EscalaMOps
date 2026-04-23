@@ -2,7 +2,6 @@ import { clearSobreavisoForMonth } from "@/server/sobreaviso/clearSobreavisoForM
 import { generateSobreavisoForMonth } from "@/server/sobreaviso/generateSobreavisoForMonth";
 import { adminSwapOnCallPositions } from "@/server/sobreaviso/adminSwapOnCallPositions";
 import { prisma } from "@/lib/prisma";
-import { Level, Shift } from "@/lib/generated/prisma/enums";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { mockResolvedSession, resetAuthMock } from "@/tests/helpers/auth-mock";
 import { sessionAsAdmin, sessionAsAdminTeam, sessionAsPlainUser } from "@/tests/helpers/session-factory";
@@ -127,25 +126,21 @@ describe.skipIf(!hasDatabaseUrl)("sobreaviso — gerar, limpar, swap admin (inte
       const a = await prisma.teamMember.create({
         data: {
           teamId: ctx1.team.id,
-          teamLevelId: ctx1.levelIds[Level.N1],
-          teamShiftId: ctx1.shiftIds[Shift.T1],
+          teamLevelId: ctx1.levelIds["N1"],
+          teamShiftId: ctx1.shiftIds["T1"],
           name: "A",
           phone: tail,
           normalizedPhone: `55${tail}`,
-          level: Level.N1,
-          shift: Shift.T1,
         },
       });
       const b = await prisma.teamMember.create({
         data: {
           teamId: ctx2.team.id,
-          teamLevelId: ctx2.levelIds[Level.N1],
-          teamShiftId: ctx2.shiftIds[Shift.T1],
+          teamLevelId: ctx2.levelIds["N1"],
+          teamShiftId: ctx2.shiftIds["T1"],
           name: "B",
           phone: "11987654322",
           normalizedPhone: "5511987654322",
-          level: Level.N1,
-          shift: Shift.T1,
         },
       });
       try {
@@ -169,25 +164,21 @@ describe.skipIf(!hasDatabaseUrl)("sobreaviso — gerar, limpar, swap admin (inte
       const a = await prisma.teamMember.create({
         data: {
           teamId: ctxA.team.id,
-          teamLevelId: ctxA.levelIds[Level.N1],
-          teamShiftId: ctxA.shiftIds[Shift.T1],
+          teamLevelId: ctxA.levelIds["N1"],
+          teamShiftId: ctxA.shiftIds["T1"],
           name: "Membro A",
           phone: "11911111111",
           normalizedPhone: "5511911111111",
-          level: Level.N1,
-          shift: Shift.T1,
         },
       });
       const b = await prisma.teamMember.create({
         data: {
           teamId: ctxA.team.id,
-          teamLevelId: ctxA.levelIds[Level.N1],
-          teamShiftId: ctxA.shiftIds[Shift.T1],
+          teamLevelId: ctxA.levelIds["N1"],
+          teamShiftId: ctxA.shiftIds["T1"],
           name: "Membro B",
           phone: "11922222222",
           normalizedPhone: "5511922222222",
-          level: Level.N1,
-          shift: Shift.T1,
         },
       });
       try {
@@ -212,13 +203,11 @@ describe.skipIf(!hasDatabaseUrl)("sobreaviso — gerar, limpar, swap admin (inte
       const mA = await prisma.teamMember.create({
         data: {
           teamId: team.id,
-          teamLevelId: levelIds[Level.N2],
-          teamShiftId: shiftIds[Shift.T1],
+          teamLevelId: levelIds["N2"],
+          teamShiftId: shiftIds["T1"],
           name: "Swap A",
           phone: "11933333333",
           normalizedPhone: "5511933333333",
-          level: Level.N2,
-          shift: Shift.T1,
           sobreaviso: true,
           onCallRotationIndex: 1,
         },
@@ -226,13 +215,11 @@ describe.skipIf(!hasDatabaseUrl)("sobreaviso — gerar, limpar, swap admin (inte
       const mB = await prisma.teamMember.create({
         data: {
           teamId: team.id,
-          teamLevelId: levelIds[Level.N2],
-          teamShiftId: shiftIds[Shift.T1],
+          teamLevelId: levelIds["N2"],
+          teamShiftId: shiftIds["T1"],
           name: "Swap B",
           phone: "11944444444",
           normalizedPhone: "5511944444444",
-          level: Level.N2,
-          shift: Shift.T1,
           sobreaviso: true,
           onCallRotationIndex: 9,
         },
@@ -241,7 +228,7 @@ describe.skipIf(!hasDatabaseUrl)("sobreaviso — gerar, limpar, swap admin (inte
       const asnA = await prisma.onCallAssignment.create({
         data: {
           memberId: mA.id,
-          level: Level.N2,
+          teamLevelId: levelIds["N2"],
           startDate: new Date(Date.UTC(2099, 5, 1, 12, 0, 0)),
           endDate: new Date(Date.UTC(2099, 5, 20, 12, 0, 0)),
         },
@@ -249,7 +236,7 @@ describe.skipIf(!hasDatabaseUrl)("sobreaviso — gerar, limpar, swap admin (inte
       const asnB = await prisma.onCallAssignment.create({
         data: {
           memberId: mB.id,
-          level: Level.N2,
+          teamLevelId: levelIds["N2"],
           startDate: new Date(Date.UTC(2099, 5, 10, 12, 0, 0)),
           endDate: new Date(Date.UTC(2099, 7, 1, 12, 0, 0)),
         },

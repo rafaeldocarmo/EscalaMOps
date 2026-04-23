@@ -28,7 +28,7 @@ export async function createQueueSwapRequest(targetMemberId: string): Promise<Sw
   if (!requester || !target) {
     return { success: false, error: "Membro não encontrado." };
   }
-  if (requester.level !== target.level || requester.shift !== target.shift) {
+  if (requester.teamLevelId !== target.teamLevelId || requester.teamShiftId !== target.teamShiftId) {
     return { success: false, error: "Só é possível trocar com alguém do mesmo nível e turno." };
   }
 

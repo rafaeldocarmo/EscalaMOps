@@ -22,8 +22,6 @@ import { useMonthNavigation } from "@/hooks/useMonthNavigation";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { SHIFT_OPTIONS } from "@/types/team";
-import type { Shift } from "@/types/team";
 import {
   Select,
   SelectContent,
@@ -78,7 +76,7 @@ export function UnifiedSwapForm({ memberId, initialMode }: UnifiedSwapFormProps)
   const [originalDate, setOriginalDate] = useState<string>("");
   const [targetDate, setTargetDate] = useState<string>("");
   const [justification, setJustification] = useState<string>("");
-  const [turnTargetShift, setTurnTargetShift] = useState<Shift | "">("");
+  const [turnTargetShift, setTurnTargetShift] = useState<string>("");
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
 
   const [queueMembers, setQueueMembers] = useState<{ id: string; name: string }[]>([]);
@@ -225,7 +223,7 @@ export function UnifiedSwapForm({ memberId, initialMode }: UnifiedSwapFormProps)
     e.preventDefault();
     setMessage(null);
     if (!originalDate || !turnTargetShift) return;
-    const result = await createShiftSwapRequest(originalDate, turnTargetShift as Shift, justification);
+    const result = await createShiftSwapRequest(originalDate, turnTargetShift, justification);
     if (result.success) {
       setMessage({ type: "success", text: "Solicitação enviada. Aguarde aprovação do administrador." });
       setOriginalDate("");
@@ -433,21 +431,13 @@ export function UnifiedSwapForm({ memberId, initialMode }: UnifiedSwapFormProps)
         {isTurnMode && (
           <div className="mb-3">
             <p className="mb-2 text-sm font-medium">Ir para o turno</p>
-            <Select
+            <input
+              type="text"
               value={turnTargetShift}
-              onValueChange={(v) => setTurnTargetShift(v as Shift)}
-            >
-              <SelectTrigger size="sm">
-                <SelectValue placeholder="Selecione o turno" />
-              </SelectTrigger>
-              <SelectContent>
-                {SHIFT_OPTIONS.map((opt) => (
-                  <SelectItem key={opt.value} value={opt.value}>
-                    {opt.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+              onChange={(e) => setTurnTargetShift(e.target.value)}
+              placeholder="Nome do turno desejado"
+              className="w-full rounded-md border border-border/50 bg-background px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            />
             {originalDate && (
               <p className="mt-2 text-xs text-muted-foreground">
                 Dia selecionado: {formatDateKeyToDDMMYYYY(originalDate)}
@@ -737,7 +727,7 @@ export function UnifiedSwapForm({ memberId, initialMode }: UnifiedSwapFormProps)
           <form onSubmit={handleSubmitTurnSwap} className="space-y-3 rounded-lg border bg-muted/30 p-3">
             <p className="text-sm font-medium text-foreground">
               Deseja trocar seu turno no dia <strong>{formatDateKeyToDDMMYYYY(originalDate)}</strong> para{" "}
-              <strong>{SHIFT_OPTIONS.find((o) => o.value === turnTargetShift)?.label ?? turnTargetShift}</strong>?
+              <strong>{turnTargetShift}</strong>?
             </p>
             <p className="text-xs text-muted-foreground">
               A solicitação será enviada ao administrador para aprovação.

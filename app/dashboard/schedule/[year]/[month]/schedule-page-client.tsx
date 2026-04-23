@@ -232,10 +232,6 @@ export function SchedulePageClient({
     if (swapLoading) return;
     const member = memberById.get(memberId);
     if (!member) return;
-    if (member.level !== "N1" && member.level !== "N2") {
-      toast.info("Troca de posição na fila está disponível apenas para N1/N2.");
-      return;
-    }
     if (!selectedMemberId) {
       setSelectedMemberId(memberId);
       return;

@@ -117,14 +117,6 @@ export async function approveSwap(swapRequestId: string): Promise<SwapActionResu
     return { success: false, error: "Status inválido para aprovação." };
   }
 
-  // Swaps de on-call exigem level enum (catálogo legado). Membros com catálogo
-  // personalizado (level=null) ficam fora do on-call.
-  if (swap.type === "ONCALL_SWAP" && swap.requester.level == null) {
-    return {
-      success: false,
-      error: "Swap de on-call indisponível: o requisitante usa nível personalizado, que ainda não está parametrizado.",
-    };
-  }
 
   const swapTeamId = swap.requester.teamId ?? (await getDefaultTeam())?.id ?? null;
 
@@ -264,18 +256,14 @@ export async function approveSwap(swapRequestId: string): Promise<SwapActionResu
         endDate: { gt: rangeStart },
       };
 
-      // Critical: onCallAssignment has a `level` column and the UI groups by `level`.
-      // When approving an ONCALL_SWAP, we must only swap assignments that belong to the same level
-      // as the requesting/target members (otherwise we can "move" a member between level sections).
-      // Guard de null já foi feito antes de entrar na transaction.
-      const swapLevel = requester.level!;
+      const swapTeamLevelId = requester.teamLevelId;
 
       const [assignmentsA, assignmentsB] = await Promise.all([
         tx.onCallAssignment.findMany({
-          where: { memberId: swap.requesterId, level: swapLevel, ...overlapWhere },
+          where: { memberId: swap.requesterId, teamLevelId: swapTeamLevelId, ...overlapWhere },
         }),
         tx.onCallAssignment.findMany({
-          where: { memberId: swap.targetMemberId, level: swapLevel, ...overlapWhere },
+          where: { memberId: swap.targetMemberId, teamLevelId: swapTeamLevelId, ...overlapWhere },
         }),
       ]);
 

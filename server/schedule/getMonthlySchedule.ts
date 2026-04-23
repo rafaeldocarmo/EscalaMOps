@@ -8,16 +8,28 @@ import { loadMemberFormCatalogForTeam } from "@/server/team/loadMemberFormCatalo
 import type { ScheduleRow, ScheduleAssignmentRow } from "@/types/schedule";
 import type { TeamMemberRow } from "@/types/team";
 
+const memberSelect = {
+  id: true,
+  name: true,
+  phone: true,
+  teamLevelId: true,
+  teamShiftId: true,
+  teamLevel: { select: { label: true } },
+  teamShift: { select: { label: true } },
+  sobreaviso: true,
+  participatesInSchedule: true,
+  createdAt: true,
+  updatedAt: true,
+} as const;
+
 type RawMember = {
   id: string;
   name: string;
   phone: string;
-  level: TeamMemberRow["level"];
-  shift: TeamMemberRow["shift"];
   teamLevelId: string;
   teamShiftId: string;
-  teamLevel: { label: string; legacyKind: TeamMemberRow["levelLegacyKind"] };
-  teamShift: { label: string; legacyKind: TeamMemberRow["shiftLegacyKind"] };
+  teamLevel: { label: string };
+  teamShift: { label: string };
   sobreaviso: boolean;
   participatesInSchedule: boolean;
   createdAt: Date;
@@ -33,11 +45,6 @@ function toTeamMemberRow(m: RawMember): TeamMemberRow {
     teamShiftId: m.teamShiftId,
     levelLabel: m.teamLevel.label,
     shiftLabel: m.teamShift.label,
-    levelLegacyKind: m.teamLevel.legacyKind,
-    shiftLegacyKind: m.teamShift.legacyKind,
-    level: m.level,
-    shift: m.shift,
-    isCustom: m.teamLevel.legacyKind == null || m.teamShift.legacyKind == null,
     sobreaviso: m.sobreaviso,
     participatesInSchedule: m.participatesInSchedule,
     createdAt: m.createdAt,
@@ -60,7 +67,6 @@ export async function getMonthlySchedule(
   schedule: ScheduleRow | null;
   assignments: ScheduleAssignmentRow[];
   members: TeamMemberRow[];
-  /** Catálogo da equipe da escala (níveis/turnos em Configurações), quando houver. */
   memberFormCatalog: MemberFormCatalog | null;
 } | null> {
   const session = await auth();
@@ -69,21 +75,16 @@ export async function getMonthlySchedule(
   const explicitTeamId = await resolveTeamIdForRead(teamId);
   const scheduleTeamId = explicitTeamId ?? (await getDefaultTeam())?.id ?? null;
 
-  const memberSelect = {
-    id: true,
-    name: true,
-    phone: true,
-    level: true,
-    shift: true,
-    teamLevelId: true,
-    teamShiftId: true,
-    teamLevel: { select: { label: true, legacyKind: true } },
-    teamShift: { select: { label: true, legacyKind: true } },
-    sobreaviso: true,
+  const memberWhere = {
+    ...(scheduleTeamId ? { teamId: scheduleTeamId } : {}),
     participatesInSchedule: true,
-    createdAt: true,
-    updatedAt: true,
-  } as const;
+  };
+
+  const memberOrder = [
+    { teamLevel: { sortOrder: "asc" } } as const,
+    { teamShift: { sortOrder: "asc" } } as const,
+    { name: "asc" } as const,
+  ];
 
   const schedule = scheduleTeamId
     ? await prisma.schedule.findUnique({
@@ -97,51 +98,26 @@ export async function getMonthlySchedule(
 
   if (!schedule) {
     const members = await prisma.teamMember.findMany({
-      where: {
-        ...(scheduleTeamId ? { teamId: scheduleTeamId } : {}),
-        participatesInSchedule: true,
-      },
+      where: memberWhere,
       select: memberSelect,
-      orderBy: [
-        { teamLevel: { sortOrder: "asc" } },
-        { teamShift: { sortOrder: "asc" } },
-        { name: "asc" },
-      ],
+      orderBy: memberOrder,
     });
     const daysInMonth = new Date(year, month, 0).getDate();
     const assignments: ScheduleAssignmentRow[] = [];
     for (const m of members) {
       for (let day = 1; day <= daysInMonth; day++) {
         const dateKey = `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
-        assignments.push({
-          id: "",
-          scheduleId: "",
-          memberId: m.id,
-          date: dateKey,
-          status: "WORK",
-        });
+        assignments.push({ id: "", scheduleId: "", memberId: m.id, date: dateKey, status: "WORK" });
       }
     }
     const memberFormCatalog = scheduleTeamId ? await loadMemberFormCatalogForTeam(scheduleTeamId) : null;
-    return {
-      schedule: null,
-      assignments,
-      memberFormCatalog,
-      members: members.map(toTeamMemberRow),
-    };
+    return { schedule: null, assignments, memberFormCatalog, members: members.map(toTeamMemberRow) };
   }
 
   const members = await prisma.teamMember.findMany({
-    where: {
-      ...(scheduleTeamId ? { teamId: scheduleTeamId } : {}),
-      participatesInSchedule: true,
-    },
+    where: memberWhere,
     select: memberSelect,
-    orderBy: [
-      { teamLevel: { sortOrder: "asc" } },
-      { teamShift: { sortOrder: "asc" } },
-      { name: "asc" },
-    ],
+    orderBy: memberOrder,
   });
 
   const memberFormCatalog = scheduleTeamId ? await loadMemberFormCatalogForTeam(scheduleTeamId) : null;

@@ -53,6 +53,6 @@ export async function getSobreavisoScheduleForMonth(
     endDate: format(a.endDate, "yyyy-MM-dd"),
     memberId: a.memberId,
     memberName: a.member.name,
-    level: a.teamLevel?.label ?? a.level ?? "",
+    level: a.teamLevel?.label ?? "",
   }));
 }

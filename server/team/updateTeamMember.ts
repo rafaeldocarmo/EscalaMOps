@@ -78,8 +78,6 @@ export async function updateTeamMember(
         normalizedPhone,
         teamLevelId: parsed.data.teamLevelId,
         teamShiftId: parsed.data.teamShiftId,
-        level: combo.legacyLevel,
-        shift: combo.legacyShift,
         sobreaviso,
         participatesInSchedule,
       },

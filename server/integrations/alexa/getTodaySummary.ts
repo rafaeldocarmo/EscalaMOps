@@ -54,8 +54,11 @@ export async function getTodaySummary(): Promise<AlexaTodaySummary> {
         startDate: { lte: todayNoonUtc },
         endDate: { gt: todayNoonUtc },
       },
-      include: { member: { select: { name: true } } },
-      orderBy: [{ level: "asc" }, { member: { name: "asc" } }],
+      include: {
+        member: { select: { name: true } },
+        teamLevel: { select: { label: true } },
+      },
+      orderBy: [{ teamLevel: { sortOrder: "asc" } }, { member: { name: "asc" } }],
     }),
   ]);
 
@@ -85,7 +88,7 @@ export async function getTodaySummary(): Promise<AlexaTodaySummary> {
     else work.push(m.name);
   }
 
-  const onCallList = onCall.map((r) => `${r.member.name} (${r.level})`);
+  const onCallList = onCall.map((r) => `${r.member.name} (${r.teamLevel?.label ?? ""})`);
 
   log({
     level: "info",

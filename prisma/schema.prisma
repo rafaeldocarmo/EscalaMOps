@@ -73,20 +73,6 @@ model User {
   @@map("users")
 }
 
-enum Level {
-  N1
-  N2
-  ESPC
-  PRODUCAO
-}
-
-enum Shift {
-  T1
-  T2
-  T3
-  TC
-}
-
 model Team {
   id        String   @id @default(cuid())
   name      String
@@ -105,24 +91,17 @@ model Team {
   @@map("teams")
 }
 
-/**
- * Nível configurável por equipe. É a fonte de verdade para o nível de um TeamMember.
- *
- * `legacyKind` liga a linha a um valor do enum `Level` (N1/N2/ESPC/PRODUCAO), usado
- * pelas regras de negócio hardcoded (rotação, sobreaviso, fim de semana). Quando
- * `legacyKind` é NULL, a linha representa um nível novo criado pelo usuário que
- * ainda não está parametrizado — ele existe no catálogo mas fica de fora das regras.
- */
+/** Nível configurável por equipe. É a fonte de verdade para o nível de um TeamMember. */
 model TeamLevel {
-  id         String   @id @default(cuid())
-  teamId     String   @map("team_id")
+  id        String   @id @default(cuid())
+  teamId    String   @map("team_id")
   /** Nome exibido na UI. Único por equipe. */
-  label      String
-  /** Mapeamento para o enum Level (null = nível custom ainda sem regra associada). */
-  legacyKind Level?   @map("legacy_kind")
-  sortOrder  Int      @default(0) @map("sort_order")
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  label     String
+  /** Cor (hex) para destacar o nível na UI. */
+  color     String   @default("#64748b")
+  sortOrder Int      @default(0) @map("sort_order")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   team              Team                    @relation(fields: [teamId], references: [id], onDelete: Cascade)
   allowedShifts     TeamLevelAllowedShift[]
@@ -131,25 +110,20 @@ model TeamLevel {
   onCallAssignments OnCallAssignment[]
 
   @@unique([teamId, label])
-  @@unique([teamId, legacyKind])
   @@index([teamId])
   @@map("team_levels")
 }
 
-/**
- * Turno configurável por equipe. É a fonte de verdade para o turno de um TeamMember.
- *
- * `legacyKind` liga a linha a um valor do enum `Shift` (T1/T2/T3/TC), pelas mesmas
- * razões descritas em TeamLevel.legacyKind.
- */
+/** Turno configurável por equipe. É a fonte de verdade para o turno de um TeamMember. */
 model TeamShift {
-  id         String   @id @default(cuid())
-  teamId     String   @map("team_id")
-  label      String
-  legacyKind Shift?   @map("legacy_kind")
-  sortOrder  Int      @default(0) @map("sort_order")
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  id        String   @id @default(cuid())
+  teamId    String   @map("team_id")
+  label     String
+  /** Cor (hex) para destacar o turno na UI. */
+  color     String   @default("#64748b")
+  sortOrder Int      @default(0) @map("sort_order")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   team             Team                    @relation(fields: [teamId], references: [id], onDelete: Cascade)
   allowedForLevels TeamLevelAllowedShift[]
@@ -157,7 +131,6 @@ model TeamShift {
   scheduleRules    ScheduleRule[]
 
   @@unique([teamId, label])
-  @@unique([teamId, legacyKind])
   @@index([teamId])
   @@map("team_shifts")
 }
@@ -177,24 +150,15 @@ model TeamLevelAllowedShift {
 
 model TeamMember {
   id                    String   @id @default(cuid())
-  teamId                String?  @map("team_id")
+  teamId          String?  @map("team_id")
   /** FK para TeamLevel: fonte de verdade do nível do membro. */
-  teamLevelId           String   @map("team_level_id")
+  teamLevelId     String   @map("team_level_id")
   /** FK para TeamShift: fonte de verdade do turno do membro. */
-  teamShiftId           String   @map("team_shift_id")
-  name                  String
-  phone                 String
-  normalizedPhone       String   @map("normalized_phone")
-  /**
-   * @deprecated Derivado automaticamente de `teamLevel.legacyKind`. NULL quando o
-   * TeamLevel do membro ainda não tem regra legada associada (catálogo custom),
-   * caso em que o membro fica fora das regras de escala/sobreaviso/on-call.
-   * Será removido quando as regras forem parametrizadas.
-   */
-  level                 Level?
-  /** @deprecated idem TeamMember.level, para turnos. */
-  shift                 Shift?
-  sobreaviso            Boolean  @default(false)
+  teamShiftId     String   @map("team_shift_id")
+  name            String
+  phone           String
+  normalizedPhone String   @map("normalized_phone")
+  sobreaviso      Boolean  @default(false)
   participatesInSchedule Boolean @default(true) @map("participates_in_schedule")
   rotationIndex         Int      @default(0) @map("rotation_index")
   onCallRotationIndex   Int      @default(0) @map("on_call_rotation_index")
@@ -313,8 +277,6 @@ model OnCallAssignment {
   id          String   @id @default(cuid())
   memberId    String   @map("member_id")
   teamLevelId String?  @map("team_level_id")
-  /** @deprecated Use teamLevelId + teamLevel.label. Null para membros com nível custom. */
-  level       Level?
   startDate   DateTime @map("start_date")
   endDate     DateTime @map("end_date")
   createdAt   DateTime @default(now()) @map("created_at")

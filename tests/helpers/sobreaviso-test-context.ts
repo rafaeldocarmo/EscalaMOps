@@ -1,10 +1,9 @@
 import { randomBytes } from "node:crypto";
 import { prisma } from "@/lib/prisma";
-import { Level, Shift } from "@/lib/generated/prisma/enums";
 import {
   cleanupTeamCascade,
   createTeamWithLegacyCatalog,
-  ensureLegacyCatalogForTeam,
+  ensureCatalogForTeam,
   uniqueTeamName,
 } from "@/tests/helpers/team-crud-context";
 
@@ -15,17 +14,15 @@ function mkPhones(slot: number) {
 
 /** Três membros elegíveis para geração de sobreaviso (N2, ESPC, PRODUCAO), com `sobreaviso: true`. */
 export async function createSobreavisoEligibleMembers(teamId: string) {
-  const { levelIds, shiftIds } = await ensureLegacyCatalogForTeam(teamId);
+  const { levelIds, shiftIds } = await ensureCatalogForTeam(teamId);
 
   const mN2 = await prisma.teamMember.create({
     data: {
       teamId,
-      teamLevelId: levelIds[Level.N2],
-      teamShiftId: shiftIds[Shift.T1],
+      teamLevelId: levelIds["N2"],
+      teamShiftId: shiftIds["T1"],
       name: "Sobre N2",
       ...mkPhones(1),
-      level: Level.N2,
-      shift: Shift.T1,
       sobreaviso: true,
       onCallRotationIndex: 0,
     },
@@ -33,12 +30,10 @@ export async function createSobreavisoEligibleMembers(teamId: string) {
   const mEspc = await prisma.teamMember.create({
     data: {
       teamId,
-      teamLevelId: levelIds[Level.ESPC],
-      teamShiftId: shiftIds[Shift.TC],
+      teamLevelId: levelIds["ESPC"],
+      teamShiftId: shiftIds["TC"],
       name: "Sobre ESPC",
       ...mkPhones(2),
-      level: Level.ESPC,
-      shift: Shift.TC,
       sobreaviso: true,
       onCallRotationIndex: 0,
     },
@@ -46,12 +41,10 @@ export async function createSobreavisoEligibleMembers(teamId: string) {
   const mProd = await prisma.teamMember.create({
     data: {
       teamId,
-      teamLevelId: levelIds[Level.PRODUCAO],
-      teamShiftId: shiftIds[Shift.TC],
+      teamLevelId: levelIds["Produção"],
+      teamShiftId: shiftIds["TC"],
       name: "Sobre PROD",
       ...mkPhones(3),
-      level: Level.PRODUCAO,
-      shift: Shift.TC,
       sobreaviso: true,
       onCallRotationIndex: 0,
     },
@@ -65,12 +58,8 @@ export async function createTeamWithSobreavisoMembers() {
   return { team, ...members };
 }
 
-/** Remove assignments de plantão e depois a equipe (membros, escalas). */
 export async function cleanupTeamAndOnCallAssignments(teamId: string): Promise<void> {
-  const members = await prisma.teamMember.findMany({
-    where: { teamId },
-    select: { id: true },
-  });
+  const members = await prisma.teamMember.findMany({ where: { teamId }, select: { id: true } });
   const ids = members.map((m) => m.id);
   if (ids.length > 0) {
     await prisma.onCallAssignment.deleteMany({ where: { memberId: { in: ids } } });

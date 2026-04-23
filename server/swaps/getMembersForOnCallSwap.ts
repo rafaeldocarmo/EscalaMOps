@@ -5,7 +5,7 @@ import { prisma } from "@/lib/prisma";
 import type { MemberOption } from "@/types/swaps";
 
 /**
- * List team members eligible for on-call swap: same level, sobreaviso=true, excluding self.
+ * List team members eligible for on-call swap: same teamLevelId, sobreaviso=true, excluding self.
  */
 export async function getMembersForOnCallSwap(): Promise<MemberOption[]> {
   const session = await auth();
@@ -13,7 +13,7 @@ export async function getMembersForOnCallSwap(): Promise<MemberOption[]> {
 
   const self = await prisma.teamMember.findUnique({
     where: { id: session.member.id },
-    select: { level: true, sobreaviso: true },
+    select: { teamLevelId: true, sobreaviso: true },
   });
 
   if (!self || !self.sobreaviso) return [];
@@ -21,7 +21,7 @@ export async function getMembersForOnCallSwap(): Promise<MemberOption[]> {
   const members = await prisma.teamMember.findMany({
     where: {
       id: { not: session.member.id },
-      level: self.level,
+      teamLevelId: self.teamLevelId,
       sobreaviso: true,
     },
     orderBy: { name: "asc" },

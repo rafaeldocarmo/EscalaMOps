@@ -47,9 +47,9 @@ describe("Etapa 2 — mock global de auth() e factories de sessão", () => {
   });
 
   it("createMemberFixture produz membro determinístico", () => {
-    const m = createMemberFixture({ id: "m-custom", level: "N2" });
+    const m = createMemberFixture({ id: "m-custom", teamLevelId: "level-custom-id" });
     expect(m.id).toBe("m-custom");
-    expect(m.level).toBe("N2");
-    expect(m.shift).toBe("T1");
+    expect(m.teamLevelId).toBe("level-custom-id");
+    expect(m.teamShiftId).toBe("shift-test-id");
   });
 });
