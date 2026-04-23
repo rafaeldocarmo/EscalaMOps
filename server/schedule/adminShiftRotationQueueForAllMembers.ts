@@ -6,12 +6,14 @@ import { prisma } from "@/lib/prisma";
 import { assertStaffCanMutateSchedule } from "@/server/schedule/assertStaffScheduleAccess";
 import type { ScheduleAssignmentRow } from "@/types/schedule";
 import {
-  WEEKEND_COVERAGE,
-  WEEKEND_GROUPS,
   getQueueOrder,
-  type GroupKey,
+  listMemberGroups,
   type QueueMember,
 } from "./queueManager";
+import {
+  getWeekendCoverageCount,
+  resolveScheduleRules,
+} from "./resolveScheduleRules";
 import { generateMonthlySchedule } from "./generateMonthlySchedule";
 import { saveScheduleAssignments } from "./saveScheduleAssignments";
 
@@ -23,17 +25,15 @@ export type AdminShiftRotationQueueForAllMembersResult =
 
 function computeStepUpdatesForGroup(
   queue: QueueMember[],
-  groupKey: GroupKey,
+  count: number,
   direction: Direction
 ): { memberId: string; newRotationIndex: number }[] {
-  const count = WEEKEND_COVERAGE[groupKey];
   if (count <= 0 || queue.length === 0) return [];
 
   const take = Math.min(count, queue.length);
   const ordered = queue.slice().sort((a, b) => a.rotationIndex - b.rotationIndex);
 
   if (direction === 1) {
-    // forward: select first `take`, move them to the end with fresh rotationIndex
     const maxIndex = Math.max(0, ...ordered.map((m) => m.rotationIndex));
     const selected = ordered.slice(0, take);
     return selected.map((m, i) => ({
@@ -42,11 +42,8 @@ function computeStepUpdatesForGroup(
     }));
   }
 
-  // direction === -1
-  // reverse: last `take` members (they were the ones moved to end in the last forward step)
-  // are moved to the front by assigning them indices < current minimum.
   const minIndex = Math.min(...ordered.map((m) => m.rotationIndex));
-  const selected = ordered.slice(ordered.length - take); // keep order (already ascending)
+  const selected = ordered.slice(ordered.length - take);
   return selected.map((m, i) => ({
     memberId: m.id,
     newRotationIndex: minIndex - take + i,
@@ -74,40 +71,43 @@ export async function adminShiftRotationQueueForAllMembers(
 
   const schedule = await prisma.schedule.findUnique({
     where: { id: scheduleId },
-    select: { id: true, month: true, year: true },
+    select: { id: true, month: true, year: true, teamId: true },
   });
   if (!schedule) return { success: false, error: "Escala não encontrada." };
 
+  const resolved = await resolveScheduleRules(schedule.teamId);
+
   const rawRotationMembers = await prisma.teamMember.findMany({
     where: {
+      teamId: schedule.teamId,
       participatesInSchedule: true,
-      level: { in: ["N1", "N2"] },
-      shift: { not: null },
     },
     select: {
       id: true,
       name: true,
-      level: true,
-      shift: true,
+      teamShiftId: true,
+      teamLevelId: true,
       rotationIndex: true,
     },
   });
-  const rotationMembers: QueueMember[] = rawRotationMembers.map((m) => ({
+  const allMembers: QueueMember[] = rawRotationMembers.map((m) => ({
     id: m.id,
     name: m.name,
-    level: m.level!,
-    shift: m.shift!,
+    teamShiftId: m.teamShiftId,
+    teamLevelId: m.teamLevelId,
     rotationIndex: m.rotationIndex,
   }));
 
-  // Apply a single weekend-step to each shift/level queue group.
-  // Forward (+1) consumes the next weekend; reverse (-1) undoes the last consumption.
+  // Só grupos com cobertura > 0 participam do rodízio.
+  const rotationMembers = allMembers.filter(
+    (m) => getWeekendCoverageCount(resolved, m.teamShiftId, m.teamLevelId) > 0
+  );
+
   const allUpdates: { memberId: string; newRotationIndex: number }[] = [];
-  for (const groupKey of WEEKEND_GROUPS) {
-    const groupQueue = getQueueOrder(rotationMembers, groupKey);
-    allUpdates.push(
-      ...computeStepUpdatesForGroup(groupQueue, groupKey, direction)
-    );
+  for (const { teamShiftId, teamLevelId } of listMemberGroups(rotationMembers)) {
+    const count = getWeekendCoverageCount(resolved, teamShiftId, teamLevelId);
+    const groupQueue = getQueueOrder(rotationMembers, teamShiftId, teamLevelId);
+    allUpdates.push(...computeStepUpdatesForGroup(groupQueue, count, direction));
   }
 
   try {
@@ -119,14 +119,17 @@ export async function adminShiftRotationQueueForAllMembers(
         });
       }
 
-      // remove all OFF records (WORK is implicit)
       await tx.scheduleAssignment.deleteMany({ where: { scheduleId } });
     });
   } catch {
     return { success: false, error: "Erro ao atualizar fila de rotação." };
   }
 
-  const assignments = await generateMonthlySchedule(schedule.month, schedule.year);
+  const assignments = await generateMonthlySchedule(
+    schedule.month,
+    schedule.year,
+    schedule.teamId
+  );
   const payload = assignments.map((a) => ({
     memberId: a.memberId,
     date: a.date,
@@ -146,4 +149,3 @@ export async function adminShiftRotationQueueForAllMembers(
 
   return { success: true, assignments: assignmentsForClient };
 }
-

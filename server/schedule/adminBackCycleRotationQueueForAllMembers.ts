@@ -9,26 +9,31 @@ import type { SobreavisoWeek } from "@/server/sobreaviso/getSobreavisoScheduleFo
 import { generateMonthlySchedule } from "./generateMonthlySchedule";
 import { saveScheduleAssignments } from "./saveScheduleAssignments";
 import { getSobreavisoScheduleForMonth } from "@/server/sobreaviso/getSobreavisoScheduleForMonth";
-import type { QueueMember } from "./queueManager";
 import {
-  WEEKEND_GROUPS,
   getQueueOrder,
+  listMemberGroups,
+  type QueueMember,
 } from "./queueManager";
+import {
+  getWeekendCoverageCount,
+  resolveScheduleRules,
+} from "./resolveScheduleRules";
 
 export type AdminBackCycleRotationQueueForAllMembersResult =
   | { success: true; assignments: ScheduleAssignmentRow[]; sobreavisoWeeks: SobreavisoWeek[] }
   | { success: false; error: string };
 
 /**
- * Cyclically shifts rotationIndex backwards by 1 position (per shift/level queue group):
- * - 1st -> last
- * - 2nd -> 1st
- * - 3rd -> 2nd
+ * Retrocede ciclicamente o `rotationIndex` em 1 posição por grupo (shift×level)
+ * com cobertura > 0:
+ * - 1º -> último
+ * - 2º -> 1º
+ * - 3º -> 2º
  * ...
- * Then regenerates the monthly schedule for the current schedule month/year.
+ * E então regenera a escala do mês atual.
  *
- * IMPORTANT: generateAutomaticSchedule() blocks when the table already has assignments, so we
- * explicitly clear schedule assignments and regenerate directly here.
+ * `generateAutomaticSchedule` bloqueia quando já existem assignments; por isso
+ * limpamos e regeramos direto aqui.
  */
 export async function adminBackCycleRotationQueueForAllMembers(
   scheduleId: string
@@ -52,33 +57,43 @@ export async function adminBackCycleRotationQueueForAllMembers(
     return { success: false, error: "Escala não encontrada." };
   }
 
+  const resolved = await resolveScheduleRules(schedule.teamId);
+
   const rawRotationMembers = await prisma.teamMember.findMany({
     where: {
+      teamId: schedule.teamId,
       participatesInSchedule: true,
-      level: { in: ["N1", "N2"] },
-      shift: { not: null },
     },
     orderBy: [{ rotationIndex: "asc" }, { name: "asc" }],
-    select: { id: true, name: true, level: true, shift: true, rotationIndex: true },
+    select: {
+      id: true,
+      name: true,
+      teamShiftId: true,
+      teamLevelId: true,
+      rotationIndex: true,
+    },
   });
-  const rotationMembers: QueueMember[] = rawRotationMembers.map((m) => ({
+  const allMembers: QueueMember[] = rawRotationMembers.map((m) => ({
     id: m.id,
     name: m.name,
-    level: m.level!,
-    shift: m.shift!,
+    teamShiftId: m.teamShiftId,
+    teamLevelId: m.teamLevelId,
     rotationIndex: m.rotationIndex,
   }));
 
-  // Build updates for each weekend queue group; members not in WEEKEND_GROUPS don't affect selection anyway.
+  const rotationMembers = allMembers.filter(
+    (m) => getWeekendCoverageCount(resolved, m.teamShiftId, m.teamLevelId) > 0
+  );
+
   const updates: { memberId: string; newRotationIndex: number }[] = [];
-  for (const groupKey of WEEKEND_GROUPS) {
-    const queue = getQueueOrder(rotationMembers, groupKey);
+  for (const { teamShiftId, teamLevelId } of listMemberGroups(rotationMembers)) {
+    const queue = getQueueOrder(rotationMembers, teamShiftId, teamLevelId);
     if (queue.length <= 1) continue;
 
     const n = queue.length;
     for (let i = 0; i < n; i++) {
       const target = queue[i];
-      const source = queue[(i - 1 + n) % n]; // back shift: 1st->last
+      const source = queue[(i - 1 + n) % n];
       updates.push({ memberId: target.id, newRotationIndex: source.rotationIndex });
     }
   }
@@ -92,14 +107,17 @@ export async function adminBackCycleRotationQueueForAllMembers(
         });
       }
 
-      // Clear ALL existing OFF records so we can regenerate from scratch.
       await tx.scheduleAssignment.deleteMany({ where: { scheduleId } });
     });
   } catch {
     return { success: false, error: "Erro ao retroceder fila de rotação." };
   }
 
-  const assignments = await generateMonthlySchedule(schedule.month, schedule.year);
+  const assignments = await generateMonthlySchedule(
+    schedule.month,
+    schedule.year,
+    schedule.teamId
+  );
   const payload = assignments.map((a) => ({
     memberId: a.memberId,
     date: a.date,
@@ -127,4 +145,3 @@ export async function adminBackCycleRotationQueueForAllMembers(
 
   return { success: true, assignments: assignmentsForClient, sobreavisoWeeks };
 }
-

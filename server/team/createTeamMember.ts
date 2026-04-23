@@ -67,11 +67,8 @@ export async function createTeamMember(
       };
     }
 
-    // Níveis/turnos personalizados ficam fora das regras legadas (escala, sobreaviso, on-call).
-    const sobreaviso = combo.isCustom ? false : parsed.data.sobreaviso ?? false;
-    const participatesInSchedule = combo.isCustom
-      ? false
-      : parsed.data.participatesInSchedule ?? true;
+    const sobreaviso = parsed.data.sobreaviso ?? false;
+    const participatesInSchedule = parsed.data.participatesInSchedule ?? true;
 
     const member = await prisma.teamMember.create({
       data: {

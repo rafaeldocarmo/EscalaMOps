@@ -1,10 +1,10 @@
-import type { QueueMember } from "./queueManager";
 import {
-  WEEKEND_GROUPS,
-  WEEKEND_COVERAGE,
   getQueueOrder,
+  listMemberGroups,
   selectAndAdvanceQueue,
+  type QueueMember,
 } from "./queueManager";
+import { getWeekendCoverageCount, type ResolvedRuleSet } from "./resolveScheduleRules";
 
 export interface WeekendSelectionResult {
   weekendWorkerIds: Set<string>;
@@ -12,24 +12,27 @@ export interface WeekendSelectionResult {
 }
 
 /**
- * For a given weekend (Saturday and Sunday dates), select employees from each queue
- * according to WEEKEND_COVERAGE. Same employees work both days.
- * Returns the set of member IDs who work the weekend and queue updates (move to end).
+ * Para um fim de semana (sábado+domingo), seleciona os trabalhadores de cada
+ * grupo (teamShiftId × teamLevelId) presente na lista de membros, respeitando
+ * a quantidade definida em `ResolvedRuleSet.weekendCoverage`.
+ *
+ * As mesmas pessoas trabalham sábado e domingo. Grupos sem regra ou com
+ * `count=0` ficam todos em OFF no fim de semana.
  */
 export function selectWeekendWorkers(
   members: QueueMember[],
-  saturday: Date,
-  sunday: Date
+  _saturday: Date,
+  _sunday: Date,
+  resolved: ResolvedRuleSet
 ): WeekendSelectionResult {
   const weekendWorkerIds = new Set<string>();
-  const allQueueUpdates: { memberId: string; newRotationIndex: number }[] = [];
   const seenUpdates = new Map<string, number>();
 
-  for (const groupKey of WEEKEND_GROUPS) {
-    const count = WEEKEND_COVERAGE[groupKey];
-    if (count === 0) continue;
+  for (const { teamShiftId, teamLevelId } of listMemberGroups(members)) {
+    const count = getWeekendCoverageCount(resolved, teamShiftId, teamLevelId);
+    if (count <= 0) continue;
 
-    const queue = getQueueOrder(members, groupKey);
+    const queue = getQueueOrder(members, teamShiftId, teamLevelId);
     const { selected, updates } = selectAndAdvanceQueue(queue, count);
 
     for (const m of selected) {
@@ -43,9 +46,10 @@ export function selectWeekendWorkers(
     }
   }
 
+  const queueUpdates: { memberId: string; newRotationIndex: number }[] = [];
   for (const [memberId, newRotationIndex] of seenUpdates) {
-    allQueueUpdates.push({ memberId, newRotationIndex });
+    queueUpdates.push({ memberId, newRotationIndex });
   }
 
-  return { weekendWorkerIds, queueUpdates: allQueueUpdates };
+  return { weekendWorkerIds, queueUpdates };
 }

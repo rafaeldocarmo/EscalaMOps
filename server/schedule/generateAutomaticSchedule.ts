@@ -71,7 +71,7 @@ export async function generateAutomaticSchedule(
       event: "schedule.generate_auto.compute_assignments",
       data: { scheduleId, year: schedule.year, month: schedule.month },
     });
-    const assignments = await generateMonthlySchedule(schedule.month, schedule.year);
+    const assignments = await generateMonthlySchedule(schedule.month, schedule.year, schedule.teamId);
     const payload = assignments.map((a) => ({
       memberId: a.memberId,
       date: a.date,

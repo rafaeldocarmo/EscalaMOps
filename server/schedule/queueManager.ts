@@ -1,58 +1,42 @@
-import type { Level, Shift } from "@/lib/generated/prisma/enums";
-
+/**
+ * Gerenciamento da fila de rotação de fim de semana.
+ *
+ * A chave de agrupamento é o par (teamShiftId, teamLevelId) do catálogo da
+ * equipe. As constantes `WEEKEND_COVERAGE` / `WEEKEND_GROUPS` que existiam
+ * aqui foram substituídas por `ScheduleRule` (kind=WEEKEND_COVERAGE),
+ * consultadas via `resolveScheduleRules`.
+ */
 export interface QueueMember {
   id: string;
   name: string;
-  shift: Shift;
-  level: Level;
+  teamShiftId: string;
+  teamLevelId: string;
   rotationIndex: number;
 }
 
-export type GroupKey = `${Shift}_${Level}`;
-
-export const WEEKEND_COVERAGE: Record<GroupKey, number> = {
-  T1_N1: 1,
-  T1_N2: 2,
-  T1_ESPC: 0,
-  T1_PRODUCAO: 0,
-  T2_N1: 1,
-  T2_N2: 2,
-  T2_ESPC: 0,
-  T2_PRODUCAO: 0,
-  T3_N1: 1,
-  T3_N2: 0,
-  T3_ESPC: 0,
-  T3_PRODUCAO: 0,
-  TC_N1: 0,
-  TC_N2: 0,
-  TC_ESPC: 0,
-  TC_PRODUCAO: 0,
-};
-
-/** Groups that participate in weekend rotation. */
-export const WEEKEND_GROUPS: GroupKey[] = [
-  "T1_N1",
-  "T1_N2",
-  "T2_N1",
-  "T2_N2",
-  "T3_N1",
-];
-
-export function toGroupKey(shift: Shift, level: Level): GroupKey {
-  return `${shift}_${level}`;
+/** Chave interna estável para um grupo (shift, level). */
+export function groupKey(teamShiftId: string, teamLevelId: string): string {
+  return `${teamShiftId}|${teamLevelId}`;
 }
 
-/** Get queue order for a group: sorted by rotationIndex ascending (lower = next in line). */
-export function getQueueOrder(members: QueueMember[], groupKey: GroupKey): QueueMember[] {
-  const [shift, level] = groupKey.split("_") as [Shift, Level];
+/**
+ * Retorna a fila do grupo (shift, level) ordenada por rotationIndex ascendente
+ * (quem tem índice menor é o próximo a trabalhar).
+ */
+export function getQueueOrder(
+  members: QueueMember[],
+  teamShiftId: string,
+  teamLevelId: string
+): QueueMember[] {
   return members
-    .filter((m) => m.shift === shift && m.level === level)
+    .filter((m) => m.teamShiftId === teamShiftId && m.teamLevelId === teamLevelId)
     .sort((a, b) => a.rotationIndex - b.rotationIndex);
 }
 
 /**
- * Select the next `count` members from the front of the queue.
- * Returns selected members and the updated list (selected moved to end with new indices).
+ * Seleciona os próximos `count` membros do início da fila e retorna:
+ * - `selected`: os escolhidos;
+ * - `updates`: novos `rotationIndex` para mover os escolhidos para o fim da fila.
  */
 export function selectAndAdvanceQueue(
   queue: QueueMember[],
@@ -69,4 +53,23 @@ export function selectAndAdvanceQueue(
     updates.push({ memberId: m.id, newRotationIndex: maxIndex + 1 + i });
   });
   return { selected, updates };
+}
+
+/**
+ * Conjunto único de pares (shiftId, levelId) presentes nos membros. Útil para
+ * iterar os grupos de rotação sem depender de uma lista pré-definida.
+ */
+export function listMemberGroups(
+  members: QueueMember[]
+): { teamShiftId: string; teamLevelId: string }[] {
+  const seen = new Set<string>();
+  const out: { teamShiftId: string; teamLevelId: string }[] = [];
+  for (const m of members) {
+    const k = groupKey(m.teamShiftId, m.teamLevelId);
+    if (!seen.has(k)) {
+      seen.add(k);
+      out.push({ teamShiftId: m.teamShiftId, teamLevelId: m.teamLevelId });
+    }
+  }
+  return out;
 }

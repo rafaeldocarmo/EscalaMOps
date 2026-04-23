@@ -38,7 +38,6 @@ function toUtcDateKey(d: Date): string {
   return `${y}-${m}-${day}`;
 }
 
-const ON_CALL_LEVELS = ["N2", "ESPC", "PRODUCAO"];
 
 function buildSobreavisoMembers(
   weeks: SobreavisoWeek[],
@@ -49,7 +48,6 @@ function buildSobreavisoMembers(
   // Inclui todos os participantes elegíveis (para ninguém “sumir” da escala).
   if (eligibleMembers?.length) {
     for (const m of eligibleMembers) {
-      if (!ON_CALL_LEVELS.includes(m.level)) continue;
       map.set(m.id, {
         memberId: m.id,
         memberName: m.name,

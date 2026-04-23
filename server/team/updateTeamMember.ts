@@ -13,24 +13,6 @@ export type UpdateTeamMemberResult =
   | { success: true }
   | { success: false; error: string; fieldErrors?: Record<string, string[]> };
 
-/**
- * Verifica se o membro tem histórico que impede a troca para um catálogo custom
- * (escala, on-call, bank hours). Returns o primeiro motivo encontrado ou null.
- */
-async function findLegacyHistoryBlocker(memberId: string): Promise<string | null> {
-  const [scheduleCount, onCallCount, bankRequestCount, bankTxCount] = await Promise.all([
-    prisma.scheduleAssignment.count({ where: { memberId } }),
-    prisma.onCallAssignment.count({ where: { memberId } }),
-    prisma.bankHourRequest.count({ where: { requesterId: memberId } }),
-    prisma.bankHourTransaction.count({ where: { memberId } }),
-  ]);
-
-  if (scheduleCount > 0) return "escala";
-  if (onCallCount > 0) return "on-call";
-  if (bankRequestCount > 0 || bankTxCount > 0) return "banco de horas";
-  return null;
-}
-
 export async function updateTeamMember(
   id: string,
   input: UpdateTeamMemberInput
@@ -63,13 +45,7 @@ export async function updateTeamMember(
 
   const memberRow = await prisma.teamMember.findUnique({
     where: { id },
-    select: {
-      teamId: true,
-      teamLevelId: true,
-      teamShiftId: true,
-      teamLevel: { select: { legacyKind: true } },
-      teamShift: { select: { legacyKind: true } },
-    },
+    select: { teamId: true },
   });
   if (!memberRow) {
     return { success: false, error: "Membro não encontrado." };
@@ -88,34 +64,11 @@ export async function updateTeamMember(
     };
   }
 
-  // Se mudou para um catálogo personalizado (legacyKind=NULL) e o membro antigo tinha regra legada,
-  // bloqueia se houver histórico — regras legadas não sabem tratar membros sem enum.
-  const movingToCustom = combo.isCustom;
-  const wasLegacy =
-    memberRow.teamLevel?.legacyKind != null && memberRow.teamShift?.legacyKind != null;
-  const changedCatalog =
-    memberRow.teamLevelId !== parsed.data.teamLevelId ||
-    memberRow.teamShiftId !== parsed.data.teamShiftId;
-
-  if (changedCatalog && movingToCustom && wasLegacy) {
-    const blocker = await findLegacyHistoryBlocker(id);
-    if (blocker) {
-      const msg = `Não é possível trocar para um nível/turno personalizado: o membro já tem ${blocker} registrado. Remova esses registros antes ou use um nível/turno com regra definida.`;
-      return {
-        success: false,
-        error: msg,
-        fieldErrors: { teamLevelId: [msg] },
-      };
-    }
-  }
-
   try {
     const normalizedPhone = normalizePhone(parsed.data.phone).trim();
 
-    const sobreaviso = combo.isCustom ? false : parsed.data.sobreaviso ?? false;
-    const participatesInSchedule = combo.isCustom
-      ? false
-      : parsed.data.participatesInSchedule ?? true;
+    const sobreaviso = parsed.data.sobreaviso ?? false;
+    const participatesInSchedule = parsed.data.participatesInSchedule ?? true;
 
     await prisma.teamMember.update({
       where: { id },

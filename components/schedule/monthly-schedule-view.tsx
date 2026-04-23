@@ -15,7 +15,6 @@ import {
 import { ScheduleGrid } from "./schedule-grid";
 import { MonthNavigator } from "./month-navigator";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import type { Level, Shift } from "@/types/team";
 import { MultiSelect } from "@/components/ui/multi-select";
 import { useMonthNavigation } from "@/hooks/useMonthNavigation";
 import { SobreavisoTable } from "./sobreaviso-table";
@@ -29,8 +28,8 @@ export function MonthlyScheduleView() {
   const [year, setYear] = useState(now.getFullYear());
   const [month, setMonth] = useState(now.getMonth() + 1);
   const [bootstrap, setBootstrap] = useState<MonthlyDashboardBootstrap | null>(null);
-  const [levelFilter, setLevelFilter] = useState<Level[]>(["N1", "N2"]);
-  const [shiftFilter, setShiftFilter] = useState<Shift[]>([]);
+  const [levelFilter, setLevelFilter] = useState<string[]>([]);
+  const [shiftFilter, setShiftFilter] = useState<string[]>([]);
 
   const loadBootstrap = useCallback(() => {
     return getMonthlyDashboardBootstrap(year, month).then(setBootstrap);
@@ -97,14 +96,12 @@ export function MonthlyScheduleView() {
   } = bootstrap;
 
   const stateMap = assignmentsToStateMap(assignments);
-  // A escala legada só inclui membros com level/shift enum definidos; níveis/turnos
-  // personalizados ficam fora até serem parametrizados.
-  let visibleMembers = members.filter((m) => m.level != null && m.shift != null);
+  let visibleMembers = members.filter((m) => m.participatesInSchedule !== false);
   if (levelFilter.length > 0) {
-    visibleMembers = visibleMembers.filter((m) => m.level != null && levelFilter.includes(m.level));
+    visibleMembers = visibleMembers.filter((m) => levelFilter.includes(m.teamLevelId));
   }
   if (shiftFilter.length > 0) {
-    visibleMembers = visibleMembers.filter((m) => m.shift != null && shiftFilter.includes(m.shift));
+    visibleMembers = visibleMembers.filter((m) => shiftFilter.includes(m.teamShiftId));
   }
 
   const sections = buildScheduleSections(visibleMembers);

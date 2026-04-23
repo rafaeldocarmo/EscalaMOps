@@ -42,6 +42,7 @@ export async function getSobreavisoScheduleForMonth(
     },
     include: {
       member: { select: { name: true } },
+      teamLevel: { select: { label: true } },
     },
     orderBy: { startDate: "asc" },
   });
@@ -52,6 +53,6 @@ export async function getSobreavisoScheduleForMonth(
     endDate: format(a.endDate, "yyyy-MM-dd"),
     memberId: a.memberId,
     memberName: a.member.name,
-    level: a.level,
+    level: a.teamLevel?.label ?? a.level ?? "",
   }));
 }

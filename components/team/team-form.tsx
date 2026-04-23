@@ -71,14 +71,6 @@ function findShift(memberCatalog: MemberFormCatalog | null | undefined, id: stri
   return memberCatalog?.shifts.find((s) => s.id === id) ?? null;
 }
 
-function canSobreavisoByLegacy(legacyLevel: "N1" | "N2" | "ESPC" | "PRODUCAO" | null): boolean {
-  return legacyLevel === "N2" || legacyLevel === "ESPC" || legacyLevel === "PRODUCAO";
-}
-
-function forceSobreavisoByLegacy(legacyLevel: "N1" | "N2" | "ESPC" | "PRODUCAO" | null): boolean {
-  return legacyLevel === "PRODUCAO";
-}
-
 export function TeamForm({
   defaultValues,
   memberCatalog,
@@ -120,9 +112,11 @@ export function TeamForm({
 
   const selectedLevel = findLevel(memberCatalog, teamLevelId);
   const selectedShift = findShift(memberCatalog, teamShiftId);
-  const isCustomSelection =
-    (selectedLevel != null && selectedLevel.legacyKind == null) ||
-    (selectedShift != null && selectedShift.legacyKind == null);
+
+  // Custom levels/shifts are still valid — no restriction on participatesInSchedule or sobreaviso.
+  // The admin decides per member.
+  void selectedLevel;
+  void selectedShift;
 
   const handleLevelChange = useCallback(
     (value: string) => {
@@ -140,25 +134,6 @@ export function TeamForm({
       }
       setTeamShiftId(nextShiftId);
       setLevelShiftError(validateCombo(value, nextShiftId, memberCatalog, false));
-
-      const newLevel = findLevel(memberCatalog, value);
-      const newShift = findShift(memberCatalog, nextShiftId);
-      const customNow =
-        (newLevel != null && newLevel.legacyKind == null) ||
-        (newShift != null && newShift.legacyKind == null);
-
-      if (customNow) {
-        setSobreaviso(false);
-        setParticipatesInSchedule(false);
-        return;
-      }
-
-      const legacy = newLevel?.legacyKind ?? null;
-      if (forceSobreavisoByLegacy(legacy)) {
-        setSobreaviso(true);
-      } else if (!canSobreavisoByLegacy(legacy)) {
-        setSobreaviso(false);
-      }
     },
     [teamShiftId, memberCatalog, isEditWithoutCatalog],
   );
@@ -167,12 +142,6 @@ export function TeamForm({
     (value: string) => {
       setTeamShiftId(value);
       setLevelShiftError(validateCombo(teamLevelId, value, memberCatalog, isEditWithoutCatalog));
-
-      const newShift = findShift(memberCatalog, value);
-      if (newShift != null && newShift.legacyKind == null) {
-        setSobreaviso(false);
-        setParticipatesInSchedule(false);
-      }
     },
     [teamLevelId, memberCatalog, isEditWithoutCatalog],
   );
@@ -190,29 +159,13 @@ export function TeamForm({
       return;
     }
 
-    let finalSobreaviso: boolean;
-    let finalParticipates: boolean;
-
-    if (isCustomSelection) {
-      finalSobreaviso = false;
-      finalParticipates = false;
-    } else {
-      const legacy = selectedLevel?.legacyKind ?? null;
-      finalSobreaviso = forceSobreavisoByLegacy(legacy)
-        ? true
-        : canSobreavisoByLegacy(legacy)
-          ? sobreaviso
-          : false;
-      finalParticipates = participatesInSchedule;
-    }
-
     await onSubmit({
       name: name.trim(),
       phone: phone.trim(),
       teamLevelId,
       teamShiftId,
-      sobreaviso: finalSobreaviso,
-      participatesInSchedule: finalParticipates,
+      sobreaviso,
+      participatesInSchedule,
     });
   }
 
@@ -274,9 +227,6 @@ export function TeamForm({
   }, [memberCatalog, teamLevelId, defaultValues?.teamLevelId, defaultValues?.teamShiftId, isEdit]);
 
   const createBlocked = !isEdit && !memberCatalog;
-
-  const legacyLevel = selectedLevel?.legacyKind ?? null;
-  const showSobreavisoSwitch = !isCustomSelection && canSobreavisoByLegacy(legacyLevel);
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
@@ -369,9 +319,6 @@ export function TeamForm({
                 {levelChoices.map((opt) => (
                   <SelectItem key={opt.id} value={opt.id}>
                     {opt.label}
-                    {opt.legacyKind == null ? (
-                      <span className="ml-2 text-xs text-muted-foreground">(personalizado)</span>
-                    ) : null}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -396,9 +343,6 @@ export function TeamForm({
                 {shiftChoices.map((opt) => (
                   <SelectItem key={opt.id} value={opt.id}>
                     {opt.label}
-                    {opt.legacyKind == null ? (
-                      <span className="ml-2 text-xs text-muted-foreground">(personalizado)</span>
-                    ) : null}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -412,66 +356,49 @@ export function TeamForm({
         </>
       ) : null}
 
-      {isCustomSelection ? (
-        <div className="rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-sm text-foreground">
-          <p className="font-medium">Nível ou turno personalizado</p>
-          <p className="mt-1 text-muted-foreground">
-            Esta combinação ainda não tem regra legada associada. O membro ficará fora da escala mensal, do sobreaviso
-            e do on-call até que você parametrize as regras para este nível/turno.
-          </p>
-        </div>
-      ) : null}
-
-      {!isCustomSelection ? (
-        <div className="flex items-center gap-3">
-          <button
-            type="button"
-            role="switch"
-            aria-checked={participatesInSchedule}
-            disabled={loading}
-            onClick={() => setParticipatesInSchedule((v) => !v)}
-            className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 ${
-              participatesInSchedule ? "bg-primary" : "bg-input"
+      <div className="flex items-center gap-3">
+        <button
+          type="button"
+          role="switch"
+          aria-checked={participatesInSchedule}
+          disabled={loading}
+          onClick={() => setParticipatesInSchedule((v) => !v)}
+          className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 ${
+            participatesInSchedule ? "bg-primary" : "bg-input"
+          }`}
+        >
+          <span
+            className={`pointer-events-none block h-5 w-5 rounded-full bg-background shadow-lg ring-0 transition-transform ${
+              participatesInSchedule ? "translate-x-5" : "translate-x-0"
             }`}
-          >
-            <span
-              className={`pointer-events-none block h-5 w-5 rounded-full bg-background shadow-lg ring-0 transition-transform ${
-                participatesInSchedule ? "translate-x-5" : "translate-x-0"
-              }`}
-            />
-          </button>
-          <Label className="cursor-pointer" onClick={() => !loading && setParticipatesInSchedule((v) => !v)}>
-            Participa da rotação da escala
-          </Label>
-        </div>
-      ) : null}
+          />
+        </button>
+        <Label className="cursor-pointer" onClick={() => !loading && setParticipatesInSchedule((v) => !v)}>
+          Participa da rotação da escala
+        </Label>
+      </div>
 
-      {showSobreavisoSwitch && (
-        <div className="flex items-center gap-3">
-          <button
-            type="button"
-            role="switch"
-            aria-checked={sobreaviso}
-            disabled={loading || forceSobreavisoByLegacy(legacyLevel)}
-            onClick={() => setSobreaviso((v) => !v)}
-            className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 ${
-              sobreaviso ? "bg-primary" : "bg-input"
+      <div className="flex items-center gap-3">
+        <button
+          type="button"
+          role="switch"
+          aria-checked={sobreaviso}
+          disabled={loading}
+          onClick={() => setSobreaviso((v) => !v)}
+          className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 ${
+            sobreaviso ? "bg-primary" : "bg-input"
+          }`}
+        >
+          <span
+            className={`pointer-events-none block h-5 w-5 rounded-full bg-background shadow-lg ring-0 transition-transform ${
+              sobreaviso ? "translate-x-5" : "translate-x-0"
             }`}
-          >
-            <span
-              className={`pointer-events-none block h-5 w-5 rounded-full bg-background shadow-lg ring-0 transition-transform ${
-                sobreaviso ? "translate-x-5" : "translate-x-0"
-              }`}
-            />
-          </button>
-          <Label
-            className="cursor-pointer"
-            onClick={() => !loading && !forceSobreavisoByLegacy(legacyLevel) && setSobreaviso((v) => !v)}
-          >
-            Participa do Sobreaviso{forceSobreavisoByLegacy(legacyLevel) ? " (obrigatório)" : ""}
-          </Label>
-        </div>
-      )}
+          />
+        </button>
+        <Label className="cursor-pointer" onClick={() => !loading && setSobreaviso((v) => !v)}>
+          Participa do Sobreaviso
+        </Label>
+      </div>
 
       {externalError && (
         <p className="text-sm text-destructive" role="alert">

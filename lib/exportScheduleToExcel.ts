@@ -1,6 +1,6 @@
 import ExcelJS from "exceljs";
 import type { ScheduleStateMap } from "@/types/schedule";
-import type { Level, Shift, TeamMemberRow } from "@/types/team";
+import type { Shift, TeamMemberRow } from "@/types/team";
 import type { SobreavisoWeek } from "@/server/sobreaviso/getSobreavisoScheduleForMonth";
 import { getDaysInMonth, dateKey, buildScheduleSections } from "./scheduleUtils";
 
@@ -45,8 +45,6 @@ const FILL_ONCALL_TRANSITION: ExcelJS.Fill = {
   fgColor: { argb: "FFBFDBFE" },
 };
 
-const ON_CALL_LEVELS: Level[] = ["N2", "ESPC", "PRODUCAO"];
-
 const THIN_BORDER = {
   top: { style: "thin", color: { argb: "FF000000" } },
   left: { style: "thin", color: { argb: "FF000000" } },
@@ -70,7 +68,7 @@ interface SobreavisoGridMember {
   memberId: string;
   memberName: string;
   level: string;
-  shift: Shift;
+  shift: Shift | null;
   activeDates: Set<string>;
   transitionDates: Set<string>;
 }
@@ -83,12 +81,10 @@ function buildSobreavisoGridMembers(
   const map = new Map<string, SobreavisoGridMember>();
 
   for (const m of eligibleMembers) {
-    if (!m.level || !m.shift) continue;
-    if (!ON_CALL_LEVELS.includes(m.level)) continue;
     map.set(m.id, {
       memberId: m.id,
       memberName: m.name,
-      level: m.level,
+      level: m.levelLabel,
       shift: m.shift,
       activeDates: new Set(),
       transitionDates: new Set(),
@@ -102,7 +98,7 @@ function buildSobreavisoGridMembers(
         memberId: w.memberId,
         memberName: w.memberName,
         level: w.level,
-        shift: fromTeam?.shift ?? "T1",
+        shift: fromTeam?.shift ?? null,
         activeDates: new Set(),
         transitionDates: new Set(),
       });
@@ -202,9 +198,9 @@ export async function exportScheduleToExcel(
     for (const member of section.members) {
       ws.getCell(currentRow, 1).value = member.name;
       setCellBorder(ws.getCell(currentRow, 1));
-      ws.getCell(currentRow, 2).value = member.level;
+      ws.getCell(currentRow, 2).value = member.levelLabel;
       setCellBorder(ws.getCell(currentRow, 2));
-      ws.getCell(currentRow, 3).value = member.shift;
+      ws.getCell(currentRow, 3).value = member.shiftLabel;
       setCellBorder(ws.getCell(currentRow, 3));
 
       for (let day = 1; day <= daysInMonth; day++) {
@@ -243,9 +239,7 @@ export async function exportScheduleToExcel(
   }
   currentRow += 1;
 
-  const sobreEligible = members.filter(
-    (m) => m.sobreaviso && m.level != null && ON_CALL_LEVELS.includes(m.level),
-  );
+  const sobreEligible = members.filter((m) => m.sobreaviso);
   const sobreGridMembers = buildSobreavisoGridMembers(sobreavisoWeeks, sobreEligible);
   const sobreSections = groupSobreavisoByLevel(sobreGridMembers);
 
@@ -292,7 +286,7 @@ export async function exportScheduleToExcel(
         setCellBorder(ws.getCell(currentRow, 1));
         ws.getCell(currentRow, 2).value = member.level;
         setCellBorder(ws.getCell(currentRow, 2));
-        ws.getCell(currentRow, 3).value = member.shift;
+        ws.getCell(currentRow, 3).value = member.shift ?? "";
         setCellBorder(ws.getCell(currentRow, 3));
 
         for (let day = 1; day <= daysInMonth; day++) {

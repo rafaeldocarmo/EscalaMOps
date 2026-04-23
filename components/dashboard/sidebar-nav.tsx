@@ -15,6 +15,7 @@ import {
   Settings,
   ArrowLeft,
   Shield,
+  SlidersHorizontal,
 } from "lucide-react";
 import { ViewAsMemberLink } from "@/components/dashboard/view-as-member-link";
 
@@ -66,7 +67,9 @@ export function SidebarNav() {
   const showAdminHome = isFullAdmin && hasMemberView;
   const settingsMode =
     (isFullAdmin && isSettingsSidebarPath(pathname)) ||
-    (isAdminTeam && pathname.startsWith("/dashboard/equipes/catalog"));
+    (isAdminTeam &&
+      (pathname.startsWith("/dashboard/equipes/catalog") ||
+        pathname.startsWith("/dashboard/equipes/rules")));
 
   const mainItems = [
     ...(showAdminHome
@@ -137,6 +140,12 @@ export function SidebarNav() {
                 label="Níveis e turnos"
                 icon={Layers}
                 active={pathname.startsWith("/dashboard/equipes/catalog")}
+              />
+              <Item
+                href="/dashboard/equipes/rules"
+                label="Regras de escala"
+                icon={SlidersHorizontal}
+                active={pathname.startsWith("/dashboard/equipes/rules")}
               />
               {isFullAdmin ? (
                 <Item

@@ -3,14 +3,12 @@
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { addDays, format, startOfWeek } from "date-fns";
-import type { Level } from "@/lib/generated/prisma/enums";
 
 const WEEK_STARTS_ON = 1; // Monday
 const NOON_UTC = "T12:00:00.000Z";
-const ON_CALL_LEVELS: Level[] = ["N2", "ESPC", "PRODUCAO"];
 
 export interface OnCallSummaryForWeek {
-  level: Level;
+  level: string;
   memberNames: string[];
 }
 
@@ -29,6 +27,7 @@ export interface OnCallSummaryByWeekPart {
  * - "weekendSummary": Saturday-Sunday
  *
  * Uses noon-UTC overlap so boundaries don't shift by timezone.
+ * Groups by teamLevel.label (catalog level name), falling back to level enum.
  */
 export async function getSobreavisoSummaryForWeek(): Promise<OnCallSummaryByWeekPart> {
   const session = await auth();
@@ -36,52 +35,55 @@ export async function getSobreavisoSummaryForWeek(): Promise<OnCallSummaryByWeek
 
   const now = new Date();
   const weekStart = startOfWeek(now, { weekStartsOn: WEEK_STARTS_ON });
-  // exclusive end: next Monday
   const nextWeekStart = addDays(weekStart, 7);
 
   const weekStartNoon = noonUtc(weekStart);
   const nextWeekStartNoon = noonUtc(nextWeekStart);
 
-  // Split:
-  // - weekSummary: Segunda -> Quinta (Mon-Thu): [Mon, Fri)
-  // - weekendSummary: Sexta -> Domingo (Fri-Sun): [Fri, Mon)
   const friday = addDays(weekStart, 4);
   const fridayNoon = noonUtc(friday);
 
-  const weekendAssignments = await prisma.onCallAssignment.findMany({
-    where: {
-      level: { in: ON_CALL_LEVELS },
-      startDate: { lt: nextWeekStartNoon }, // end exclusive at next Monday
-      endDate: { gt: fridayNoon }, // overlaps Fri-Sun
-    },
-    include: { member: { select: { name: true } } },
-  });
+  const [weekendAssignments, weekAssignments] = await Promise.all([
+    prisma.onCallAssignment.findMany({
+      where: {
+        startDate: { lt: nextWeekStartNoon },
+        endDate: { gt: fridayNoon },
+      },
+      include: {
+        member: { select: { name: true } },
+        teamLevel: { select: { label: true } },
+      },
+    }),
+    prisma.onCallAssignment.findMany({
+      where: {
+        startDate: { lt: fridayNoon },
+        endDate: { gt: weekStartNoon },
+      },
+      include: {
+        member: { select: { name: true } },
+        teamLevel: { select: { label: true } },
+      },
+    }),
+  ]);
 
-  const weekAssignments = await prisma.onCallAssignment.findMany({
-    where: {
-      level: { in: ON_CALL_LEVELS },
-      startDate: { lt: fridayNoon }, // end exclusive at Friday
-      endDate: { gt: weekStartNoon }, // overlaps Mon-Thu
-    },
-    include: { member: { select: { name: true } } },
-  });
-
-  function toSummary(assignments: typeof weekendAssignments): OnCallSummaryForWeek[] {
-    const byLevel = new Map<Level, Set<string>>();
-    for (const lvl of ON_CALL_LEVELS) byLevel.set(lvl, new Set());
+  function toSummary(
+    assignments: { member: { name: string }; teamLevel: { label: string } | null; level: string | null }[],
+  ): OnCallSummaryForWeek[] {
+    const byLevel = new Map<string, Set<string>>();
 
     for (const a of assignments) {
-      byLevel.get(a.level)?.add(a.member.name);
+      const lvl = a.teamLevel?.label ?? a.level ?? "—";
+      if (!byLevel.has(lvl)) byLevel.set(lvl, new Set());
+      byLevel.get(lvl)!.add(a.member.name);
     }
 
-    return ON_CALL_LEVELS.filter((lvl) => (byLevel.get(lvl)?.size ?? 0) > 0).map(
-      (lvl) => ({
+    return Array.from(byLevel.entries())
+      .filter(([, names]) => names.size > 0)
+      .sort(([a], [b]) => a.localeCompare(b, "pt-BR"))
+      .map(([lvl, names]) => ({
         level: lvl,
-        memberNames: Array.from(byLevel.get(lvl) ?? []).sort((x, y) =>
-          x.localeCompare(y, "pt-BR")
-        ),
-      })
-    );
+        memberNames: Array.from(names).sort((x, y) => x.localeCompare(y, "pt-BR")),
+      }));
   }
 
   return {
@@ -89,4 +91,3 @@ export async function getSobreavisoSummaryForWeek(): Promise<OnCallSummaryByWeek
     weekendSummary: toSummary(weekendAssignments),
   };
 }
-

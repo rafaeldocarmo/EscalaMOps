@@ -55,18 +55,12 @@ export function TeamPageClient({ initialMembers, memberFormCatalog }: TeamPageCl
 
   const levelFilterOptions = useMemo<MultiSelectOption<string>[]>(() => {
     if (!memberFormCatalog) return [];
-    return memberFormCatalog.levels.map((l) => ({
-      value: l.id,
-      label: l.legacyKind == null ? `${l.label} (personalizado)` : l.label,
-    }));
+    return memberFormCatalog.levels.map((l) => ({ value: l.id, label: l.label }));
   }, [memberFormCatalog]);
 
   const shiftFilterOptions = useMemo<MultiSelectOption<string>[]>(() => {
     if (!memberFormCatalog) return [];
-    return memberFormCatalog.shifts.map((s) => ({
-      value: s.id,
-      label: s.legacyKind == null ? `${s.label} (personalizado)` : s.label,
-    }));
+    return memberFormCatalog.shifts.map((s) => ({ value: s.id, label: s.label }));
   }, [memberFormCatalog]);
 
   const filteredMembers = useMemo(() => {

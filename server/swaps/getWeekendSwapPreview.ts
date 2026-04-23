@@ -55,7 +55,7 @@ import { addDays, nextSaturday, format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import type { QueueMember } from "@/server/schedule/queueManager";
 import { selectWeekendWorkers } from "@/server/schedule/weekendSelector";
-import type { Level, Shift } from "@/lib/generated/prisma/enums";
+import { resolveScheduleRules } from "@/server/schedule/resolveScheduleRules";
 
 export type WeekendPreviewItem = {
   weekendLabel: string;
@@ -78,28 +78,47 @@ export async function getWeekendSwapPreview(
 
   const memberId = session.member.id;
   if (memberId === swapWithMemberId) return null;
-  // Preview só é calculável para membros em regra legada.
-  if (!session.member.level || !session.member.shift) return null;
+
+  const selfMember = await prisma.teamMember.findUnique({
+    where: { id: memberId },
+    select: {
+      id: true,
+      teamId: true,
+      teamShiftId: true,
+      teamLevelId: true,
+      participatesInSchedule: true,
+    },
+  });
+  if (!selfMember || !selfMember.teamId || !selfMember.participatesInSchedule) return null;
 
   const allMembers = await prisma.teamMember.findMany({
     where: {
-      level: session.member.level as Level,
-      shift: session.member.shift as Shift,
+      teamId: selfMember.teamId,
+      teamShiftId: selfMember.teamShiftId,
+      teamLevelId: selfMember.teamLevelId,
       participatesInSchedule: true,
     },
-    select: { id: true, name: true, level: true, shift: true, rotationIndex: true },
+    select: {
+      id: true,
+      name: true,
+      teamShiftId: true,
+      teamLevelId: true,
+      rotationIndex: true,
+    },
   });
 
   const groupMembers: QueueMember[] = allMembers.map((m) => ({
     id: m.id,
     name: m.name,
-    level: m.level!,
-    shift: m.shift!,
+    teamShiftId: m.teamShiftId,
+    teamLevelId: m.teamLevelId,
     rotationIndex: m.rotationIndex,
   }));
 
   const other = groupMembers.find((m) => m.id === swapWithMemberId);
   if (!other) return null;
+
+  const resolved = await resolveScheduleRules(selfMember.teamId);
 
   const applyUpdates = (
     members: QueueMember[],
@@ -122,7 +141,7 @@ export async function getWeekendSwapPreview(
     let sat = nextSaturday(new Date());
     for (let i = 0; i < numWeekends; i++) {
       const sun = addDays(sat, 1);
-      const result = selectWeekendWorkers(state, sat, sun);
+      const result = selectWeekendWorkers(state, sat, sun, resolved);
       userWorks.push(result.weekendWorkerIds.has(memberId));
       state = applyUpdates(state, result.queueUpdates);
       sat = addDays(sat, 7);

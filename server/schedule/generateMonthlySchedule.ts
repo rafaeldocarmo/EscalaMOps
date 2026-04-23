@@ -14,6 +14,11 @@ import {
   type WeekendWithWorkers,
   type MemberForAllocation,
 } from "./offDayAllocator";
+import {
+  getWeekendCoverageCount,
+  resolveScheduleRules,
+  type ResolvedRuleSet,
+} from "./resolveScheduleRules";
 
 export interface ScheduleAssignmentOutput {
   memberId: string;
@@ -28,7 +33,6 @@ function toDateKey(d: Date): string {
   return format(d, "yyyy-MM-dd");
 }
 
-/** Get all Saturdays in the month (as Date objects). */
 function getSaturdaysInMonth(year: number, month: number): Date[] {
   const start = startOfMonth(new Date(year, month - 1));
   const end = endOfMonth(new Date(year, month - 1));
@@ -44,42 +48,76 @@ function getSaturdaysInMonth(year: number, month: number): Date[] {
 }
 
 /**
- * Generate the full set of assignments for the month.
- * - Weekends: selected workers WORK on Sat/Sun; everyone else OFF.
- * - Compensation: weekend workers get 1 OFF in week before and 1 OFF in week after.
- * - Weekdays: everyone WORK except assigned OFF (compensation).
- * - Queue positions are updated (weekend workers move to end).
+ * Gera todas as atribuições do mês para uma equipe:
+ * - Dias úteis: todos WORK, exceto OFF de compensação.
+ * - Fim de semana: trabalhadores escolhidos da fila (`WEEKEND_COVERAGE`),
+ *   demais OFF.
+ * - Compensação: trabalhadores do FDS ganham um OFF na semana anterior e um
+ *   na semana posterior, conforme o padrão configurado em `COMPENSATION_PATTERN`.
+ *
+ * As regras são lidas de `schedule_rules` via `resolveScheduleRules`. Se um
+ * grupo (shift × level) não tiver regra de cobertura ou tiver `count=0`,
+ * todos desse grupo folgam no FDS.
+ *
+ * O parâmetro opcional `teamId` fixa de qual equipe carregar as regras. Se
+ * ausente, o teamId é derivado dos membros (caminho legado usado quando o
+ * schedule é global).
  */
+export interface GenerateMonthlyScheduleOptions {
+  /**
+   * Quando `true`, não persiste atualizações no `rotationIndex`. Use para
+   * simulações/pré-visualizações sem efeito colateral no banco.
+   */
+  dryRun?: boolean;
+}
+
 export async function generateMonthlySchedule(
   month: number,
-  year: number
+  year: number,
+  teamId?: string,
+  options?: GenerateMonthlyScheduleOptions
 ): Promise<ScheduleAssignmentOutput[]> {
-  // Escala legada: apenas membros com level/shift enum (catálogo legado).
-  // Membros com catálogo personalizado (legacyKind=NULL) ficam fora da geração.
+  const dryRun = options?.dryRun === true;
   const allMembers = await prisma.teamMember.findMany({
     where: {
       participatesInSchedule: true,
-      level: { not: null },
-      shift: { not: null },
+      ...(teamId ? { teamId } : {}),
     },
-    orderBy: [{ shift: "asc" }, { level: "asc" }, { name: "asc" }],
+    select: {
+      id: true,
+      name: true,
+      teamId: true,
+      teamShiftId: true,
+      teamLevelId: true,
+      rotationIndex: true,
+    },
+    orderBy: [{ teamShiftId: "asc" }, { teamLevelId: "asc" }, { name: "asc" }],
   });
 
-  const scheduleTeamId = allMembers[0]?.teamId ?? null;
+  const scheduleTeamId = teamId ?? allMembers[0]?.teamId ?? null;
+  const resolved: ResolvedRuleSet = scheduleTeamId
+    ? await resolveScheduleRules(scheduleTeamId)
+    : { teamId: "", weekendCoverage: new Map(), compensationPattern: new Map() };
 
-  const rotationMembers = allMembers.filter((m) => m.level === "N1" || m.level === "N2");
-  const alwaysOffWeekendMembers = allMembers.filter((m) => m.level === "ESPC" || m.level === "PRODUCAO");
-
-  const queueMembers: QueueMember[] = rotationMembers.map((m) => ({
+  const queueMembers: QueueMember[] = allMembers.map((m) => ({
     id: m.id,
     name: m.name,
-    shift: m.shift!,
-    level: m.level!,
+    teamShiftId: m.teamShiftId,
+    teamLevelId: m.teamLevelId,
     rotationIndex: m.rotationIndex,
   }));
 
+  // Split entre quem entra no rodízio de FDS (count > 0) e quem sempre folga.
+  const rotationMembers = queueMembers.filter(
+    (m) => getWeekendCoverageCount(resolved, m.teamShiftId, m.teamLevelId) > 0
+  );
+  const alwaysOffWeekendIds = new Set(
+    queueMembers
+      .filter((m) => getWeekendCoverageCount(resolved, m.teamShiftId, m.teamLevelId) <= 0)
+      .map((m) => m.id)
+  );
+
   const memberIds = new Set(allMembers.map((m) => m.id));
-  const alwaysOffWeekendIds = new Set(alwaysOffWeekendMembers.map((m) => m.id));
   const assignmentsMap = new Map<string, "WORK" | "OFF">();
   const sep = "|";
 
@@ -108,8 +146,8 @@ export async function generateMonthlySchedule(
   const finalQueueUpdates = new Map<string, number>();
   const weekendsWithWorkers: WeekendWithWorkers[] = [];
 
-  // When the first day of the month is Sunday, it belongs to the previous month's last weekend.
-  // Copy assignments from previous schedule, or compute that weekend if previous schedule doesn't exist.
+  // Quando o 1º dia do mês é domingo, ele pertence ao último FDS do mês anterior.
+  // Copia do mês anterior se já existir, senão calcula diretamente.
   const firstDayOfMonth = new Date(year, month - 1, 1);
   if (getDay(firstDayOfMonth) === SUNDAY) {
     const firstDayKey = toDateKey(firstDayOfMonth);
@@ -139,13 +177,14 @@ export async function generateMonthlySchedule(
       const saturday = lastDayOfPrevMonth;
       const sunday = firstDayOfMonth;
       const { weekendWorkerIds, queueUpdates } = selectWeekendWorkers(
-        queueMembers,
+        rotationMembers,
         saturday,
-        sunday
+        sunday,
+        resolved
       );
       for (const u of queueUpdates) {
         finalQueueUpdates.set(u.memberId, u.newRotationIndex);
-        const m = queueMembers.find((x) => x.id === u.memberId);
+        const m = rotationMembers.find((x) => x.id === u.memberId);
         if (m) m.rotationIndex = u.newRotationIndex;
       }
       for (const mid of memberIds) {
@@ -166,14 +205,15 @@ export async function generateMonthlySchedule(
   for (const saturday of saturdays) {
     const sunday = addDays(saturday, 1);
     const { weekendWorkerIds, queueUpdates } = selectWeekendWorkers(
-      queueMembers,
+      rotationMembers,
       saturday,
-      sunday
+      sunday,
+      resolved
     );
 
     for (const u of queueUpdates) {
       finalQueueUpdates.set(u.memberId, u.newRotationIndex);
-      const m = queueMembers.find((x) => x.id === u.memberId);
+      const m = rotationMembers.find((x) => x.id === u.memberId);
       if (m) m.rotationIndex = u.newRotationIndex;
     }
 
@@ -198,11 +238,10 @@ export async function generateMonthlySchedule(
 
   const membersForAllocation: MemberForAllocation[] = rotationMembers.map((m) => ({
     id: m.id,
-    shift: m.shift!,
-    level: m.level!,
+    teamShiftId: m.teamShiftId,
+    teamLevelId: m.teamLevelId,
   }));
 
-  // Include next month's first day when it's the Sunday of the last weekend (Saturday = last day of month)
   const nextMonthFirstKey = format(addDays(monthEnd, 1), "yyyy-MM-dd");
   const assignmentsArray: ScheduleAssignmentInput[] = [];
   for (const [key, status] of assignmentsMap) {
@@ -223,14 +262,17 @@ export async function generateMonthlySchedule(
     assignmentsArray,
     membersForAllocation,
     month,
-    year
+    year,
+    resolved
   );
 
-  for (const [memberId, newRotationIndex] of finalQueueUpdates) {
-    await prisma.teamMember.update({
-      where: { id: memberId },
-      data: { rotationIndex: newRotationIndex },
-    });
+  if (!dryRun) {
+    for (const [memberId, newRotationIndex] of finalQueueUpdates) {
+      await prisma.teamMember.update({
+        where: { id: memberId },
+        data: { rotationIndex: newRotationIndex },
+      });
+    }
   }
 
   const result: ScheduleAssignmentOutput[] = withCompensation.map((a) => ({

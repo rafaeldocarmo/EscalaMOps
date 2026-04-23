@@ -83,7 +83,10 @@ export async function adminSwapOnCallPositions(
       endDate: { gt: monthStart },
       ...(scopeTeamId ? { member: { teamId: scopeTeamId } } : {}),
     },
-    include: { member: { select: { name: true } } },
+    include: {
+      member: { select: { name: true } },
+      teamLevel: { select: { label: true } },
+    },
     orderBy: { startDate: "asc" },
   });
 
@@ -93,7 +96,7 @@ export async function adminSwapOnCallPositions(
     endDate: format(r.endDate, "yyyy-MM-dd"),
     memberId: r.memberId,
     memberName: r.member.name,
-    level: r.level,
+    level: r.teamLevel?.label ?? r.level ?? "",
   }));
 
   return { success: true, sobreavisoWeeks };

@@ -24,7 +24,7 @@ import {
   levelOptionsForScheduleFilters,
   shiftOptionsForScheduleFilters,
 } from "@/lib/scheduleMemberFilterOptions";
-import type { TeamMemberRow, Level, Shift } from "@/types/team";
+import type { TeamMemberRow } from "@/types/team";
 import { MultiSelect } from "@/components/ui/multi-select";
 import type { SobreavisoWeek } from "@/server/sobreaviso/getSobreavisoScheduleForMonth";
 import {
@@ -87,10 +87,10 @@ export function SchedulePageClient({
   const [backCycleLoading, setBackCycleLoading] = useState(false);
   const [shiftSwapPurpleByMemberId, setShiftSwapPurpleByMemberId] = useState<Record<string, string[]>>({});
   const [hoursWithdrawnOrangeByMemberId, setHoursWithdrawnOrangeByMemberId] = useState<Record<string, string[]>>({});
-  const [levelFilter, setLevelFilter] = useState<Level[]>(() =>
+  const [levelFilter, setLevelFilter] = useState<string[]>(() =>
     initialScheduleLevelFilter(memberFormCatalog),
   );
-  const [shiftFilter, setShiftFilter] = useState<Shift[]>(() =>
+  const [shiftFilter, setShiftFilter] = useState<string[]>(() =>
     initialScheduleShiftFilter(memberFormCatalog),
   );
 
@@ -159,19 +159,18 @@ export function SchedulePageClient({
   );
 
   const scheduleMembersVisible = useMemo(() => {
-    // Somente membros com level/shift enum (catálogo legado) entram na escala.
-    let list = scheduleMembersOnly.filter((m) => m.level != null && m.shift != null);
+    let list = scheduleMembersOnly;
     if (levelFilter.length > 0) {
-      list = list.filter((m) => m.level != null && levelFilter.includes(m.level));
+      list = list.filter((m) => levelFilter.includes(m.teamLevelId));
     }
     if (shiftFilter.length > 0) {
-      list = list.filter((m) => m.shift != null && shiftFilter.includes(m.shift));
+      list = list.filter((m) => shiftFilter.includes(m.teamShiftId));
     }
     return list;
   }, [scheduleMembersOnly, levelFilter, shiftFilter]);
 
   const scheduleMembersRotationOnly = useMemo(
-    () => scheduleMembersOnly.filter((m) => m.level === "N1" || m.level === "N2"),
+    () => scheduleMembersOnly,
     [scheduleMembersOnly]
   );
 
@@ -183,12 +182,8 @@ export function SchedulePageClient({
   const sobreavisoEligibleMembers = useMemo(
     () =>
       members
-        .filter(
-          (m) =>
-            m.sobreaviso &&
-            (m.level === "N2" || m.level === "ESPC" || m.level === "PRODUCAO")
-        )
-        .map((m) => ({ id: m.id, name: m.name, level: m.level as string })),
+        .filter((m) => m.sobreaviso)
+        .map((m) => ({ id: m.id, name: m.name, level: m.levelLabel })),
     [members]
   );
 
