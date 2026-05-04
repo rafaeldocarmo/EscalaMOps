@@ -6,6 +6,10 @@ import { prisma } from "@/lib/prisma";
 import { resolveTeamIdForReadForSession } from "@/lib/multiTeam";
 import { assertStaffCanManageTeam } from "@/server/team/assertStaffCanManageTeam";
 import { generateMonthlySchedule } from "@/server/schedule/generateMonthlySchedule";
+import {
+  getWeekendCoverageCount,
+  resolveScheduleRules,
+} from "@/server/schedule/resolveScheduleRules";
 import type { TeamMemberRow } from "@/types/team";
 import type { AssignmentStatus } from "@/types/schedule";
 
@@ -68,6 +72,7 @@ export async function previewScheduleWithRules(input: {
       phone: true,
       teamLevelId: true,
       teamShiftId: true,
+      rotationIndex: true,
       teamLevel: { select: { label: true } },
       teamShift: { select: { label: true } },
       sobreaviso: true,
@@ -78,9 +83,12 @@ export async function previewScheduleWithRules(input: {
     orderBy: [
       { teamLevel: { sortOrder: "asc" } },
       { teamShift: { sortOrder: "asc" } },
+      { rotationIndex: "asc" },
       { name: "asc" },
     ],
   });
+
+  const resolved = await resolveScheduleRules(resolvedTeamId);
 
   const members: TeamMemberRow[] = rows.map((m) => ({
     id: m.id,
@@ -90,6 +98,8 @@ export async function previewScheduleWithRules(input: {
     teamShiftId: m.teamShiftId,
     levelLabel: m.teamLevel.label,
     shiftLabel: m.teamShift.label,
+    rotationIndex: m.rotationIndex,
+    weekendRotation: getWeekendCoverageCount(resolved, m.teamShiftId, m.teamLevelId) > 0,
     sobreaviso: m.sobreaviso,
     participatesInSchedule: m.participatesInSchedule,
     createdAt: m.createdAt,

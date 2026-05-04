@@ -1,4 +1,4 @@
-import type { ScheduleAssignmentRow, ScheduleStateMap } from "@/types/schedule";
+import type { ScheduleAssignmentRow, ScheduleStateMap, AssignmentStatus } from "@/types/schedule";
 import type { TeamMemberRow } from "@/types/team";
 import {
   startOfMonth,
@@ -82,7 +82,7 @@ interface GroupedMember {
   level: string;
 }
 
-/** Group members by level, then by shift, then by name. Returns flat list with shift/level labels for rendering. */
+/** Group members by level, then by shift, then by queue position (`rotationIndex`). Returns flat list with shift/level labels for rendering. */
 export function groupMembersByShiftAndLevel(
   members: TeamMemberRow[]
 ): GroupedMember[] {
@@ -91,6 +91,8 @@ export function groupMembersByShiftAndLevel(
     if (levelCmp !== 0) return levelCmp;
     const shiftCmp = a.shiftLabel.localeCompare(b.shiftLabel, "pt-BR");
     if (shiftCmp !== 0) return shiftCmp;
+    const rot = a.rotationIndex - b.rotationIndex;
+    if (rot !== 0) return rot;
     return a.name.localeCompare(b.name, "pt-BR");
   });
   return sorted.map((member) => ({
@@ -119,6 +121,106 @@ export function buildScheduleSections(
       current.shift !== shift ||
       current.level !== level
     ) {
+      current = { shift, level, members: [] };
+      sections.push(current);
+    }
+    current.members.push(member);
+  }
+  return sections;
+}
+
+function isWeekendDateKeyUTC(dateKey: string): boolean {
+  // Use UTC-safe anchor to avoid timezone shifts.
+  const d = new Date(dateKey + "T12:00:00.000Z");
+  const wd = d.getUTCDay(); // 0=Sun, 6=Sat
+  return wd === 0 || wd === 6;
+}
+
+/** Alinhado à célula da grade: só `OFF` é folga; ausência de chave = trabalho (default). */
+function cellShowsWorkOnSchedule(status: AssignmentStatus | undefined): boolean {
+  return status !== "OFF";
+}
+
+function weekendGroupKeyUTC(dateKey: string): string {
+  // Use the Saturday of that weekend as the stable key (YYYY-MM-DD).
+  const d = new Date(dateKey + "T12:00:00.000Z");
+  const wd = d.getUTCDay(); // 0=Sun, 6=Sat
+  if (wd === 6) return dateKey; // Saturday
+  if (wd === 0) {
+    const prev = new Date(d.getTime() - 86400000);
+    const y = prev.getUTCFullYear();
+    const m = String(prev.getUTCMonth() + 1).padStart(2, "0");
+    const day = String(prev.getUTCDate()).padStart(2, "0");
+    return `${y}-${m}-${day}`;
+  }
+  // Not weekend: fall back to same day (shouldn't happen for our callers).
+  return dateKey;
+}
+
+/**
+ * Ordenação visual da grade (por nível/turno):
+ * - Só considera fins de semana que caem no **mês exibido** (`isCurrentMonth`), evitando colunas
+ *   de “echimento” do mês anterior/seguinte ao mudar de mês.
+ * - Primeiro: quem **trabalha** no 1º desses fins de semana (default de célula = trabalho, como na UI).
+ * - Depois: 2º fim de semana, etc. (chave = sábado da semana em UTC).
+ * - Quem está `OFF` em todos os fds do mês fica por último; desempate: `rotationIndex`, nome.
+ */
+export function buildScheduleSectionsByNextWeekend(
+  members: TeamMemberRow[],
+  stateMap: ScheduleStateMap,
+  year: number,
+  month: number
+): ScheduleSection[] {
+  const calendarDays = getScheduleCalendarDays(year, month);
+  const weekendDateKeys = calendarDays
+    .filter((d) => d.isCurrentMonth && isWeekendDateKeyUTC(d.dateKey))
+    .map((d) => d.dateKey);
+
+  const nextWeekendGroupKeyByMemberId = new Map<string, string>();
+  for (const m of members) {
+    const slice = stateMap[m.id] ?? {};
+    let nextGroupKey: string | null = null;
+    for (const dk of weekendDateKeys) {
+      if (!cellShowsWorkOnSchedule(slice[dk])) continue;
+      const gk = weekendGroupKeyUTC(dk);
+      if (!nextGroupKey || gk.localeCompare(nextGroupKey) < 0) {
+        nextGroupKey = gk;
+      }
+    }
+    if (nextGroupKey) nextWeekendGroupKeyByMemberId.set(m.id, nextGroupKey);
+  }
+
+  const sorted = [...members].sort((a, b) => {
+    const levelCmp = a.levelLabel.localeCompare(b.levelLabel, "pt-BR");
+    if (levelCmp !== 0) return levelCmp;
+    const shiftCmp = a.shiftLabel.localeCompare(b.shiftLabel, "pt-BR");
+    if (shiftCmp !== 0) return shiftCmp;
+
+    const na = nextWeekendGroupKeyByMemberId.get(a.id);
+    const nb = nextWeekendGroupKeyByMemberId.get(b.id);
+    if (na && nb) {
+      if (na !== nb) return na.localeCompare(nb);
+    } else if (na && !nb) {
+      return -1;
+    } else if (!na && nb) {
+      return 1;
+    }
+
+    const rot = a.rotationIndex - b.rotationIndex;
+    if (rot !== 0) return rot;
+    return a.name.localeCompare(b.name, "pt-BR");
+  });
+
+  const grouped = sorted.map((member) => ({
+    member,
+    shift: member.shiftLabel,
+    level: member.levelLabel,
+  }));
+
+  const sections: ScheduleSection[] = [];
+  let current: ScheduleSection | null = null;
+  for (const { member, shift, level } of grouped) {
+    if (!current || current.shift !== shift || current.level !== level) {
       current = { shift, level, members: [] };
       sections.push(current);
     }

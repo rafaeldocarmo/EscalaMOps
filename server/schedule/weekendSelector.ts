@@ -18,6 +18,9 @@ export interface WeekendSelectionResult {
  *
  * As mesmas pessoas trabalham sábado e domingo. Grupos sem regra ou com
  * `count=0` ficam todos em OFF no fim de semana.
+ *
+ * Com cobertura **2**, após `densifyWeekendQueueByGroup` na geração mensal, os
+ * dois primeiros da fila são sempre a **dupla** atual (Fila FDS #1 e #2, etc.).
  */
 export function selectWeekendWorkers(
   members: QueueMember[],

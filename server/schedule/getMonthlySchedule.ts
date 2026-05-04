@@ -5,6 +5,10 @@ import type { MemberFormCatalog } from "@/lib/memberFormCatalog";
 import { prisma } from "@/lib/prisma";
 import { getDefaultTeam, resolveTeamIdForRead } from "@/lib/multiTeam";
 import { loadMemberFormCatalogForTeam } from "@/server/team/loadMemberFormCatalogForTeam";
+import {
+  getWeekendCoverageCount,
+  resolveScheduleRules,
+} from "@/server/schedule/resolveScheduleRules";
 import type { ScheduleRow, ScheduleAssignmentRow } from "@/types/schedule";
 import type { TeamMemberRow } from "@/types/team";
 
@@ -12,8 +16,10 @@ const memberSelect = {
   id: true,
   name: true,
   phone: true,
+  teamId: true,
   teamLevelId: true,
   teamShiftId: true,
+  rotationIndex: true,
   teamLevel: { select: { label: true } },
   teamShift: { select: { label: true } },
   sobreaviso: true,
@@ -26,8 +32,10 @@ type RawMember = {
   id: string;
   name: string;
   phone: string;
+  teamId: string;
   teamLevelId: string;
   teamShiftId: string;
+  rotationIndex: number;
   teamLevel: { label: string };
   teamShift: { label: string };
   sobreaviso: boolean;
@@ -36,7 +44,24 @@ type RawMember = {
   updatedAt: Date;
 };
 
-function toTeamMemberRow(m: RawMember): TeamMemberRow {
+async function weekendRotationByMemberIdForTeam(teamId: string | null): Promise<Map<string, boolean>> {
+  const map = new Map<string, boolean>();
+  if (!teamId) return map;
+  const resolved = await resolveScheduleRules(teamId);
+  const members = await prisma.teamMember.findMany({
+    where: { teamId, participatesInSchedule: true },
+    select: { id: true, teamShiftId: true, teamLevelId: true },
+  });
+  for (const m of members) {
+    map.set(
+      m.id,
+      getWeekendCoverageCount(resolved, m.teamShiftId, m.teamLevelId) > 0
+    );
+  }
+  return map;
+}
+
+function toTeamMemberRow(m: RawMember, weekendRotationById: Map<string, boolean>): TeamMemberRow {
   return {
     id: m.id,
     name: m.name,
@@ -45,6 +70,8 @@ function toTeamMemberRow(m: RawMember): TeamMemberRow {
     teamShiftId: m.teamShiftId,
     levelLabel: m.teamLevel.label,
     shiftLabel: m.teamShift.label,
+    rotationIndex: m.rotationIndex,
+    weekendRotation: weekendRotationById.get(m.id) ?? true,
     sobreaviso: m.sobreaviso,
     participatesInSchedule: m.participatesInSchedule,
     createdAt: m.createdAt,
@@ -83,6 +110,7 @@ export async function getMonthlySchedule(
   const memberOrder = [
     { teamLevel: { sortOrder: "asc" } } as const,
     { teamShift: { sortOrder: "asc" } } as const,
+    { rotationIndex: "asc" } as const,
     { name: "asc" } as const,
   ];
 
@@ -111,7 +139,14 @@ export async function getMonthlySchedule(
       }
     }
     const memberFormCatalog = scheduleTeamId ? await loadMemberFormCatalogForTeam(scheduleTeamId) : null;
-    return { schedule: null, assignments, memberFormCatalog, members: members.map(toTeamMemberRow) };
+    const rulesTeamId = scheduleTeamId ?? members[0]?.teamId ?? null;
+    const weekendRotationById = await weekendRotationByMemberIdForTeam(rulesTeamId);
+    return {
+      schedule: null,
+      assignments,
+      memberFormCatalog,
+      members: members.map((m) => toTeamMemberRow(m, weekendRotationById)),
+    };
   }
 
   const members = await prisma.teamMember.findMany({
@@ -121,6 +156,8 @@ export async function getMonthlySchedule(
   });
 
   const memberFormCatalog = scheduleTeamId ? await loadMemberFormCatalogForTeam(scheduleTeamId) : null;
+  const rulesTeamId = scheduleTeamId ?? members[0]?.teamId ?? null;
+  const weekendRotationById = await weekendRotationByMemberIdForTeam(rulesTeamId);
 
   return {
     schedule: {
@@ -138,7 +175,7 @@ export async function getMonthlySchedule(
       date: dateToKey(a.date),
       status: a.status,
     })),
-    members: members.map(toTeamMemberRow),
+    members: members.map((m) => toTeamMemberRow(m, weekendRotationById)),
     memberFormCatalog,
   };
 }

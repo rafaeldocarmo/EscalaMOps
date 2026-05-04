@@ -99,6 +99,7 @@ export async function getWeeklySchedule(): Promise<{
     orderBy: [
       { teamLevel: { sortOrder: "asc" } },
       { teamShift: { sortOrder: "asc" } },
+      { rotationIndex: "asc" },
       { name: "asc" },
     ],
     select: {

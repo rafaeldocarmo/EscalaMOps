@@ -16,7 +16,7 @@ import { ScheduleGrid } from "@/components/schedule/schedule-grid";
 import { useMonthNavigation } from "@/hooks/useMonthNavigation";
 import {
   assignmentsToStateMap,
-  buildScheduleSections,
+  buildScheduleSectionsByNextWeekend,
   getScheduleCalendarDays,
 } from "@/lib/scheduleUtils";
 import {
@@ -71,10 +71,6 @@ export function SchedulePreviewDialog({ teamId, disabled }: SchedulePreviewDialo
     onMonthChange: setMonth,
   });
 
-  const sections = useMemo(
-    () => (data ? buildScheduleSections(data.members) : []),
-    [data]
-  );
   const calendarDays = useMemo(
     () => getScheduleCalendarDays(year, month),
     [year, month]
@@ -90,6 +86,13 @@ export function SchedulePreviewDialog({ teamId, disabled }: SchedulePreviewDialo
       }))
     ) : {}),
     [data]
+  );
+  const sections = useMemo(
+    () =>
+      data
+        ? buildScheduleSectionsByNextWeekend(data.members, stateMap, year, month)
+        : [],
+    [data, stateMap, year, month]
   );
 
   const hasContent = data && data.members.length > 0;

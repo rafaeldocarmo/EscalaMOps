@@ -31,7 +31,7 @@ import {
   assignmentsToStateMap,
   getDaysInMonth,
   dateKey,
-  buildScheduleSections,
+  buildScheduleSectionsByNextWeekend,
   getScheduleCalendarDays,
 } from "@/lib/scheduleUtils";
 import { saveScheduleAssignments } from "@/server/schedule/saveScheduleAssignments";
@@ -175,8 +175,14 @@ export function SchedulePageClient({
   );
 
   const sections = useMemo(
-    () => buildScheduleSections(scheduleMembersVisible),
-    [scheduleMembersVisible]
+    () =>
+      buildScheduleSectionsByNextWeekend(
+        scheduleMembersVisible,
+        stateMap,
+        schedule.year,
+        schedule.month
+      ),
+    [scheduleMembersVisible, stateMap, schedule.year, schedule.month]
   );
 
   const sobreavisoEligibleMembers = useMemo(
@@ -254,10 +260,11 @@ export function SchedulePageClient({
         return next;
       });
       toast.success("Posições na fila trocadas.");
+      router.refresh();
     } else {
       toast.error(result.error ?? "Erro ao trocar posições.");
     }
-  }, [memberById, selectedMemberId, swapLoading, schedule.id]);
+  }, [memberById, selectedMemberId, swapLoading, schedule.id, router]);
 
   const handleOnCallMemberClick = useCallback(async (memberId: string) => {
     if (swapLoading) return;
@@ -304,10 +311,11 @@ export function SchedulePageClient({
       setSobreavisoWeeks(result.sobreavisoWeeks);
       setHasGenerated(true);
       toast.success("Escala gerada.");
+      router.refresh();
     } else {
       toast.info(result.error);
     }
-  }, [hasGenerated, schedule.id]);
+  }, [hasGenerated, schedule.id, router]);
 
   const handleGenerateSobreaviso = useCallback(async () => {
     setGenerateSobreavisoLoading(true);
@@ -388,12 +396,14 @@ export function SchedulePageClient({
     setSelectedMemberId(null);
     setSelectedOnCallMemberId(null);
     toast.success("Escala recuada (voltar a fila).");
+    router.refresh();
   }, [
     backCycleLoading,
     clearLoading,
     saveLoading,
     generateLoading,
     schedule.id,
+    router,
   ]);
 
   const handleExportExcel = useCallback(async () => {

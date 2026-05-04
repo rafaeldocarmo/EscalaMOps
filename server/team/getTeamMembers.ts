@@ -4,6 +4,10 @@ import { auth } from "@/auth";
 import { isStaffAdmin } from "@/lib/authz";
 import { prisma } from "@/lib/prisma";
 import { resolveTeamIdForReadForSession } from "@/lib/multiTeam";
+import {
+  getWeekendCoverageCount,
+  resolveScheduleRules,
+} from "@/server/schedule/resolveScheduleRules";
 import type { TeamMemberRow } from "@/types/team";
 
 export type GetTeamMembersOptions = {
@@ -40,6 +44,7 @@ export async function getTeamMembers(opts?: GetTeamMembersOptions): Promise<Team
       },
       sobreaviso: true,
       participatesInSchedule: true,
+      rotationIndex: true,
       createdAt: true,
       updatedAt: true,
     },
@@ -50,6 +55,8 @@ export async function getTeamMembers(opts?: GetTeamMembersOptions): Promise<Team
     ],
   });
 
+  const resolved = resolvedTeamId ? await resolveScheduleRules(resolvedTeamId) : null;
+
   return rows.map((m) => ({
     id: m.id,
     name: m.name,
@@ -58,6 +65,10 @@ export async function getTeamMembers(opts?: GetTeamMembersOptions): Promise<Team
     teamShiftId: m.teamShiftId,
     levelLabel: m.teamLevel.label,
     shiftLabel: m.teamShift.label,
+    rotationIndex: m.rotationIndex,
+    weekendRotation: resolved
+      ? getWeekendCoverageCount(resolved, m.teamShiftId, m.teamLevelId) > 0
+      : true,
     sobreaviso: m.sobreaviso,
     participatesInSchedule: m.participatesInSchedule,
     createdAt: m.createdAt,
