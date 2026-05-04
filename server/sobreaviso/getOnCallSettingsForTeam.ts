@@ -74,7 +74,7 @@ export async function getOnCallSettingsForTeam(
     const v = rawByLevel?.[lvl.id];
     const n = typeof v === "number" ? v : typeof v === "string" ? Number(v) : NaN;
     rotationIntervalDaysByLevel[lvl.id] =
-      Number.isFinite(n) && n > 0 && n <= 6 ? Math.trunc(n) : legacyDefaultRotation;
+      Number.isFinite(n) && n > 0 && n <= 8 ? Math.trunc(n) : legacyDefaultRotation;
   }
 
   const settings: OnCallSettingsRow = {

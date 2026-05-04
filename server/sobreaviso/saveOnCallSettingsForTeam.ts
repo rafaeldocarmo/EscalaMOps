@@ -55,8 +55,8 @@ export async function saveOnCallSettingsForTeam(
   for (const [levelId, v] of Object.entries(rawByLevel)) {
     if (!allowedSet.has(levelId)) continue;
     const n = Math.trunc(Number(v));
-    if (!Number.isFinite(n) || n <= 0 || n > 6) {
-      return { success: false, error: "O intervalo de dias deve ser maior que 0 e menor ou igual a 6." };
+    if (!Number.isFinite(n) || n <= 0 || n > 8) {
+      return { success: false, error: "O intervalo de dias deve ser maior que 0 e menor ou igual a 8." };
     }
     rotationIntervalDaysByLevel[levelId] = n;
   }

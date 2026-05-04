@@ -79,7 +79,7 @@ function RotationIntervalCell({
               ? "bg-background text-foreground hover:bg-sky-100/80 dark:hover:bg-sky-900/40"
               : "bg-muted/30 text-muted-foreground/60 hover:bg-muted/50",
           )}
-          disabled={disabled || days >= 6}
+          disabled={disabled || days >= 8}
           onClick={onInc}
         >
           +
@@ -115,7 +115,7 @@ export function OnCallSettingsPageClient({ initialData }: { initialData: OnCallS
       const next: Record<string, number> = { ...prev };
       for (const id of participantTeamLevelIds) {
         const v = next[id];
-        if (typeof v !== "number" || !Number.isFinite(v) || v <= 0 || v > 6) next[id] = 3;
+        if (typeof v !== "number" || !Number.isFinite(v) || v <= 0 || v > 8) next[id] = 3;
       }
       for (const k of Object.keys(next)) {
         if (!participantTeamLevelIds.includes(k)) delete next[k];
@@ -127,8 +127,8 @@ export function OnCallSettingsPageClient({ initialData }: { initialData: OnCallS
   const validationError = useMemo(() => {
     for (const [levelId, v] of Object.entries(rotationIntervalDaysByLevel)) {
       const n = Math.trunc(Number(v));
-      if (!Number.isFinite(n) || n <= 0 || n > 6) {
-        return "O intervalo de dias deve ser maior que 0 e menor ou igual a 6.";
+      if (!Number.isFinite(n) || n <= 0 || n > 8) {
+        return "O intervalo de dias deve ser maior que 0 e menor ou igual a 8.";
       }
       if (levelId.trim().length === 0) return "Configuração inválida.";
     }
@@ -289,7 +289,7 @@ export function OnCallSettingsPageClient({ initialData }: { initialData: OnCallS
                           onInc={() =>
                             setRotationIntervalDaysByLevel((prev) => ({
                               ...prev,
-                              [l.id]: Math.min(6, (prev[l.id] ?? 3) + 1),
+                              [l.id]: Math.min(8, (prev[l.id] ?? 3) + 1),
                             }))
                           }
                         />
@@ -299,7 +299,7 @@ export function OnCallSettingsPageClient({ initialData }: { initialData: OnCallS
               </div>
             )}
             <p className="text-xs text-muted-foreground">
-              Representa a quantidade de dias para troca do responsável pelo sobreaviso (1 a 6).
+              Representa a quantidade de dias para troca do responsável pelo sobreaviso (1 a 8).
             </p>
           </div>
 

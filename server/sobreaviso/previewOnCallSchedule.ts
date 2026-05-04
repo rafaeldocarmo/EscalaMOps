@@ -151,7 +151,7 @@ export async function previewOnCallSchedule(input: {
 
     const rawInterval = input.rotationIntervalDaysByLevel?.[level.id];
     const interval = Math.trunc(Number(rawInterval));
-    const intervalDays = Number.isFinite(interval) && interval > 0 && interval <= 6 ? interval : 3;
+    const intervalDays = Number.isFinite(interval) && interval > 0 && interval <= 8 ? interval : 3;
 
     let cursor = new Date(monthStart);
     while (cursor < nextMonthStart) {

@@ -48,7 +48,7 @@ export async function loadOnCallSettings(teamId: string): Promise<TeamOnCallSett
     const v = rawByLevel?.[id];
     const n = typeof v === "number" ? v : typeof v === "string" ? Number(v) : NaN;
     rotationIntervalDaysByLevel[id] =
-      Number.isFinite(n) && n > 0 && n <= 6 ? Math.trunc(n) : legacyDefaultRotationDays;
+      Number.isFinite(n) && n > 0 && n <= 8 ? Math.trunc(n) : legacyDefaultRotationDays;
   }
 
   return { participantTeamLevelIds, rotationIntervalDaysByLevel, legacyDefaultRotationDays };

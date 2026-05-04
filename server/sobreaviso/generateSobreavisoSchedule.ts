@@ -121,7 +121,7 @@ export async function generateSobreavisoSchedule(
     const raw = settings?.rotationIntervalDaysByLevel?.[gid];
     const interval = Math.trunc(Number(raw));
     const intervalDays =
-      Number.isFinite(interval) && interval > 0 && interval <= 6 ? interval : (settings?.legacyDefaultRotationDays ?? 3);
+      Number.isFinite(interval) && interval > 0 && interval <= 8 ? interval : (settings?.legacyDefaultRotationDays ?? 3);
 
     let cursor = new Date(monthStartNoonUtc);
     while (cursor < nextMonthStartNoonUtc) {
