@@ -1,18 +1,13 @@
-import {
-  startOfMonth,
-  endOfMonth,
-  addDays,
-  subDays,
-  getDay,
-  format,
-} from "date-fns";
+import { startOfMonth, format } from "date-fns";
 import { prisma } from "@/lib/prisma";
+import { loadOnCallSettings } from "@/server/sobreaviso/loadOnCallSettings";
 
 /**
  * Escala de Sobreaviso — regras:
  *
- * - Períodos: semana de sexta a sexta; as trocas ocorrem na sexta.
- * - Grupos: um por teamLevelId (nível do catálogo) com membros sobreaviso=true.
+ * - Períodos: intervalos em dias (configurável por nível).
+ * - Grupos: um por teamLevelId (nível do catálogo) com membros sobreaviso=true,
+ *   filtrados pelos níveis participantes configurados para a equipe.
  * - Uma fila por grupo (onCallRotationIndex); sempre o próximo da fila.
  * - Ao gerar o mês seguinte, o próximo continua de onde o último parou.
  * - Independente da escala normal. Para regerar, é preciso limpar antes.
@@ -28,8 +23,6 @@ export interface OnCallWeek {
   teamLevelId: string;
 }
 
-const FRIDAY = 5;
-
 interface OnCallQueueMember {
   id: string;
   name: string;
@@ -38,31 +31,13 @@ interface OnCallQueueMember {
   onCallRotationIndex: number;
 }
 
-function fridayOnOrBefore(date: Date): Date {
-  const dow = getDay(date);
-  const diff = (dow - FRIDAY + 7) % 7;
-  return diff === 0 ? new Date(date) : subDays(date, diff);
-}
-
-/**
- * Sextas que cobrem o mês: da sexta no ou antes do dia 1 até a primeira sexta após o fim do mês.
- */
-function getFridayBoundaries(year: number, month: number): Date[] {
-  const monthStart = startOfMonth(new Date(year, month - 1));
-  const monthEnd = endOfMonth(new Date(year, month - 1));
-  const first = fridayOnOrBefore(monthStart);
-  const fridays: Date[] = [];
-  let d = new Date(first);
-  while (d <= monthEnd) {
-    fridays.push(new Date(d));
-    d = addDays(d, 7);
-  }
-  fridays.push(new Date(d));
-  return fridays;
-}
 
 function toDateKey(d: Date): string {
   return format(d, "yyyy-MM-dd");
+}
+
+function addDaysUTC(d: Date, days: number): Date {
+  return new Date(d.getTime() + days * 86400000);
 }
 
 function getQueueForGroup(
@@ -94,10 +69,15 @@ export async function generateSobreavisoSchedule(
   year: number,
   teamId?: string | null,
 ): Promise<OnCallWeek[]> {
+  const resolvedTeamId = teamId ?? null;
+  const settings = resolvedTeamId ? await loadOnCallSettings(resolvedTeamId) : null;
+  const participantLevelIdSet = settings ? new Set(settings.participantTeamLevelIds) : null;
+
   const eligibleMembers = await prisma.teamMember.findMany({
     where: {
       sobreaviso: true,
-      ...(teamId ? { teamId } : {}),
+      ...(resolvedTeamId ? { teamId: resolvedTeamId } : {}),
+      ...(participantLevelIdSet ? { teamLevelId: { in: [...participantLevelIdSet] } } : {}),
     },
     select: {
       id: true,
@@ -113,7 +93,7 @@ export async function generateSobreavisoSchedule(
     id: m.id,
     name: m.name,
     teamLevelId: m.teamLevelId,
-      teamLevelLabel: m.teamLevel?.label ?? m.teamLevelId,
+    teamLevelLabel: m.teamLevel?.label ?? m.teamLevelId,
     onCallRotationIndex: m.onCallRotationIndex,
   }));
 
@@ -131,53 +111,41 @@ export async function generateSobreavisoSchedule(
     toDateKey(nextMonthStart) + "T12:00:00.000Z",
   );
 
-  const fridays = getFridayBoundaries(year, month);
-  if (fridays.length < 2) return [];
-
   const result: OnCallWeek[] = [];
   const rotationUpdates = new Map<string, number>();
 
-  const currentByGroup = new Map<string, OnCallQueueMember | null>();
-  for (const gid of groupIds) currentByGroup.set(gid, null);
+  for (const gid of groupIds) {
+    const queue = getQueueForGroup(queueMembers, gid);
+    if (queue.length === 0) continue;
 
-  for (let i = 0; i < fridays.length - 1; i++) {
-    const periodStart = fridays[i];
+    const raw = settings?.rotationIntervalDaysByLevel?.[gid];
+    const interval = Math.trunc(Number(raw));
+    const intervalDays =
+      Number.isFinite(interval) && interval > 0 && interval <= 6 ? interval : (settings?.legacyDefaultRotationDays ?? 3);
 
-    for (const gid of groupIds) {
-      const current = currentByGroup.get(gid);
+    let cursor = new Date(monthStartNoonUtc);
+    while (cursor < nextMonthStartNoonUtc) {
+      const pick = pickNextAndAdvance(queue);
+      if (!pick) break;
+      const { selected, newIndex } = pick;
+      rotationUpdates.set(selected.id, newIndex);
+      selected.onCallRotationIndex = newIndex;
+      queue.sort((a, b) => a.onCallRotationIndex - b.onCallRotationIndex);
 
-      if (periodStart >= monthStart) {
-        const queue = getQueueForGroup(queueMembers, gid);
-        const pick = pickNextAndAdvance(queue);
-        if (!pick) continue;
-
-        const { selected, newIndex } = pick;
-        rotationUpdates.set(selected.id, newIndex);
-        selected.onCallRotationIndex = newIndex;
-        currentByGroup.set(gid, selected);
-      } else if (!current) {
-        const queue = getQueueForGroup(queueMembers, gid);
-        if (queue.length === 0) continue;
-        currentByGroup.set(gid, queue[queue.length - 1]);
-      }
-
-      const resolvedCurrent = currentByGroup.get(gid);
-      if (!resolvedCurrent) continue;
-
-      const periodEnd = fridays[i + 1];
-      const segStart = periodStart < monthStart ? monthStart : periodStart;
-      const segEnd = periodEnd > nextMonthStart ? nextMonthStart : periodEnd;
-
-      if (segStart >= segEnd) continue;
+      const segEnd = addDaysUTC(cursor, intervalDays);
+      const clampedEnd = segEnd > nextMonthStartNoonUtc ? nextMonthStartNoonUtc : segEnd;
+      if (cursor >= clampedEnd) break;
 
       result.push({
-        startDate: toDateKey(segStart),
-        endDate: toDateKey(segEnd),
-        memberId: resolvedCurrent.id,
-        memberName: resolvedCurrent.name,
+        startDate: toDateKey(cursor),
+        endDate: toDateKey(clampedEnd),
+        memberId: selected.id,
+        memberName: selected.name,
         level: labelByGroupId.get(gid) ?? gid,
         teamLevelId: gid,
       });
+
+      cursor = clampedEnd;
     }
   }
 
@@ -186,7 +154,7 @@ export async function generateSobreavisoSchedule(
     where: {
       startDate: { lt: nextMonthStartNoonUtc },
       endDate: { gt: monthStartNoonUtc },
-      ...(teamId ? { member: { teamId } } : {}),
+      ...(resolvedTeamId ? { member: { teamId: resolvedTeamId } } : {}),
     },
   });
 

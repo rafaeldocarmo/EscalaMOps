@@ -84,9 +84,6 @@ function ShiftColumnHeader({
       >
         {shiftCircleLabel(label)}
       </span>
-      <span className="line-clamp-2 min-h-9 max-w-[7rem] text-sm font-medium leading-tight text-foreground">
-        {label}
-      </span>
       {total !== undefined ? (
         <span className="text-xs tabular-nums text-muted-foreground">
           {totalLabel}: {total}

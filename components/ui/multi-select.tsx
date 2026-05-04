@@ -40,7 +40,9 @@ export function MultiSelect<T extends string>({
 }: MultiSelectProps<T>) {
   const id = useId();
   const rootRef = useRef<HTMLDivElement | null>(null);
+  const buttonRef = useRef<HTMLButtonElement | null>(null);
   const [open, setOpen] = useState(false);
+  const [popoverPos, setPopoverPos] = useState<{ top: number; left: number; width: number } | null>(null);
 
   useEffect(() => {
     if (!open) return;
@@ -53,6 +55,33 @@ export function MultiSelect<T extends string>({
     };
     document.addEventListener("mousedown", onDocMouseDown);
     return () => document.removeEventListener("mousedown", onDocMouseDown);
+  }, [open]);
+
+  useEffect(() => {
+    if (!open) return;
+    const update = () => {
+      const el = buttonRef.current;
+      if (!el) return;
+      const r = el.getBoundingClientRect();
+      const width = Math.max(288, Math.round(r.width));
+      const gap = 8;
+      const left = Math.max(8, Math.min(window.innerWidth - width - 8, r.left));
+      const preferredTop = r.bottom + gap;
+      const preferredBottom = preferredTop + 320; // approximate popover max
+      const top =
+        preferredBottom > window.innerHeight - 8
+          ? Math.max(8, r.top - gap - 320)
+          : preferredTop;
+      setPopoverPos({ top, left, width });
+    };
+    update();
+    window.addEventListener("resize", update);
+    // capture scrolls from any parent
+    window.addEventListener("scroll", update, true);
+    return () => {
+      window.removeEventListener("resize", update);
+      window.removeEventListener("scroll", update, true);
+    };
   }, [open]);
 
   const selected = useMemo(() => sortByOptionsOrder(options, value), [options, value]);
@@ -81,6 +110,7 @@ export function MultiSelect<T extends string>({
     <div ref={rootRef} className={cn("relative", className)}>
       <Button
         id={id}
+        ref={buttonRef}
         type="button"
         variant="outline"
         size={size}
@@ -97,7 +127,12 @@ export function MultiSelect<T extends string>({
         <div
           role="listbox"
           aria-labelledby={id}
-          className="absolute right-0 z-50 mt-2 w-72 rounded-lg border bg-popover p-2 text-popover-foreground shadow-md"
+          className="fixed z-50 rounded-lg border bg-popover p-2 text-popover-foreground shadow-md"
+          style={{
+            top: popoverPos?.top ?? 0,
+            left: popoverPos?.left ?? 0,
+            width: popoverPos?.width ?? 288,
+          }}
         >
           <div className="flex items-center justify-between gap-2 px-1 pb-2">
             <span className="text-xs font-medium text-muted-foreground">{label}</span>
