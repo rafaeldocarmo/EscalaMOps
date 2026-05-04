@@ -32,7 +32,7 @@ type RawMember = {
   id: string;
   name: string;
   phone: string;
-  teamId: string;
+  teamId: string | null;
   teamLevelId: string;
   teamShiftId: string;
   rotationIndex: number;
