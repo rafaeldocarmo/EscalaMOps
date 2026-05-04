@@ -10,7 +10,6 @@ import { STICKY_CELL_BASE } from "./schedule-header";
 
 interface ScheduleRowProps {
   member: TeamMemberRow;
-  queuePosition?: number;
   calendarDays: ScheduleCalendarDay[];
   stateSlice: Record<string, AssignmentStatus>;
   shiftSwapPurpleDateKeys?: string[];
@@ -24,7 +23,6 @@ interface ScheduleRowProps {
 
 function ScheduleRowComponent({
   member,
-  queuePosition,
   calendarDays,
   stateSlice,
   shiftSwapPurpleDateKeys,
@@ -48,21 +46,10 @@ function ScheduleRowComponent({
           className={`block whitespace-nowrap overflow-hidden text-ellipsis rounded px-1 py-0.5 transition-colors ${
             onMemberClick ? "cursor-pointer hover:bg-blue-100" : ""
           } ${isSelected ? "bg-blue-500 text-white" : ""}`}
-          title={
-            member.weekendRotation && Number.isFinite(queuePosition)
-              ? `${member.name} • Rodízio FDS #${queuePosition}`
-              : member.weekendRotation
-                ? member.name
-                : `${member.name} • Fora do rodízio de FDS (sempre folga no fim de semana)`
-          }
+          title={member.name}
           onClick={onMemberClick ? () => onMemberClick(member.id) : undefined}
         >
           {formatMemberName(member.name)}
-          {member.weekendRotation && Number.isFinite(queuePosition) ? (
-            <span className="ml-1 text-[10px] opacity-75">{`— Fila FDS #${queuePosition}`}</span>
-          ) : !member.weekendRotation ? (
-            <span className="ml-1 text-[10px] opacity-60">{`— sem FDS`}</span>
-          ) : null}
         </span>
       </td>
       {calendarDays.map((day) => (
