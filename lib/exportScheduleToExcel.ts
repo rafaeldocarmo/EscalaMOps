@@ -2,7 +2,7 @@ import ExcelJS from "exceljs";
 import type { ScheduleStateMap } from "@/types/schedule";
 import type { TeamMemberRow } from "@/types/team";
 import type { SobreavisoWeek } from "@/server/sobreaviso/getSobreavisoScheduleForMonth";
-import { getDaysInMonth, dateKey, buildScheduleSections } from "./scheduleUtils";
+import { getDaysInMonth, dateKey, buildScheduleSectionsByNextWeekend } from "./scheduleUtils";
 
 const DAY_COLUMN_WIDTH = 6.3;
 const HEADER_ROW_HEIGHT_PT = (77 * 72) / 96;
@@ -165,7 +165,7 @@ export async function exportScheduleToExcel(
     return `${dd}/${mm}/${year}`;
   });
   const headerRow = ["Nome", "Nível", "Turno", ...dayHeaders];
-  const sections = buildScheduleSections(members);
+  const sections = buildScheduleSectionsByNextWeekend(members, stateMap, year, month);
 
   headerRow.forEach((text, col) => {
     const cell = ws.getCell(1, col + 1);

@@ -6,7 +6,7 @@ import {
   format,
 } from "date-fns";
 import { prisma } from "@/lib/prisma";
-import type { QueueMember } from "./queueManager";
+import { densifyWeekendQueueByGroup, type QueueMember } from "./queueManager";
 import { selectWeekendWorkers } from "./weekendSelector";
 import {
   assignCompensationDaysOff,
@@ -117,6 +117,12 @@ export async function generateMonthlySchedule(
       .map((m) => m.id)
   );
 
+  /**
+   * Alinha índices por grupo a 0..n-1 na ordem atual da fila, para que com
+   * cobertura 2 o FDS use sempre duplas consecutivas (Fila FDS #1–#2, #3–#4, …).
+   */
+  densifyWeekendQueueByGroup(rotationMembers);
+
   const memberIds = new Set(allMembers.map((m) => m.id));
   const assignmentsMap = new Map<string, "WORK" | "OFF">();
   const sep = "|";
@@ -143,7 +149,6 @@ export async function generateMonthlySchedule(
     d = addDays(d, 1);
   }
 
-  const finalQueueUpdates = new Map<string, number>();
   const weekendsWithWorkers: WeekendWithWorkers[] = [];
 
   // Quando o 1º dia do mês é domingo, ele pertence ao último FDS do mês anterior.
@@ -183,7 +188,6 @@ export async function generateMonthlySchedule(
         resolved
       );
       for (const u of queueUpdates) {
-        finalQueueUpdates.set(u.memberId, u.newRotationIndex);
         const m = rotationMembers.find((x) => x.id === u.memberId);
         if (m) m.rotationIndex = u.newRotationIndex;
       }
@@ -212,7 +216,6 @@ export async function generateMonthlySchedule(
     );
 
     for (const u of queueUpdates) {
-      finalQueueUpdates.set(u.memberId, u.newRotationIndex);
       const m = rotationMembers.find((x) => x.id === u.memberId);
       if (m) m.rotationIndex = u.newRotationIndex;
     }
@@ -266,13 +269,15 @@ export async function generateMonthlySchedule(
     resolved
   );
 
-  if (!dryRun) {
-    for (const [memberId, newRotationIndex] of finalQueueUpdates) {
-      await prisma.teamMember.update({
-        where: { id: memberId },
-        data: { rotationIndex: newRotationIndex },
-      });
-    }
+  if (!dryRun && rotationMembers.length > 0) {
+    await prisma.$transaction(
+      rotationMembers.map((m) =>
+        prisma.teamMember.update({
+          where: { id: m.id },
+          data: { rotationIndex: m.rotationIndex },
+        })
+      )
+    );
   }
 
   const result: ScheduleAssignmentOutput[] = withCompensation.map((a) => ({

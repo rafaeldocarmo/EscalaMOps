@@ -9,7 +9,7 @@ import {
 } from "@/lib/scheduleMemberFilterOptions";
 import {
   assignmentsToStateMap,
-  buildScheduleSections,
+  buildScheduleSectionsByNextWeekend,
   getScheduleCalendarDays,
 } from "@/lib/scheduleUtils";
 import { ScheduleGrid } from "./schedule-grid";
@@ -104,7 +104,7 @@ export function MonthlyScheduleView() {
     visibleMembers = visibleMembers.filter((m) => shiftFilter.includes(m.teamShiftId));
   }
 
-  const sections = buildScheduleSections(visibleMembers);
+  const sections = buildScheduleSectionsByNextWeekend(visibleMembers, stateMap, year, month);
   const calendarDays = getScheduleCalendarDays(year, month);
 
   return (

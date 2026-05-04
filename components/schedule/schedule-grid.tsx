@@ -49,21 +49,32 @@ export function ScheduleGrid({
                   className="border-b border-border bg-muted/20 p-0"
                 />
               </tr>
-              {section.members.map((member) => (
-                <ScheduleRow
-                  key={member.id}
-                  member={member}
-                  calendarDays={calendarDays}
-                  stateSlice={stateMap[member.id] ?? {}}
-                  shiftSwapPurpleDateKeys={shiftSwapPurpleByMemberId?.[member.id]}
-                  hoursWithdrawnOrangeDateKeys={hoursWithdrawnOrangeByMemberId?.[member.id]}
-                  locked={locked}
-                  onCellToggle={onCellToggle}
-                  onMemberClick={onMemberClick}
-                  isSelected={selectedMemberId === member.id}
-                  stickyColumnWidth={STICKY_COLUMN_WIDTH}
-                />
-              ))}
+              {(() => {
+                const rotationMembers = section.members.filter((m) => m.weekendRotation);
+                const orderedByQueue = [...rotationMembers].sort(
+                  (a, b) =>
+                    a.rotationIndex - b.rotationIndex || a.name.localeCompare(b.name, "pt-BR")
+                );
+                const queuePosById = new Map<string, number>();
+                orderedByQueue.forEach((m, idx) => queuePosById.set(m.id, idx + 1));
+
+                return section.members.map((member) => (
+                 <ScheduleRow
+                   key={member.id}
+                   member={member}
+                   queuePosition={member.weekendRotation ? queuePosById.get(member.id) : undefined}
+                   calendarDays={calendarDays}
+                   stateSlice={stateMap[member.id] ?? {}}
+                   shiftSwapPurpleDateKeys={shiftSwapPurpleByMemberId?.[member.id]}
+                   hoursWithdrawnOrangeDateKeys={hoursWithdrawnOrangeByMemberId?.[member.id]}
+                   locked={locked}
+                   onCellToggle={onCellToggle}
+                   onMemberClick={onMemberClick}
+                   isSelected={selectedMemberId === member.id}
+                   stickyColumnWidth={STICKY_COLUMN_WIDTH}
+                 />
+                ));
+              })()}
             </Fragment>
           ))}
         </tbody>

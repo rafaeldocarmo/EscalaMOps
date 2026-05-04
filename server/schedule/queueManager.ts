@@ -14,6 +14,15 @@ export interface QueueMember {
   rotationIndex: number;
 }
 
+/** Ordem estável da fila FDS: índice → nome → id. */
+export function compareQueueMembers(a: QueueMember, b: QueueMember): number {
+  const d = a.rotationIndex - b.rotationIndex;
+  if (d !== 0) return d;
+  const n = a.name.localeCompare(b.name, "pt-BR");
+  if (n !== 0) return n;
+  return a.id.localeCompare(b.id);
+}
+
 /** Chave interna estável para um grupo (shift, level). */
 export function groupKey(teamShiftId: string, teamLevelId: string): string {
   return `${teamShiftId}|${teamLevelId}`;
@@ -30,7 +39,21 @@ export function getQueueOrder(
 ): QueueMember[] {
   return members
     .filter((m) => m.teamShiftId === teamShiftId && m.teamLevelId === teamLevelId)
-    .sort((a, b) => a.rotationIndex - b.rotationIndex);
+    .sort(compareQueueMembers);
+}
+
+/**
+ * Reescreve `rotationIndex` em cada grupo (turno×nível) para 0..n-1,
+ * preservando a ordem relativa atual. Assim as “duplas” do rodízio são sempre
+ * posições consecutivas (0–1, 2–3, …); cobertura 2 pega sempre a próxima dupla.
+ */
+export function densifyWeekendQueueByGroup(members: QueueMember[]): void {
+  for (const { teamShiftId, teamLevelId } of listMemberGroups(members)) {
+    const queue = getQueueOrder(members, teamShiftId, teamLevelId);
+    queue.forEach((m, i) => {
+      m.rotationIndex = i;
+    });
+  }
 }
 
 /**
