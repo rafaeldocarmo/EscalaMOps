@@ -12,6 +12,7 @@ export interface SobreavisoWeek {
   memberId: string;
   memberName: string;
   level: string;
+  teamLevelId: string | null;
 }
 
 export async function getSobreavisoScheduleForMonth(
@@ -54,5 +55,6 @@ export async function getSobreavisoScheduleForMonth(
     memberId: a.memberId,
     memberName: a.member.name,
     level: a.teamLevel?.label ?? "",
+    teamLevelId: a.teamLevelId,
   }));
 }
