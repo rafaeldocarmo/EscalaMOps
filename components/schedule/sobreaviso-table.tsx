@@ -12,6 +12,7 @@ export interface SobreavisoEligibleMember {
   id: string;
   name: string;
   level: string;
+  teamLevelId: string;
 }
 
 interface SobreavisoTableProps {
@@ -21,12 +22,16 @@ interface SobreavisoTableProps {
   eligibleMembers?: SobreavisoEligibleMember[];
   onMemberClick?: (memberId: string) => void;
   selectedMemberId?: string | null;
+  editable?: boolean;
+  manualActiveMap?: Record<string, Record<string, boolean>>;
+  onCellClick?: (memberId: string, dateKey: string, teamLevelId: string) => void;
 }
 
 interface SobreavisoMember {
   memberId: string;
   memberName: string;
   level: string;
+  teamLevelId: string;
   activeDates: Set<string>;
   transitionDates: Set<string>;
 }
@@ -52,6 +57,7 @@ function buildSobreavisoMembers(
         memberId: m.id,
         memberName: m.name,
         level: m.level,
+        teamLevelId: m.teamLevelId,
         activeDates: new Set(),
         transitionDates: new Set(),
       });
@@ -65,6 +71,7 @@ function buildSobreavisoMembers(
         memberId: w.memberId,
         memberName: w.memberName,
         level: w.level,
+        teamLevelId: w.teamLevelId ?? "",
         activeDates: new Set(),
         transitionDates: new Set(),
       });
@@ -116,6 +123,9 @@ export function SobreavisoTable({
   eligibleMembers,
   onMemberClick,
   selectedMemberId,
+  editable = false,
+  manualActiveMap,
+  onCellClick,
 }: SobreavisoTableProps) {
   const currentMonthDays = calendarDays.filter((d) => d.isCurrentMonth);
   const sobreavisoMembers = buildSobreavisoMembers(weeks, eligibleMembers);
@@ -172,8 +182,9 @@ export function SobreavisoTable({
                         </span>
                       </td>
                       {currentMonthDays.map((day) => {
-                        const isActive = member.activeDates.has(day.dateKey);
-                        const isTransition = member.transitionDates.has(day.dateKey);
+                        const isActive = manualActiveMap
+                          ? (manualActiveMap[member.memberId]?.[day.dateKey] ?? false)
+                          : member.activeDates.has(day.dateKey);
                         const hoverLabel = `${day.weekdayLabel}, ${day.dayLabel}/${day.dateKey.slice(5, 7)}/${day.dateKey.slice(0, 4)}`;
                         return (
                           <td
@@ -181,12 +192,16 @@ export function SobreavisoTable({
                             className={cn(
                               "group relative h-8 min-w-[2.25rem] border-b border-r border-border p-0 text-xs last:border-r-0",
                               isActive
-                                ? "bg-blue-500"
-                                : isTransition
-                                  ? "bg-blue-200"
-                                  : "bg-background"
+                                ? "bg-green-500 dark:bg-green-600"
+                                : "bg-zinc-200 dark:bg-zinc-900",
+                              editable ? "cursor-pointer hover:ring-1 hover:ring-blue-300" : ""
                             )}
-                            aria-label={`${day.dateKey}: ${isActive ? "SOBREAVISO" : isTransition ? "TRANSIÇÃO" : ""}`}
+                            aria-label={`${day.dateKey}: ${isActive ? "SOBREAVISO" : ""}`}
+                            onClick={
+                              editable && onCellClick
+                                ? () => onCellClick(member.memberId, day.dateKey, member.teamLevelId)
+                                : undefined
+                            }
                           >
                             <span
                               className={cn(

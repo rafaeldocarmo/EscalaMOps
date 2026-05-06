@@ -38,6 +38,7 @@ import { saveScheduleAssignments } from "@/server/schedule/saveScheduleAssignmen
 import { generateAutomaticSchedule } from "@/server/schedule/generateAutomaticSchedule";
 import { generateSobreavisoForMonth } from "@/server/sobreaviso/generateSobreavisoForMonth";
 import { clearSobreavisoForMonth } from "@/server/sobreaviso/clearSobreavisoForMonth";
+import { saveSobreavisoForMonth } from "@/server/sobreaviso/saveSobreavisoForMonth";
 import { clearScheduleAssignments } from "@/server/schedule/clearScheduleAssignments";
 import { adminSwapQueuePositions } from "@/server/schedule/adminSwapQueuePositions";
 import { adminSwapOnCallPositions } from "@/server/sobreaviso/adminSwapOnCallPositions";
@@ -47,6 +48,28 @@ import { Button } from "@/components/ui/button";
 import { getShiftSwapRequestsForMonth } from "@/server/swaps/getShiftSwapRequestsForMonth";
 import { getApprovedOffHoursWithdrawnDatesForMonth } from "@/server/bank-hours/getApprovedOffHoursWithdrawnDatesForMonth";
 import { exportScheduleToExcel } from "@/lib/exportScheduleToExcel";
+
+function buildSobreavisoDraftMap(
+  weeks: SobreavisoWeek[],
+  currentMonthDateKeys: string[]
+): Record<string, Record<string, boolean>> {
+  const allowedDates = new Set(currentMonthDateKeys);
+  const draft: Record<string, Record<string, boolean>> = {};
+  for (const week of weeks) {
+    const start = new Date(week.startDate + "T12:00:00.000Z");
+    const end = new Date(week.endDate + "T12:00:00.000Z");
+    for (let cursor = start; cursor < end; cursor = new Date(cursor.getTime() + 86400000)) {
+      const y = cursor.getUTCFullYear();
+      const m = String(cursor.getUTCMonth() + 1).padStart(2, "0");
+      const d = String(cursor.getUTCDate()).padStart(2, "0");
+      const key = `${y}-${m}-${d}`;
+      if (!allowedDates.has(key)) continue;
+      if (!draft[week.memberId]) draft[week.memberId] = {};
+      draft[week.memberId][key] = true;
+    }
+  }
+  return draft;
+}
 
 interface SchedulePageClientProps {
   schedule: ScheduleRow;
@@ -81,6 +104,7 @@ export function SchedulePageClient({
   const [clearSobreavisoLoading, setClearSobreavisoLoading] = useState(false);
   const [clearSobreavisoOpen, setClearSobreavisoOpen] = useState(false);
   const [sobreavisoWeeks, setSobreavisoWeeks] = useState(initialSobreavisoWeeks);
+  const [sobreavisoDraftMap, setSobreavisoDraftMap] = useState<Record<string, Record<string, boolean>>>({});
   const [selectedMemberId, setSelectedMemberId] = useState<string | null>(null);
   const [selectedOnCallMemberId, setSelectedOnCallMemberId] = useState<string | null>(null);
   const [swapLoading, setSwapLoading] = useState(false);
@@ -114,6 +138,7 @@ export function SchedulePageClient({
       dateKey(schedule.year, schedule.month, i + 1)
     );
   }, [schedule.year, schedule.month]);
+  const currentMonthDateKeys = dateKeys;
 
   const calendarDays = useMemo(
     () => getScheduleCalendarDays(schedule.year, schedule.month),
@@ -189,9 +214,18 @@ export function SchedulePageClient({
     () =>
       members
         .filter((m) => m.sobreaviso)
-        .map((m) => ({ id: m.id, name: m.name, level: m.levelLabel })),
+        .map((m) => ({ id: m.id, name: m.name, level: m.levelLabel, teamLevelId: m.teamLevelId })),
     [members]
   );
+
+  const onCallMemberById = useMemo(
+    () => new Map(sobreavisoEligibleMembers.map((m) => [m.id, m] as const)),
+    [sobreavisoEligibleMembers]
+  );
+
+  useEffect(() => {
+    setSobreavisoDraftMap(buildSobreavisoDraftMap(sobreavisoWeeks, currentMonthDateKeys));
+  }, [sobreavisoWeeks, currentMonthDateKeys]);
 
   const handleCellToggle = useCallback((memberId: string, dateKeyStr: string) => {
     setStateMap((prev) => {
@@ -223,16 +257,52 @@ export function SchedulePageClient({
         });
       }
     }
-    const result = await saveScheduleAssignments(schedule.id, payload);
-    setSaveLoading(false);
-    if (result.success) {
-      toast.success("Alterações salvas.");
-      setHasGenerated(nonWorkCount > 0);
-      router.refresh();
-    } else {
-      toast.error(result.error);
+    const scheduleResult = await saveScheduleAssignments(schedule.id, payload);
+    if (!scheduleResult.success) {
+      setSaveLoading(false);
+      toast.error(scheduleResult.error);
+      return;
     }
-  }, [schedule.id, stateMap, members, dateKeys, router]);
+
+    const sobreavisoEntries: Array<{ memberId: string; teamLevelId: string; date: string }> = [];
+    for (const [memberId, byDate] of Object.entries(sobreavisoDraftMap)) {
+      const member = onCallMemberById.get(memberId);
+      if (!member) continue;
+      for (const [date, active] of Object.entries(byDate)) {
+        if (!active) continue;
+        sobreavisoEntries.push({ memberId, teamLevelId: member.teamLevelId, date });
+      }
+    }
+
+    const sobreavisoResult = await saveSobreavisoForMonth({
+      month: schedule.month,
+      year: schedule.year,
+      teamId: selectedTeamId ?? undefined,
+      entries: sobreavisoEntries,
+    });
+
+    setSaveLoading(false);
+    if (!sobreavisoResult.success) {
+      toast.error(sobreavisoResult.error ?? "Escala salva, mas houve erro ao salvar sobreaviso.");
+      return;
+    }
+
+    setSobreavisoWeeks(sobreavisoResult.sobreavisoWeeks);
+    toast.success("Alterações salvas.");
+    setHasGenerated(nonWorkCount > 0);
+    router.refresh();
+  }, [
+    schedule.id,
+    stateMap,
+    members,
+    dateKeys,
+    sobreavisoDraftMap,
+    onCallMemberById,
+    schedule.month,
+    schedule.year,
+    selectedTeamId,
+    router,
+  ]);
 
   const handleMemberClick = useCallback(async (memberId: string) => {
     if (swapLoading) return;
@@ -332,6 +402,30 @@ export function SchedulePageClient({
     setSobreavisoWeeks(result.sobreavisoWeeks);
     toast.success("Sobreaviso gerado.");
   }, [schedule.month, schedule.year, selectedTeamId]);
+
+  const handleOnCallCellClick = useCallback((memberId: string, dateKeyStr: string, teamLevelId: string) => {
+    setSobreavisoDraftMap((prev) => {
+      const next: Record<string, Record<string, boolean>> = {};
+      for (const [id, byDate] of Object.entries(prev)) {
+        next[id] = { ...byDate };
+      }
+
+      const alreadyActive = next[memberId]?.[dateKeyStr] === true;
+      for (const m of sobreavisoEligibleMembers) {
+        if (m.teamLevelId !== teamLevelId) continue;
+        if (next[m.id]?.[dateKeyStr]) {
+          delete next[m.id][dateKeyStr];
+          if (Object.keys(next[m.id]).length === 0) delete next[m.id];
+        }
+      }
+
+      if (!alreadyActive) {
+        if (!next[memberId]) next[memberId] = {};
+        next[memberId][dateKeyStr] = true;
+      }
+      return next;
+    });
+  }, [sobreavisoEligibleMembers]);
 
   const handleClearRequest = useCallback(() => {
     if (clearLoading || saveLoading || generateLoading) return;
@@ -548,7 +642,7 @@ export function SchedulePageClient({
               variant="destructive"
               size="sm"
               onClick={handleClearSobreavisoRequest}
-              disabled={clearSobreavisoLoading || generateSobreavisoLoading}
+              disabled={saveLoading || clearSobreavisoLoading || generateSobreavisoLoading}
             >
               {clearSobreavisoLoading ? "Limpando…" : "Limpar sobreaviso"}
             </Button>
@@ -556,7 +650,7 @@ export function SchedulePageClient({
               variant="outline"
               size="sm"
               onClick={handleGenerateSobreaviso}
-              disabled={generateSobreavisoLoading || sobreavisoWeeks.length > 0}
+              disabled={saveLoading || generateSobreavisoLoading || sobreavisoWeeks.length > 0}
               title={sobreavisoWeeks.length > 0 ? "Limpe o sobreaviso do mês para gerar novamente." : undefined}
             >
               {generateSobreavisoLoading ? "Gerando…" : "Gerar Sobreaviso"}
@@ -569,6 +663,9 @@ export function SchedulePageClient({
           eligibleMembers={sobreavisoEligibleMembers}
           onMemberClick={handleOnCallMemberClick}
           selectedMemberId={selectedOnCallMemberId}
+          editable
+          manualActiveMap={sobreavisoDraftMap}
+          onCellClick={handleOnCallCellClick}
         />
       </div>
     </div>
