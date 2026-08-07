@@ -45,6 +45,9 @@ export function DashboardNav({ hasMemberView }: { hasMemberView: boolean }) {
       <NavLink href="/dashboard/bank-hours" active={pathname.startsWith("/dashboard/bank-hours")}>
         Banco de Horas
       </NavLink>
+      <NavLink href="/dashboard/jira" active={pathname.startsWith("/dashboard/jira")}>
+        Jira
+      </NavLink>
       <ViewAsMemberLink hasMemberView={hasMemberView} />
     </nav>
   );

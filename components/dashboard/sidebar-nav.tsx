@@ -17,6 +17,7 @@ import {
   Shield,
   Bell,
   SlidersHorizontal,
+  Ticket,
 } from "lucide-react";
 import { ViewAsMemberLink } from "@/components/dashboard/view-as-member-link";
 
@@ -102,6 +103,12 @@ export function SidebarNav() {
       label: "Banco de Horas",
       icon: Clock,
       active: pathname.startsWith("/dashboard/bank-hours"),
+    },
+    {
+      href: "/dashboard/jira",
+      label: "Jira",
+      icon: Ticket,
+      active: pathname.startsWith("/dashboard/jira"),
     },
   ];
 
